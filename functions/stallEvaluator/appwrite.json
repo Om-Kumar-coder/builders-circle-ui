@@ -1,10 +1,10 @@
 {
-  "projectId": "",
+  "projectId": "69948407003ab1a59d8d",
   "projectName": "Builder's Circle",
   "functions": [
     {
       "name": "stallEvaluator",
-      "runtime": "node-18.0",
+      "runtime": "node-22",
       "execute": [],
       "events": [],
       "schedule": "0 0 * * *",
@@ -19,10 +19,10 @@
       ],
       "path": "functions/stallEvaluator",
       "variables": {
-        "APPWRITE_ENDPOINT": "",
-        "APPWRITE_PROJECT_ID": "",
-        "APPWRITE_API_KEY": "",
-        "APPWRITE_DATABASE_ID": "",
+        "APPWRITE_ENDPOINT": "https://cloud.appwrite.io/v1",
+        "APPWRITE_PROJECT_ID": "69948407003ab1a59d8d",
+        "APPWRITE_API_KEY": "standard_505c57eb8277a56e2450d16607161dcb1fa37a29ca132693c17c1e94cc0861eb5628fd6780c664617f5604ece73f978dc2b79c8a4b20ad56a9430c093e52adf75619f6432d481b9a2b421824b43769da80679350fc705200e68b03673e54868d4451f112c3ed3edfa12014ffadff3d83f9f38a24d4973f545d3c464b8843a198",
+        "APPWRITE_DATABASE_ID": "builder_circle",
         "PARTICIPATION_COLLECTION_ID": "cycle_participation",
         "CYCLES_COLLECTION_ID": "build_cycles"
       }
