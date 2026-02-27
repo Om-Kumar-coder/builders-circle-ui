@@ -13,6 +13,7 @@ export interface BuildCycle extends Models.Document {
   $updatedAt: string;
 }
 
+// Legacy type - kept for backward compatibility
 export interface CycleParticipation extends Models.Document {
   cycleId: string;
   userId: string;

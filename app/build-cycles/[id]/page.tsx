@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
-import type { BuildCycle, CycleParticipation } from '@/types/cycle';
+import type { BuildCycle } from '@/types/cycle';
+import type { ParticipationRecord } from '@/lib/participation';
+import { getParticipation } from '@/lib/participation';
 import MainLayout from '@/components/layout/MainLayout';
 import CycleDetails from '@/components/cycles/CycleDetails';
 import LoadingScreen from '@/components/auth/LoadingScreen';
@@ -17,7 +18,7 @@ export default function CycleDetailsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [cycle, setCycle] = useState<BuildCycle | null>(null);
-  const [participation, setParticipation] = useState<CycleParticipation | null>(null);
+  const [participation, setParticipation] = useState<ParticipationRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,25 +40,8 @@ export default function CycleDetailsPage() {
       setCycle(cycleDoc as BuildCycle);
 
       // Fetch user participation
-      try {
-        const participationResponse = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-          process.env.NEXT_PUBLIC_APPWRITE_PARTICIPATION_COLLECTION_ID || '',
-          [
-            Query.equal('cycleId', cycleId),
-            Query.equal('userId', user.$id),
-          ]
-        );
-
-        if (participationResponse.documents.length > 0) {
-          setParticipation(participationResponse.documents[0] as CycleParticipation);
-        } else {
-          setParticipation(null);
-        }
-      } catch (err) {
-        // Participation not found is okay
-        setParticipation(null);
-      }
+      const participationData = await getParticipation(user.$id, cycleId);
+      setParticipation(participationData);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch cycle details');
     } finally {

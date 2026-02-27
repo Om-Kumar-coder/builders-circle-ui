@@ -4,6 +4,7 @@ import { useOwnershipData } from '../../hooks/useOwnershipData';
 import OwnershipCards from './OwnershipCards';
 import OwnershipCardsSkeleton from './OwnershipCardsSkeleton';
 import ParticipationCard from './ParticipationCard';
+import ParticipationSummary from '../participation/ParticipationSummary';
 import ErrorState from './ErrorState';
 import { RefreshCw } from 'lucide-react';
 
@@ -35,6 +36,9 @@ export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
           <span>Refresh</span>
         </button>
       </div>
+
+      {/* Participation Summary - Always visible */}
+      <ParticipationSummary userId={userId} />
 
       {/* Ownership Cards Row */}
       {loading && !data ? (

@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import type { BuildCycle, CycleState, CycleParticipation } from '@/types/cycle';
+import type { BuildCycle, CycleState } from '@/types/cycle';
 import type { User } from '@/types/auth';
+import type { ParticipationRecord } from '@/lib/participation';
 import CycleStatusBadge from './CycleStatusBadge';
+import ParticipationBadge from '../participation/ParticipationBadge';
+import JoinBuildButton from '../participation/JoinBuildButton';
 import { databases } from '@/lib/appwrite';
-import { ID } from 'appwrite';
 
 interface CycleDetailsProps {
   cycle: BuildCycle;
   user: User;
-  participation: CycleParticipation | null;
+  participation: ParticipationRecord | null;
   onUpdate: () => void;
 }
 
@@ -36,7 +38,8 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
     });
   };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return 'No activity yet';
     return new Date(dateString).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -72,31 +75,6 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
     }
   };
 
-  const handleOptIn = async () => {
-    setLoading(true);
-    try {
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-        process.env.NEXT_PUBLIC_APPWRITE_PARTICIPATION_COLLECTION_ID || '',
-        ID.unique(),
-        {
-          cycleId: cycle.$id,
-          userId: user.$id,
-          userName: user.name,
-          lastActivity: new Date().toISOString(),
-          stallStage: 'none',
-          isActive: true,
-          joinedAt: new Date().toISOString(),
-        }
-      );
-      onUpdate();
-    } catch (error) {
-      console.error('Failed to opt in:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Cycle Header */}
@@ -119,7 +97,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
           </div>
           <div className="bg-gray-800/50 rounded-lg p-4">
             <p className="text-sm text-gray-400 mb-1">Participants</p>
-            <p className="text-lg font-semibold text-gray-100">{cycle.participantCount}</p>
+            <p className="text-lg font-semibold text-gray-100">{cycle.participantCount || 0}</p>
           </div>
         </div>
       </div>
@@ -190,16 +168,26 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
         
         {participation ? (
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">✔</span>
-              <span className="text-lg font-medium text-green-400">You are participating in this cycle</span>
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">✔</span>
+              <div>
+                <p className="text-lg font-medium text-green-400">You are participating in this cycle</p>
+                <p className="text-sm text-gray-400">Accountability tracking is active</p>
+              </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="mt-4 pt-4 border-t border-gray-800">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-medium text-gray-400">Current Status:</span>
+                <ParticipationBadge participation={participation} size="md" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-gray-800/50 rounded-lg p-4">
                 <p className="text-sm text-gray-400 mb-1">Last Activity</p>
                 <p className="text-base font-medium text-gray-200">
-                  {formatDateTime(participation.lastActivity)}
+                  {formatDateTime(participation.lastActivityDate)}
                 </p>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4">
@@ -209,32 +197,40 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
                 </p>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4">
-                <p className="text-sm text-gray-400 mb-1">Status</p>
+                <p className="text-sm text-gray-400 mb-1">Joined</p>
                 <p className="text-base font-medium text-gray-200">
-                  {participation.isActive ? 'Active' : 'Inactive'}
+                  {formatDate(participation.createdAt)}
                 </p>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4">
-                <p className="text-sm text-gray-400 mb-1">Joined</p>
+                <p className="text-sm text-gray-400 mb-1">Next Threshold</p>
                 <p className="text-base font-medium text-gray-200">
-                  {formatDate(participation.joinedAt)}
+                  Coming soon
                 </p>
               </div>
+            </div>
+
+            <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+              <p className="text-sm text-blue-400">
+                <strong>Grace Period:</strong> You have time to make your first contribution before accountability tracking begins.
+              </p>
             </div>
           </div>
         ) : (
           <div className="text-center py-8">
-            <p className="text-gray-400 mb-4">You are not currently participating in this cycle.</p>
-            {cycle.state === 'active' && (
-              <button
-                onClick={handleOptIn}
-                disabled={loading}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50"
-              >
-                {loading ? 'Joining...' : 'Opt In to Participate'}
-              </button>
-            )}
-            {cycle.state !== 'active' && (
+            <div className="text-5xl mb-4 opacity-50">🚀</div>
+            <p className="text-gray-400 mb-2">You are not currently participating in this cycle.</p>
+            <p className="text-sm text-gray-500 mb-6">
+              Join to activate accountability tracking and start building!
+            </p>
+            {cycle.state === 'active' ? (
+              <JoinBuildButton
+                userId={user.$id}
+                cycleId={cycle.$id}
+                onSuccess={onUpdate}
+                className="mx-auto"
+              />
+            ) : (
               <p className="text-sm text-gray-500">This cycle is not currently active.</p>
             )}
           </div>
@@ -244,9 +240,15 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
       {/* Activity Summary */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
         <h2 className="text-xl font-semibold text-gray-100 mb-4">Activity Summary</h2>
-        <div className="text-gray-400">
-          <p className="mb-2">Cycle created: {formatDateTime(cycle.$createdAt)}</p>
-          <p>Last updated: {formatDateTime(cycle.$updatedAt)}</p>
+        <div className="text-gray-400 space-y-2">
+          <div className="flex justify-between">
+            <span>Cycle created:</span>
+            <span className="text-gray-300">{formatDateTime(cycle.$createdAt)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Last updated:</span>
+            <span className="text-gray-300">{formatDateTime(cycle.$updatedAt)}</span>
+          </div>
         </div>
       </div>
     </div>

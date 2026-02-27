@@ -87,7 +87,7 @@ export default function BuildCyclesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {cycles.map((cycle) => (
-              <CycleCard key={cycle.$id} cycle={cycle} />
+              <CycleCard key={cycle.$id} cycle={cycle} userId={user?.$id} />
             ))}
           </div>
         )}
