@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Environment Variables</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .var {
+            margin: 10px 0;
+            padding: 10px;
+            background: #2a2a2a;
+            border-left: 3px solid #4a4a4a;
+        }
+        .var.ok {
+            border-left-color: #22c55e;
+        }
+        .var.error {
+            border-left-color: #ef4444;
+        }
+        .label {
+            color: #888;
+            font-size: 12px;
+        }
+        .value {
+            color: #22c55e;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .error-value {
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <h1>Environment Variables Test</h1>
+    <p>This page checks if your environment variables are loaded correctly.</p>
+    
+    <div id="results"></div>
+
+    <script>
+        const requiredVars = [
+            'NEXT_PUBLIC_APPWRITE_ENDPOINT',
+            'NEXT_PUBLIC_APPWRITE_PROJECT_ID',
+            'NEXT_PUBLIC_APPWRITE_DATABASE_ID',
+            'NEXT_PUBLIC_APPWRITE_ACTIVITY_COLLECTION_ID',
+            'NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID',
+            'NEXT_PUBLIC_APPWRITE_PARTICIPATION_COLLECTION_ID'
+        ];
+
+        const results = document.getElementById('results');
+        let allOk = true;
+
+        requiredVars.forEach(varName => {
+            const value = process.env[varName];
+            const div = document.createElement('div');
+            div.className = 'var ' + (value ? 'ok' : 'error');
+            
+            div.innerHTML = `
+                <div class="label">${varName}</div>
+                <div class="${value ? 'value' : 'error-value'}">
+                    ${value || '❌ UNDEFINED - Variable not loaded!'}
+                </div>
+            `;
+            
+            results.appendChild(div);
+            
+            if (!value) allOk = false;
+        });
+
+        if (!allOk) {
+            const warning = document.createElement('div');
+            warning.style.cssText = 'margin-top: 20px; padding: 15px; background: #7f1d1d; border: 2px solid #ef4444; border-radius: 5px;';
+            warning.innerHTML = `
+                <h2 style="margin: 0 0 10px 0; color: #ef4444;">⚠️ Environment Variables Not Loaded!</h2>
+                <p style="margin: 5px 0;">Your .env.local file exists but variables aren't loaded.</p>
+                <p style="margin: 5px 0;"><strong>Solution:</strong></p>
+                <ol style="margin: 10px 0; padding-left: 20px;">
+                    <li>Stop your dev server (Ctrl+C)</li>
+                    <li>Run: <code style="background: #000; padding: 2px 5px; border-radius: 3px;">npm run dev</code></li>
+                    <li>Refresh this page</li>
+                </ol>
+            `;
+            results.appendChild(warning);
+        } else {
+            const success = document.createElement('div');
+            success.style.cssText = 'margin-top: 20px; padding: 15px; background: #14532d; border: 2px solid #22c55e; border-radius: 5px;';
+            success.innerHTML = `
+                <h2 style="margin: 0 0 10px 0; color: #22c55e;">✅ All Environment Variables Loaded!</h2>
+                <p style="margin: 5px 0;">Your configuration is correct. Activity submission should work.</p>
+                <p style="margin: 5px 0;">If you still get errors, check:</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>Collection permissions in Appwrite Console</li>
+                    <li>Browser console (F12) for actual error message</li>
+                </ul>
+            `;
+            results.appendChild(success);
+        }
+    </script>
+</body>
+</html>
