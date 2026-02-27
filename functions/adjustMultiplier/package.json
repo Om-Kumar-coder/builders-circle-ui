@@ -1,0 +1,14 @@
+{
+  "name": "adjust-multiplier",
+  "version": "1.0.0",
+  "description": "Automated multiplier adjustment engine for Builder's Circle",
+  "main": "src/main.js",
+  "type": "module",
+  "scripts": {
+    "test": "node test-function.js"
+  },
+  "dependencies": {
+    "node-appwrite": "^15.0.0"
+  },
+  "devDependencies": {}
+}
