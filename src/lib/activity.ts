@@ -14,6 +14,21 @@ const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '';
 const ACTIVITY_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_ACTIVITY_COLLECTION_ID || '';
 const PARTICIPATION_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_PARTICIPATION_COLLECTION_ID || '';
 
+// Debug logging - remove after fixing
+if (typeof window !== 'undefined') {
+  console.log('🔍 Activity.ts Environment Check:', {
+    DATABASE_ID,
+    ACTIVITY_COLLECTION_ID,
+    PARTICIPATION_COLLECTION_ID,
+    allEnvVars: {
+      endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT,
+      projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID,
+      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+      activityCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ACTIVITY_COLLECTION_ID,
+    }
+  });
+}
+
 // Cooldown tracking (in-memory, resets on page reload)
 const lastSubmissionTime = new Map<string, number>();
 const COOLDOWN_MS = 30000; // 30 seconds
