@@ -8,7 +8,7 @@ export interface ParticipationRecord extends Models.Document {
   participationStatus: 'active' | 'at-risk' | 'paused' | 'grace';
   stallStage: 'grace' | 'yellow' | 'orange' | 'red' | 'none';
   lastActivityDate: string | null;
-  createdAt: string;
+  // Appwrite provides $createdAt automatically - don't include createdAt
 }
 
 const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '';
@@ -60,7 +60,6 @@ export async function joinCycle(
     }
 
     // Create new participation record
-    const now = new Date().toISOString();
     const participation = await databases.createDocument(
       DATABASE_ID,
       PARTICIPATION_COLLECTION_ID,
@@ -72,7 +71,7 @@ export async function joinCycle(
         participationStatus: 'grace',
         stallStage: 'grace',
         lastActivityDate: null,
-        createdAt: now,
+        // Don't set createdAt - Appwrite handles $createdAt automatically
       }
     );
 

@@ -47,7 +47,7 @@ async function testConnection() {
     const response = await databases.listDocuments(
       process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
       process.env.NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID,
-      [Query.orderDesc('createdAt')]
+      [Query.orderDesc('$createdAt')]
     );
 
     console.log('✅ Connection successful!\n');

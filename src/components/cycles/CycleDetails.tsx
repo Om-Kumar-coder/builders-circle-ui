@@ -63,7 +63,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
         cycle.$id,
         {
           state: newState,
-          updatedAt: new Date().toISOString(),
+          // Don't set updatedAt - Appwrite handles $updatedAt automatically
         }
       );
       setConfirmClose(false);
@@ -199,7 +199,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
               <div className="bg-gray-800/50 rounded-lg p-4">
                 <p className="text-sm text-gray-400 mb-1">Joined</p>
                 <p className="text-base font-medium text-gray-200">
-                  {formatDate(participation.createdAt)}
+                  {formatDate(participation.$createdAt)}
                 </p>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4">
