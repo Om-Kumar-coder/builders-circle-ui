@@ -6,7 +6,7 @@ export interface ParticipationRecord extends Models.Document {
   cycleId: string;
   optedIn: boolean;
   participationStatus: 'active' | 'at-risk' | 'paused' | 'grace';
-  stallStage: 'grace' | 'yellow' | 'orange' | 'red' | 'none';
+  stallStage: 'none' | 'grace' | 'active' | 'at_risk' | 'diminishing' | 'paused';
   lastActivityDate: string | null;
   // Appwrite provides $createdAt automatically - don't include createdAt
 }
