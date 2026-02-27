@@ -8,7 +8,7 @@
     "test": "node test-function.js"
   },
   "dependencies": {
-    "node-appwrite": "^13.0.0"
+    "node-appwrite": "^15.0.0"
   },
   "devDependencies": {}
 }
