@@ -12,6 +12,7 @@ import {
   Users,
   Settings,
   X,
+  BarChart3,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,6 +26,7 @@ const navigationItems = [
   { name: 'Activity', href: '/activity', icon: Activity },
   { name: 'Earnings', href: '/earnings', icon: DollarSign },
   { name: 'Team', href: '/team', icon: Users },
+  { name: 'Insights', href: '/insights', icon: BarChart3 },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

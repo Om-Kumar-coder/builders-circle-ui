@@ -4,6 +4,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
+import OnboardingTour from '../../src/components/onboarding/OnboardingTour';
 
 export default function DashboardLayout({
   children,
@@ -36,6 +37,11 @@ export default function DashboardLayout({
     return null;
   }
 
-  // Just render children - MainLayout will handle header/sidebar
-  return <>{children}</>;
+  // Render children with onboarding tour
+  return (
+    <>
+      {children}
+      <OnboardingTour />
+    </>
+  );
 }

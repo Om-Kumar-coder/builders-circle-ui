@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, Bell, Menu, ChevronDown, User as UserIcon, LogOut } from 'lucide-react';
+import { Search, Menu, ChevronDown, User as UserIcon, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
+import NotificationBell from '../notifications/NotificationBell';
 
 interface HeaderProps {
   title?: string;
@@ -86,13 +87,7 @@ export default function Header({ title = 'Dashboard', onMenuClick }: HeaderProps
         {/* Right: Notifications + User */}
         <div className="flex items-center space-x-3">
           {/* Notifications */}
-          <button
-            className="relative p-2 rounded-lg hover:bg-gray-800 transition-colors group"
-            aria-label="Notifications"
-          >
-            <Bell className="w-5 h-5 text-gray-400 group-hover:text-gray-200 transition-colors" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full" />
-          </button>
+          {user && <NotificationBell userId={user.$id} />}
 
           {/* User Menu */}
           <div className="relative" ref={dropdownRef}>
