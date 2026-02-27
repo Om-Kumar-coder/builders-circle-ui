@@ -62,6 +62,10 @@ export async function submitActivity(
       };
     }
 
+    // Debug log (temporary)
+    console.log('COLLECTION:', process.env.NEXT_PUBLIC_APPWRITE_ACTIVITY_COLLECTION_ID);
+    console.log('DATABASE:', process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID);
+
     // Create activity document
     const activity = await databases.createDocument(
       DATABASE_ID,
