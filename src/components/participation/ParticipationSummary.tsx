@@ -45,6 +45,21 @@ export default function ParticipationSummary({ userId }: ParticipationSummaryPro
     });
   };
 
+  const formatTimeAgo = (dateString: string | null) => {
+    if (!dateString) return 'No activity yet';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    
+    return formatDate(dateString);
+  };
+
   if (loading) {
     return (
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
@@ -119,7 +134,7 @@ export default function ParticipationSummary({ userId }: ParticipationSummaryPro
             <div className="space-y-1 text-sm text-gray-400">
               <div className="flex justify-between">
                 <span>Last Activity:</span>
-                <span className="text-gray-300">{formatDate(participation.lastActivityDate)}</span>
+                <span className="text-gray-300">{formatTimeAgo(participation.lastActivityDate)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Stall Stage:</span>

@@ -9,6 +9,8 @@ import type { ParticipationRecord } from '@/lib/participation';
 import { getParticipation } from '@/lib/participation';
 import MainLayout from '@/components/layout/MainLayout';
 import CycleDetails from '@/components/cycles/CycleDetails';
+import SubmitActivityForm from '@/components/activity/SubmitActivityForm';
+import ActivityTimeline from '@/components/activity/ActivityTimeline';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -21,6 +23,7 @@ export default function CycleDetailsPage() {
   const [participation, setParticipation] = useState<ParticipationRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const cycleId = params.id as string;
 
@@ -47,6 +50,11 @@ export default function CycleDetailsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleActivitySubmitted = () => {
+    setRefreshTrigger(prev => prev + 1);
+    fetchData();
   };
 
   useEffect(() => {
@@ -117,6 +125,28 @@ export default function CycleDetailsPage() {
           participation={participation}
           onUpdate={fetchData}
         />
+
+        {/* Activity Submission - Only show if user is participating and cycle is active */}
+        {participation && participation.optedIn && cycle.state === 'active' && (
+          <div className="mt-6">
+            <SubmitActivityForm
+              userId={user.$id}
+              cycleId={cycle.$id}
+              onSuccess={handleActivitySubmitted}
+            />
+          </div>
+        )}
+
+        {/* Activity Timeline - Show if user is participating */}
+        {participation && participation.optedIn && (
+          <div className="mt-6">
+            <ActivityTimeline
+              userId={user.$id}
+              cycleId={cycle.$id}
+              refreshTrigger={refreshTrigger}
+            />
+          </div>
+        )}
       </div>
     </MainLayout>
   );
