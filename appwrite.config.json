@@ -1,0 +1,276 @@
+{
+    "projectId": "69948407003ab1a59d8d",
+    "projectName": "Builder's Circle",
+    "settings": {
+        "services": {
+            "account": true,
+            "avatars": true,
+            "databases": true,
+            "locale": true,
+            "health": true,
+            "storage": true,
+            "teams": true,
+            "users": true,
+            "sites": true,
+            "functions": true,
+            "graphql": true,
+            "messaging": true
+        },
+        "auth": {
+            "methods": {
+                "jwt": true,
+                "phone": true,
+                "invites": true,
+                "anonymous": true,
+                "email-otp": true,
+                "magic-url": true,
+                "email-password": true
+            },
+            "security": {
+                "duration": 31536000,
+                "limit": 0,
+                "sessionsLimit": 10,
+                "passwordHistory": 0,
+                "passwordDictionary": false,
+                "personalDataCheck": false,
+                "sessionAlerts": false,
+                "mockNumbers": []
+            }
+        }
+    },
+    "functions": [
+        {
+            "$id": "69933d31002f287121c6",
+            "name": "computeOwnership",
+            "runtime": "node-22",
+            "path": "functions/computeOwnership",
+            "entrypoint": "src/main.js",
+            "execute": [
+                "any"
+            ],
+            "enabled": true,
+            "logging": true,
+            "events": [],
+            "schedule": "",
+            "timeout": 15,
+            "commands": "npm install",
+            "scopes": [
+                "users.read",
+                "databases.read",
+                "databases.write",
+                "tables.read",
+                "collections.read",
+                "tables.write",
+                "collections.write",
+                "columns.read",
+                "attributes.read",
+                "columns.write",
+                "attributes.write",
+                "indexes.read",
+                "indexes.write",
+                "rows.read",
+                "documents.read",
+                "rows.write",
+                "documents.write",
+                "functions.read",
+                "functions.write",
+                "execution.read",
+                "execution.write"
+            ],
+            "specification": "s-0.5vcpu-512mb"
+        }
+    ],
+    "tablesDB": [
+        {
+            "$id": "builder_circle",
+            "name": "builder_circle",
+            "enabled": true
+        }
+    ],
+    "tables": [
+        {
+            "$id": "ownership_ledger",
+            "$permissions": [
+                "read(\"users\")"
+            ],
+            "databaseId": "builder_circle",
+            "name": "ownership_ledger",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "cycleId",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "eventType",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "ownershipAmount",
+                    "type": "double",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": -179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+                    "max": 179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                },
+                {
+                    "key": "multiplierSnapshot",
+                    "type": "double",
+                    "required": true,
+                    "array": false,
+                    "default": null,
+                    "min": -179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+                    "max": 179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                },
+                {
+                    "key": "scourceReference",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "createdBy",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "multipliers",
+            "$permissions": [
+                "read(\"users\")"
+            ],
+            "databaseId": "builder_circle",
+            "name": "multipliers",
+            "enabled": true,
+            "rowSecurity": true,
+            "columns": [
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "cycleId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "multiplier",
+                    "type": "double",
+                    "required": false,
+                    "array": false,
+                    "default": null,
+                    "min": -179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+                    "max": 179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                },
+                {
+                    "key": "reason",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 9999,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "activity_events",
+            "$permissions": [],
+            "databaseId": "builder_circle",
+            "name": "activity_events",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "userId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "cycleId",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "activityType",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "proofLink",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 9999,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "verified",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 999,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        }
+    ],
+    "buckets": [],
+    "teams": [],
+    "topics": []
+}

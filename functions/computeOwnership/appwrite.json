@@ -1,0 +1,24 @@
+{
+  "projectId": "69948407003ab1a59d8d",
+  "projectName": "Builder's Circle",
+  "functions": [
+    {
+      "$id": "computeOwnership",
+      "name": "Compute Ownership",
+      "runtime": "node-22",
+      "execute": ["any"],
+      "events": [],
+      "schedule": "",
+      "timeout": 15,
+      "enabled": true,
+      "logging": true,
+      "entrypoint": "src/main.js",
+      "commands": "npm install",
+      "path": "functions/computeOwnership",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    }
+  ]
+}
