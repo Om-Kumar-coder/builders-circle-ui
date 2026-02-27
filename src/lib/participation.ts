@@ -1,8 +1,7 @@
 import { databases } from './appwrite';
-import { ID, Query } from 'appwrite';
+import { ID, Query, Models } from 'appwrite';
 
-export interface ParticipationRecord {
-  $id: string;
+export interface ParticipationRecord extends Models.Document {
   userId: string;
   cycleId: string;
   optedIn: boolean;
@@ -10,8 +9,6 @@ export interface ParticipationRecord {
   stallStage: 'grace' | 'yellow' | 'orange' | 'red' | 'none';
   lastActivityDate: string | null;
   createdAt: string;
-  $createdAt: string;
-  $updatedAt: string;
 }
 
 const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '';
