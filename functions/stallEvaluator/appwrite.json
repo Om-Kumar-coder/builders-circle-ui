@@ -1,0 +1,31 @@
+{
+  "projectId": "",
+  "projectName": "Builder's Circle",
+  "functions": [
+    {
+      "name": "stallEvaluator",
+      "runtime": "node-18.0",
+      "execute": [],
+      "events": [],
+      "schedule": "0 0 * * *",
+      "timeout": 300,
+      "enabled": true,
+      "logging": true,
+      "entrypoint": "src/main.js",
+      "commands": "npm install",
+      "ignore": [
+        "node_modules",
+        ".npm"
+      ],
+      "path": "functions/stallEvaluator",
+      "variables": {
+        "APPWRITE_ENDPOINT": "",
+        "APPWRITE_PROJECT_ID": "",
+        "APPWRITE_API_KEY": "",
+        "APPWRITE_DATABASE_ID": "",
+        "PARTICIPATION_COLLECTION_ID": "cycle_participation",
+        "CYCLES_COLLECTION_ID": "build_cycles"
+      }
+    }
+  ]
+}

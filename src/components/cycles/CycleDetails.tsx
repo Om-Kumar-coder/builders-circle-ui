@@ -6,6 +6,7 @@ import type { User } from '@/types/auth';
 import type { ParticipationRecord } from '@/lib/participation';
 import CycleStatusBadge from './CycleStatusBadge';
 import ParticipationBadge from '../participation/ParticipationBadge';
+import StallStageIndicator from '../participation/StallStageIndicator';
 import JoinBuildButton from '../participation/JoinBuildButton';
 import { databases } from '@/lib/appwrite';
 
@@ -176,11 +177,9 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
               </div>
             </div>
             
-            <div className="mt-4 pt-4 border-t border-gray-800">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-medium text-gray-400">Current Status:</span>
-                <ParticipationBadge participation={participation} size="md" />
-              </div>
+            {/* Stall Stage Indicator */}
+            <div className="mt-4">
+              <StallStageIndicator participation={participation} showDetails={true} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -191,10 +190,8 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
                 </p>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4">
-                <p className="text-sm text-gray-400 mb-1">Stall Stage</p>
-                <p className="text-base font-medium text-gray-200 capitalize">
-                  {participation.stallStage}
-                </p>
+                <p className="text-sm text-gray-400 mb-1">Participation Status</p>
+                <ParticipationBadge participation={participation} size="md" />
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4">
                 <p className="text-sm text-gray-400 mb-1">Joined</p>
@@ -203,18 +200,28 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
                 </p>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4">
-                <p className="text-sm text-gray-400 mb-1">Next Threshold</p>
+                <p className="text-sm text-gray-400 mb-1">Cycle Progress</p>
                 <p className="text-base font-medium text-gray-200">
-                  Coming soon
+                  Active
                 </p>
               </div>
             </div>
 
-            <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-              <p className="text-sm text-blue-400">
-                <strong>Grace Period:</strong> You have time to make your first contribution before accountability tracking begins.
-              </p>
-            </div>
+            {participation.stallStage === 'paused' && (
+              <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-sm text-red-400">
+                  <strong>Action Required:</strong> Your participation is paused due to inactivity. Submit activity to resume.
+                </p>
+              </div>
+            )}
+
+            {participation.stallStage === 'grace' && (
+              <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-sm text-blue-400">
+                  <strong>Grace Period:</strong> You have time to make your first contribution before accountability tracking begins.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-8">
