@@ -25,16 +25,15 @@ fi
 
 echo -e "${GREEN}✓ Appwrite CLI found${NC}"
 
-# Check if logged in or APPWRITE_KEY is set
-if [ -z "$APPWRITE_KEY" ]; then
-    if ! appwrite account get &> /dev/null; then
-        echo -e "${RED}Error: Not logged in to Appwrite${NC}"
-        echo "Login with: appwrite login"
-        exit 1
-    fi
-    echo -e "${GREEN}✓ Logged in to Appwrite${NC}"
-else
+# Use APPWRITE_KEY if set, otherwise check interactive login
+if [ -n "$APPWRITE_KEY" ]; then
     echo -e "${GREEN}✓ Using APPWRITE_KEY from environment${NC}"
+elif ! appwrite account get &> /dev/null; then
+    echo -e "${RED}Error: Not logged in to Appwrite${NC}"
+    echo "Login with: appwrite login"
+    exit 1
+else
+    echo -e "${GREEN}✓ Logged in to Appwrite${NC}"
 fi
 echo ""
 
