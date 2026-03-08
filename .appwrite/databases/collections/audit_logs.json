@@ -1,0 +1,75 @@
+{
+  "$id": "audit_logs",
+  "$collection": "collections",
+  "name": "audit_logs",
+  "enabled": true,
+  "documentSecurity": false,
+  "attributes": [
+    {
+      "key": "actorId",
+      "type": "string",
+      "size": 999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "action",
+      "type": "string",
+      "size": 255,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "targetType",
+      "type": "string",
+      "size": 100,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "targetId",
+      "type": "string",
+      "size": 999,
+      "required": false,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "reason",
+      "type": "string",
+      "size": 9999,
+      "required": false,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "metadata",
+      "type": "string",
+      "size": 9999,
+      "required": false,
+      "array": false,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "key": "actorId",
+      "type": "key",
+      "attributes": ["actorId"],
+      "orders": ["DESC"]
+    },
+    {
+      "key": "action",
+      "type": "key",
+      "attributes": ["action"],
+      "orders": ["DESC"]
+    }
+  ],
+  "permissions": [
+    "read(\"role:admin\")",
+    "create(\"role:admin\")"
+  ]
+}

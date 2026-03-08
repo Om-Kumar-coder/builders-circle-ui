@@ -1,0 +1,66 @@
+{
+  "$id": "build_cycles",
+  "$collection": "collections",
+  "name": "build_cycles",
+  "enabled": true,
+  "documentSecurity": false,
+  "attributes": [
+    {
+      "key": "name",
+      "type": "string",
+      "size": 255,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "state",
+      "type": "string",
+      "size": 50,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "startDate",
+      "type": "datetime",
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "endDate",
+      "type": "datetime",
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "participantCount",
+      "type": "integer",
+      "required": false,
+      "array": false,
+      "default": 0
+    }
+  ],
+  "indexes": [
+    {
+      "key": "state",
+      "type": "key",
+      "attributes": ["state"],
+      "orders": ["ASC"]
+    },
+    {
+      "key": "startDate",
+      "type": "key",
+      "attributes": ["startDate"],
+      "orders": ["DESC"]
+    }
+  ],
+  "permissions": [
+    "read(\"users\")",
+    "create(\"role:admin\")",
+    "update(\"role:admin\")",
+    "delete(\"role:admin\")"
+  ]
+}

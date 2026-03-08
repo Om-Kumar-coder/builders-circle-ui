@@ -1,0 +1,86 @@
+{
+  "$id": "cycle_participation",
+  "$collection": "collections",
+  "name": "cycle_participation",
+  "enabled": true,
+  "documentSecurity": false,
+  "attributes": [
+    {
+      "key": "userId",
+      "type": "string",
+      "size": 999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "cycleId",
+      "type": "string",
+      "size": 999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "optedIn",
+      "type": "boolean",
+      "required": true,
+      "array": false,
+      "default": true
+    },
+    {
+      "key": "participationStatus",
+      "type": "string",
+      "size": 50,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "stallStage",
+      "type": "string",
+      "size": 50,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "lastActivityDate",
+      "type": "datetime",
+      "required": false,
+      "array": false,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "key": "userId_cycleId",
+      "type": "unique",
+      "attributes": ["userId", "cycleId"],
+      "orders": ["ASC", "ASC"]
+    },
+    {
+      "key": "cycleId",
+      "type": "key",
+      "attributes": ["cycleId"],
+      "orders": ["ASC"]
+    },
+    {
+      "key": "userId",
+      "type": "key",
+      "attributes": ["userId"],
+      "orders": ["ASC"]
+    },
+    {
+      "key": "stallStage",
+      "type": "key",
+      "attributes": ["stallStage"],
+      "orders": ["ASC"]
+    }
+  ],
+  "permissions": [
+    "read(\"users\")",
+    "create(\"any\")",
+    "update(\"any\")"
+  ]
+}

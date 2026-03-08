@@ -1,0 +1,51 @@
+{
+  "$id": "multipliers",
+  "$collection": "collections",
+  "name": "multipliers",
+  "enabled": true,
+  "documentSecurity": true,
+  "attributes": [
+    {
+      "key": "userId",
+      "type": "string",
+      "size": 999,
+      "required": false,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "cycleId",
+      "type": "string",
+      "size": 999,
+      "required": false,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "multiplier",
+      "type": "double",
+      "required": false,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "reason",
+      "type": "string",
+      "size": 9999,
+      "required": false,
+      "array": false,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "key": "userId_cycleId",
+      "type": "key",
+      "attributes": ["userId", "cycleId"],
+      "orders": ["DESC", "DESC"]
+    }
+  ],
+  "permissions": [
+    "read(\"users\")"
+  ]
+}

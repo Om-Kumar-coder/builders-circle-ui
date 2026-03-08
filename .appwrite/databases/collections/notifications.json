@@ -1,0 +1,68 @@
+{
+  "$id": "notifications",
+  "$collection": "collections",
+  "name": "notifications",
+  "enabled": true,
+  "documentSecurity": true,
+  "attributes": [
+    {
+      "key": "userId",
+      "type": "string",
+      "size": 999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "type",
+      "type": "string",
+      "size": 100,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "message",
+      "type": "string",
+      "size": 9999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "read",
+      "type": "boolean",
+      "required": true,
+      "array": false,
+      "default": false
+    },
+    {
+      "key": "metadata",
+      "type": "string",
+      "size": 9999,
+      "required": false,
+      "array": false,
+      "default": null
+    }
+  ],
+  "indexes": [
+    {
+      "key": "userId_read",
+      "type": "key",
+      "attributes": ["userId", "read"],
+      "orders": ["DESC", "DESC"]
+    },
+    {
+      "key": "userId",
+      "type": "key",
+      "attributes": ["userId"],
+      "orders": ["DESC"]
+    }
+  ],
+  "permissions": [
+    "read(\"users\")",
+    "create(\"users\")",
+    "update(\"users\")",
+    "delete(\"users\")"
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "$id": "activity_events",
+  "$collection": "collections",
+  "name": "activity_events",
+  "enabled": true,
+  "documentSecurity": false,
+  "attributes": [
+    {
+      "key": "userId",
+      "type": "string",
+      "size": 999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "cycleId",
+      "type": "string",
+      "size": 999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "activityType",
+      "type": "string",
+      "size": 999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "proofLink",
+      "type": "string",
+      "size": 999,
+      "required": true,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "description",
+      "type": "string",
+      "size": 9999,
+      "required": false,
+      "array": false,
+      "default": null
+    },
+    {
+      "key": "verified",
+      "type": "string",
+      "size": 50,
+      "required": true,
+      "array": false,
+      "default": "pending"
+    }
+  ],
+  "indexes": [
+    {
+      "key": "userId_cycleId",
+      "type": "key",
+      "attributes": ["userId", "cycleId"],
+      "orders": ["DESC", "DESC"]
+    },
+    {
+      "key": "cycleId",
+      "type": "key",
+      "attributes": ["cycleId"],
+      "orders": ["DESC"]
+    },
+    {
+      "key": "userId",
+      "type": "key",
+      "attributes": ["userId"],
+      "orders": ["DESC"]
+    }
+  ],
+  "permissions": [
+    "read(\"users\")",
+    "create(\"users\")"
+  ]
+}
