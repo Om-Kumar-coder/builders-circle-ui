@@ -25,16 +25,14 @@ fi
 
 echo -e "${GREEN}✓ Appwrite CLI found${NC}"
 
-# Use APPWRITE_KEY if set, otherwise check interactive login
-if [ -n "$APPWRITE_KEY" ]; then
-    echo -e "${GREEN}✓ Using APPWRITE_KEY from environment${NC}"
-elif ! appwrite account get &> /dev/null; then
-    echo -e "${RED}Error: Not logged in to Appwrite${NC}"
-    echo "Login with: appwrite login"
+# Ensure environment variables are set
+if [ -z "$APPWRITE_ENDPOINT" ] || [ -z "$APPWRITE_PROJECT" ] || [ -z "$APPWRITE_KEY" ]; then
+    echo -e "${RED}Error: Missing Appwrite environment variables${NC}"
+    echo "Please set APPWRITE_ENDPOINT, APPWRITE_PROJECT, and APPWRITE_KEY"
     exit 1
-else
-    echo -e "${GREEN}✓ Logged in to Appwrite${NC}"
 fi
+
+echo -e "${GREEN}✓ Using Appwrite environment variables${NC}"
 echo ""
 
 # Deployment options
