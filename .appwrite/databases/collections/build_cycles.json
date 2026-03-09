@@ -1,6 +1,5 @@
 {
   "$id": "build_cycles",
-  "$collection": "collections",
   "name": "build_cycles",
   "enabled": true,
   "documentSecurity": false,
@@ -9,38 +8,28 @@
       "key": "name",
       "type": "string",
       "size": 255,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "state",
       "type": "string",
       "size": 50,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "startDate",
       "type": "datetime",
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "endDate",
       "type": "datetime",
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "participantCount",
       "type": "integer",
-      "required": false,
-      "array": false,
-      "default": 0
+      "required": false
     }
   ],
   "indexes": [
@@ -56,11 +45,5 @@
       "attributes": ["startDate"],
       "orders": ["DESC"]
     }
-  ],
-  "permissions": [
-    "read(\"users\")",
-    "create(\"role:admin\")",
-    "update(\"role:admin\")",
-    "delete(\"role:admin\")"
   ]
 }

@@ -1,6 +1,5 @@
 {
   "$id": "ownership_ledger",
-  "$collection": "collections",
   "name": "ownership_ledger",
   "enabled": true,
   "documentSecurity": true,
@@ -9,55 +8,41 @@
       "key": "userId",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "cycleId",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "eventType",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "ownershipAmount",
       "type": "double",
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "multiplierSnapshot",
       "type": "double",
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "scourceReference",
       "type": "string",
       "size": 999,
-      "required": false,
-      "array": false,
-      "default": null
+      "required": false
     },
     {
       "key": "createdBy",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     }
   ],
   "indexes": [
@@ -79,8 +64,5 @@
       "attributes": ["userId"],
       "orders": ["ASC"]
     }
-  ],
-  "permissions": [
-    "read(\"users\")"
   ]
 }

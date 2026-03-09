@@ -1,6 +1,5 @@
 {
   "$id": "cycle_participation",
-  "$collection": "collections",
   "name": "cycle_participation",
   "enabled": true,
   "documentSecurity": false,
@@ -9,47 +8,35 @@
       "key": "userId",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "cycleId",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "optedIn",
       "type": "boolean",
-      "required": true,
-      "array": false,
-      "default": true
+      "required": true
     },
     {
       "key": "participationStatus",
       "type": "string",
       "size": 50,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "stallStage",
       "type": "string",
       "size": 50,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "lastActivityDate",
       "type": "datetime",
-      "required": false,
-      "array": false,
-      "default": null
+      "required": false
     }
   ],
   "indexes": [
@@ -77,10 +64,5 @@
       "attributes": ["stallStage"],
       "orders": ["ASC"]
     }
-  ],
-  "permissions": [
-    "read(\"users\")",
-    "create(\"any\")",
-    "update(\"any\")"
   ]
 }

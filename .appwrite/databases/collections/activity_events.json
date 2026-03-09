@@ -1,6 +1,5 @@
 {
   "$id": "activity_events",
-  "$collection": "collections",
   "name": "activity_events",
   "enabled": true,
   "documentSecurity": false,
@@ -9,49 +8,37 @@
       "key": "userId",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "cycleId",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "activityType",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "proofLink",
       "type": "string",
-      "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "size": 9999,
+      "required": true
     },
     {
       "key": "description",
       "type": "string",
       "size": 9999,
-      "required": false,
-      "array": false,
-      "default": null
+      "required": false
     },
     {
       "key": "verified",
       "type": "string",
       "size": 50,
-      "required": true,
-      "array": false,
-      "default": "pending"
+      "required": true
     }
   ],
   "indexes": [
@@ -73,9 +60,5 @@
       "attributes": ["userId"],
       "orders": ["DESC"]
     }
-  ],
-  "permissions": [
-    "read(\"users\")",
-    "create(\"users\")"
   ]
 }

@@ -1,6 +1,5 @@
 {
   "$id": "notifications",
-  "$collection": "collections",
   "name": "notifications",
   "enabled": true,
   "documentSecurity": true,
@@ -9,40 +8,30 @@
       "key": "userId",
       "type": "string",
       "size": 999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "type",
       "type": "string",
       "size": 100,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "message",
       "type": "string",
       "size": 9999,
-      "required": true,
-      "array": false,
-      "default": null
+      "required": true
     },
     {
       "key": "read",
       "type": "boolean",
-      "required": true,
-      "array": false,
-      "default": false
+      "required": true
     },
     {
       "key": "metadata",
       "type": "string",
       "size": 9999,
-      "required": false,
-      "array": false,
-      "default": null
+      "required": false
     }
   ],
   "indexes": [
@@ -58,11 +47,5 @@
       "attributes": ["userId"],
       "orders": ["DESC"]
     }
-  ],
-  "permissions": [
-    "read(\"users\")",
-    "create(\"users\")",
-    "update(\"users\")",
-    "delete(\"users\")"
   ]
 }
