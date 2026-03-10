@@ -23,7 +23,7 @@ async function createActivityCollection() {
   console.log('🚀 Creating activity_events collection...\n');
 
   // Validate environment variables
-  const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1';
+  const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || 'http://148.230.90.1:9501/v1';
   const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
   const databaseId = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;
   const apiKey = process.env.APPWRITE_API_KEY;

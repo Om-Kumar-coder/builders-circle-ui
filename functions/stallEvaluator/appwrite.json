@@ -20,7 +20,7 @@
       ],
       "path": "functions/stallEvaluator",
       "variables": {
-        "APPWRITE_ENDPOINT": "https://cloud.appwrite.io/v1",
+        "APPWRITE_ENDPOINT": "http://148.230.90.1:9501/v1",
         "APPWRITE_PROJECT_ID": "69adee6a00043e4e9c46",
         "APPWRITE_API_KEY": "standard_80c6d42a91dc82a654ac3990a81f08975af5786496026ef5f2f4ef934c6e04d26178256330e20fd594b731a620b2111bc993e85e8d2d1c1ded57065f3fc82b173148783cdada33afa26706e24aa551ccccee556a90ca10ec40c498487396535bc8e6f2945eca7d55d56233b644e76ec47d5a7a2cf8425799f4a4dfd4925b226b",
         "APPWRITE_DATABASE_ID": "69b008400000b872c17a",

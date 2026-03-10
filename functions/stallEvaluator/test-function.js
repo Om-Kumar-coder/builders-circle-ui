@@ -46,7 +46,7 @@ async function testFunction() {
     const stallEvaluator = module.default;
 
     // Set test environment variables
-    process.env.APPWRITE_ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "https://cloud.appwrite.io/v1";
+    process.env.APPWRITE_ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || "http://148.230.90.1:9501/v1";
     process.env.APPWRITE_PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
     process.env.APPWRITE_API_KEY = process.env.APPWRITE_API_KEY || "YOUR_API_KEY_HERE";
     process.env.APPWRITE_DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID;

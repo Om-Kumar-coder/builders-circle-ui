@@ -25,7 +25,7 @@ Check `appwrite.json` contains correct values:
     "name": "adjustMultiplier",
     "runtime": "node-22",
     "variables": {
-      "APPWRITE_ENDPOINT": "https://cloud.appwrite.io/v1",
+      "APPWRITE_ENDPOINT": "http://148.230.90.1:9501/v1",
       "APPWRITE_PROJECT_ID": "69adee6a00043e4e9c46",
       "APPWRITE_API_KEY": "your_api_key_here",
       "APPWRITE_DATABASE_ID": "69b008400000b872c17a",
@@ -73,7 +73,7 @@ appwrite functions execute --functionId [FUNCTION_ID]
 
 # Via API
 curl -X POST \
-  https://cloud.appwrite.io/v1/functions/[FUNCTION_ID]/executions \
+  http://148.230.90.1:9501/v1/functions/[FUNCTION_ID]/executions \
   -H "X-Appwrite-Project: 69adee6a00043e4e9c46" \
   -H "X-Appwrite-Key: [API_KEY]"
 ```
@@ -142,7 +142,7 @@ Call from your application:
 
 ```javascript
 const response = await fetch(
-  `https://cloud.appwrite.io/v1/functions/${functionId}/executions`,
+  `http://148.230.90.1:9501/v1/functions/${functionId}/executions`,
   {
     method: 'POST',
     headers: {

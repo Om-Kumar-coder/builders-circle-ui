@@ -77,7 +77,7 @@ if (!env) {
   
   // 2. Validate required variables
   const required = {
-    'NEXT_PUBLIC_APPWRITE_ENDPOINT': 'http://148.230.90.1/v1',
+    'NEXT_PUBLIC_APPWRITE_ENDPOINT': 'http://148.230.90.1:9501/v1',
     'NEXT_PUBLIC_APPWRITE_PROJECT_ID': '69adee6a00043e4e9c46',
     'NEXT_PUBLIC_APPWRITE_FUNCTION_ID': 'computeOwnership',
     'NEXT_PUBLIC_APPWRITE_DATABASE_ID': '69b008400000b872c17a',

@@ -313,7 +313,7 @@ describe('edge cases', () => {
 ```bash
 # Execute function manually
 curl -X POST \
-  https://cloud.appwrite.io/v1/functions/[FUNCTION_ID]/executions \
+  http://148.230.90.1:9501/v1/functions/[FUNCTION_ID]/executions \
   -H "X-Appwrite-Project: [PROJECT_ID]" \
   -H "X-Appwrite-Key: [API_KEY]"
 ```
@@ -361,7 +361,7 @@ console.log('Recent ledger events:', ledger.documents);
 
 // 3. Test computeOwnership integration
 const ownership = await fetch(
-  'https://cloud.appwrite.io/v1/functions/[COMPUTE_FUNCTION_ID]/executions',
+  'http://148.230.90.1:9501/v1/functions/[COMPUTE_FUNCTION_ID]/executions',
   {
     method: 'POST',
     headers: {

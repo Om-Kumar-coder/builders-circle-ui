@@ -121,7 +121,7 @@ effectiveOwnership = totalOwnership × 0.75
 // After stallEvaluator completes
 const adjustMultipliers = async () => {
   const response = await fetch(
-    'https://cloud.appwrite.io/v1/functions/[FUNCTION_ID]/executions',
+    'http://148.230.90.1:9501/v1/functions/[FUNCTION_ID]/executions',
     {
       method: 'POST',
       headers: {
@@ -142,7 +142,7 @@ const adjustMultipliers = async () => {
 // Call computeOwnership for a user
 const getOwnership = async (userId, cycleId) => {
   const response = await fetch(
-    'https://cloud.appwrite.io/v1/functions/[COMPUTE_FUNCTION_ID]/executions',
+    'http://148.230.90.1:9501/v1/functions/[COMPUTE_FUNCTION_ID]/executions',
     {
       method: 'POST',
       headers: {

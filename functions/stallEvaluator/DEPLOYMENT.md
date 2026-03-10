@@ -55,7 +55,7 @@ npm install
 
 5. Go to **Settings** tab and add **Environment Variables**:
    ```
-   APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1
+   APPWRITE_ENDPOINT=http://148.230.90.1:9501/v1
    APPWRITE_PROJECT_ID=your_project_id
    APPWRITE_API_KEY=your_api_key_from_step_1
    APPWRITE_DATABASE_ID=your_database_id
@@ -100,7 +100,7 @@ npm install
          "commands": "npm install",
          "path": "functions/stallEvaluator",
          "variables": {
-           "APPWRITE_ENDPOINT": "https://cloud.appwrite.io/v1",
+           "APPWRITE_ENDPOINT": "http://148.230.90.1:9501/v1",
            "APPWRITE_PROJECT_ID": "your_project_id",
            "APPWRITE_API_KEY": "your_api_key_from_step_1",
            "APPWRITE_DATABASE_ID": "your_database_id",

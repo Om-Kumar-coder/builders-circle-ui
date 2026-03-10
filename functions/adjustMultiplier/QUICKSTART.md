@@ -89,7 +89,7 @@ console.log(ledger.documents);
 ```javascript
 // Test ownership calculation
 const ownership = await fetch(
-  'https://cloud.appwrite.io/v1/functions/[COMPUTE_FUNCTION_ID]/executions',
+  'http://148.230.90.1:9501/v1/functions/[COMPUTE_FUNCTION_ID]/executions',
   {
     method: 'POST',
     headers: {
