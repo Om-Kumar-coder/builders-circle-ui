@@ -59,7 +59,7 @@ node scripts/create-collections.js
 - Node.js installed
 - Appwrite running
 - Valid API key with database permissions
-- Database "builder_circle" already created
+- Database "69b008400000b872c17a" already created
 
 **Collections Created**:
 1. ownership_ledger
@@ -188,7 +188,7 @@ const CONFIG = {
   endpoint: 'https://your-domain.com/v1',
   projectId: 'YOUR_PROJECT_ID',
   apiKey: 'YOUR_API_KEY',
-  databaseId: 'builder_circle',
+  databaseId: '69b008400000b872c17a',
 };
 ```
 

@@ -19,16 +19,16 @@ Check `appwrite.json` contains correct values:
 
 ```json
 {
-  "projectId": "69948407003ab1a59d8d",
+  "projectId": "69adee6a00043e4e9c46",
   "projectName": "Builder's Circle",
   "functions": [{
     "name": "adjustMultiplier",
     "runtime": "node-22",
     "variables": {
       "APPWRITE_ENDPOINT": "https://cloud.appwrite.io/v1",
-      "APPWRITE_PROJECT_ID": "69948407003ab1a59d8d",
+      "APPWRITE_PROJECT_ID": "69adee6a00043e4e9c46",
       "APPWRITE_API_KEY": "your_api_key_here",
-      "APPWRITE_DATABASE_ID": "builder_circle",
+      "APPWRITE_DATABASE_ID": "69b008400000b872c17a",
       "PARTICIPATION_COLLECTION_ID": "cycle_participation",
       "MULTIPLIERS_COLLECTION_ID": "multipliers",
       "LEDGER_COLLECTION_ID": "ownership_ledger",
@@ -74,7 +74,7 @@ appwrite functions execute --functionId [FUNCTION_ID]
 # Via API
 curl -X POST \
   https://cloud.appwrite.io/v1/functions/[FUNCTION_ID]/executions \
-  -H "X-Appwrite-Project: 69948407003ab1a59d8d" \
+  -H "X-Appwrite-Project: 69adee6a00043e4e9c46" \
   -H "X-Appwrite-Key: [API_KEY]"
 ```
 
@@ -95,7 +95,7 @@ Trigger on participation updates:
 
 ```json
 "events": [
-  "databases.builder_circle.collections.cycle_participation.documents.*.update"
+  "databases.69b008400000b872c17a.collections.cycle_participation.documents.*.update"
 ]
 ```
 

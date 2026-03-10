@@ -125,7 +125,7 @@ const adjustMultipliers = async () => {
     {
       method: 'POST',
       headers: {
-        'X-Appwrite-Project': '69948407003ab1a59d8d',
+        'X-Appwrite-Project': '69adee6a00043e4e9c46',
         'X-Appwrite-Key': 'your_api_key',
       }
     }
@@ -146,7 +146,7 @@ const getOwnership = async (userId, cycleId) => {
     {
       method: 'POST',
       headers: {
-        'X-Appwrite-Project': '69948407003ab1a59d8d',
+        'X-Appwrite-Project': '69adee6a00043e4e9c46',
         'X-Appwrite-Key': 'your_api_key',
         'Content-Type': 'application/json',
       },
@@ -167,7 +167,7 @@ const getOwnership = async (userId, cycleId) => {
 // Fetch user's current multiplier
 const getUserMultiplier = async (userId: string, cycleId: string) => {
   const multipliers = await databases.listDocuments(
-    'builder_circle',
+    '69b008400000b872c17a',
     'multipliers',
     [
       Query.equal('userId', userId),
@@ -203,7 +203,7 @@ const MultiplierBadge = ({ multiplier }) => {
 // Fetch multiplier history
 const getMultiplierHistory = async (userId: string, cycleId: string) => {
   const history = await databases.listDocuments(
-    'builder_circle',
+    '69b008400000b872c17a',
     'multipliers',
     [
       Query.equal('userId', userId),
@@ -268,7 +268,7 @@ async function notifyUser(userId, oldMultiplier, newMultiplier, reason) {
 // Get multiplier distribution
 const getMultiplierStats = async (cycleId) => {
   const participants = await databases.listDocuments(
-    'builder_circle',
+    '69b008400000b872c17a',
     'cycle_participation',
     [Query.equal('cycleId', cycleId), Query.equal('optedIn', true)]
   );

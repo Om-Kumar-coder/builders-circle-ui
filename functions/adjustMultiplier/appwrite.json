@@ -1,8 +1,9 @@
 {
-  "projectId": "69948407003ab1a59d8d",
+  "projectId": "69adee6a00043e4e9c46",
   "projectName": "Builder's Circle",
   "functions": [
     {
+      "$id": "69b0175d0000e5493a56",
       "name": "adjustMultiplier",
       "runtime": "node-22",
       "execute": [],
@@ -20,9 +21,9 @@
       "path": "functions/adjustMultiplier",
       "variables": {
         "APPWRITE_ENDPOINT": "https://cloud.appwrite.io/v1",
-        "APPWRITE_PROJECT_ID": "69948407003ab1a59d8d",
-        "APPWRITE_API_KEY": "standard_505c57eb8277a56e2450d16607161dcb1fa37a29ca132693c17c1e94cc0861eb5628fd6780c664617f5604ece73f978dc2b79c8a4b20ad56a9430c093e52adf75619f6432d481b9a2b421824b43769da80679350fc705200e68b03673e54868d4451f112c3ed3edfa12014ffadff3d83f9f38a24d4973f545d3c464b8843a198",
-        "APPWRITE_DATABASE_ID": "builder_circle",
+        "APPWRITE_PROJECT_ID": "69adee6a00043e4e9c46",
+        "APPWRITE_API_KEY": "standard_80c6d42a91dc82a654ac3990a81f08975af5786496026ef5f2f4ef934c6e04d26178256330e20fd594b731a620b2111bc993e85e8d2d1c1ded57065f3fc82b173148783cdada33afa26706e24aa551ccccee556a90ca10ec40c498487396535bc8e6f2945eca7d55d56233b644e76ec47d5a7a2cf8425799f4a4dfd4925b226b",
+        "APPWRITE_DATABASE_ID": "69b008400000b872c17a",
         "PARTICIPATION_COLLECTION_ID": "cycle_participation",
         "MULTIPLIERS_COLLECTION_ID": "multipliers",
         "LEDGER_COLLECTION_ID": "ownership_ledger",

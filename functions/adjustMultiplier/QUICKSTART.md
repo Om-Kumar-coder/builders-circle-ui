@@ -57,7 +57,7 @@ Or via Appwrite Console:
 ```javascript
 // Query multipliers collection
 const multipliers = await databases.listDocuments(
-  'builder_circle',
+  '69b008400000b872c17a',
   'multipliers',
   [Query.orderDesc('$createdAt'), Query.limit(5)]
 );
@@ -71,7 +71,7 @@ console.log(multipliers.documents);
 ```javascript
 // Query ownership_ledger collection
 const ledger = await databases.listDocuments(
-  'builder_circle',
+  '69b008400000b872c17a',
   'ownership_ledger',
   [
     Query.equal('eventType', 'multiplier_adjustment'),

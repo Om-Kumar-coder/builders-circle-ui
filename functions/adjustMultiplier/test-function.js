@@ -8,9 +8,9 @@ import { Client, Databases } from "node-appwrite";
 
 // Mock environment variables for testing
 process.env.APPWRITE_ENDPOINT = "https://cloud.appwrite.io/v1";
-process.env.APPWRITE_PROJECT_ID = "69948407003ab1a59d8d";
+process.env.APPWRITE_PROJECT_ID = "69adee6a00043e4e9c46";
 process.env.APPWRITE_API_KEY = "YOUR_API_KEY_HERE";
-process.env.APPWRITE_DATABASE_ID = "builder_circle";
+process.env.APPWRITE_DATABASE_ID = "69b008400000b872c17a";
 process.env.PARTICIPATION_COLLECTION_ID = "cycle_participation";
 process.env.MULTIPLIERS_COLLECTION_ID = "multipliers";
 process.env.LEDGER_COLLECTION_ID = "ownership_ledger";

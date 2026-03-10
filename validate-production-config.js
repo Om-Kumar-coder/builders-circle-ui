@@ -78,9 +78,9 @@ if (!env) {
   // 2. Validate required variables
   const required = {
     'NEXT_PUBLIC_APPWRITE_ENDPOINT': 'http://148.230.90.1/v1',
-    'NEXT_PUBLIC_APPWRITE_PROJECT_ID': '69948407003ab1a59d8d',
-    'NEXT_PUBLIC_APPWRITE_FUNCTION_ID': '69933d31002f287121c6',
-    'NEXT_PUBLIC_APPWRITE_DATABASE_ID': 'builder_circle',
+    'NEXT_PUBLIC_APPWRITE_PROJECT_ID': '69adee6a00043e4e9c46',
+    'NEXT_PUBLIC_APPWRITE_FUNCTION_ID': 'computeOwnership',
+    'NEXT_PUBLIC_APPWRITE_DATABASE_ID': '69b008400000b872c17a',
     'NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID': 'user_profiles',
     'NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID': 'build_cycles',
     'NEXT_PUBLIC_APPWRITE_PARTICIPATION_COLLECTION_ID': 'cycle_participation'
@@ -128,7 +128,7 @@ console.log('\n📋 Checking appwrite.config.json...');
 if (fs.existsSync('appwrite.config.json')) {
   const config = JSON.parse(fs.readFileSync('appwrite.config.json', 'utf8'));
   
-  if (config.projectId === '69948407003ab1a59d8d') {
+  if (config.projectId === '69adee6a00043e4e9c46') {
     console.log('  ✅ Project ID is correct');
   } else {
     console.error(`  ❌ Project ID mismatch: ${config.projectId}`);
@@ -137,7 +137,7 @@ if (fs.existsSync('appwrite.config.json')) {
   
   // Check database ID
   const db = config.tablesDB?.[0];
-  if (db?.$id === 'builder_circle') {
+  if (db?.$id === '69b008400000b872c17a') {
     console.log('  ✅ Database ID is correct');
   } else {
     console.error(`  ❌ Database ID mismatch: ${db?.$id}`);
@@ -154,7 +154,7 @@ const functionConfigPath = 'functions/computeOwnership/appwrite.json';
 if (fs.existsSync(functionConfigPath)) {
   const functionConfig = JSON.parse(fs.readFileSync(functionConfigPath, 'utf8'));
   
-  if (functionConfig.projectId === '69948407003ab1a59d8d') {
+  if (functionConfig.projectId === '69adee6a00043e4e9c46') {
     console.log('  ✅ Function project ID is correct');
   } else {
     console.error(`  ❌ Function project ID mismatch: ${functionConfig.projectId}`);

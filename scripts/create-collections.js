@@ -18,7 +18,7 @@ const CONFIG = {
   endpoint: 'https://your-domain.com/v1', // or http://YOUR_SERVER_IP/v1
   projectId: 'YOUR_PROJECT_ID',
   apiKey: 'YOUR_API_KEY',
-  databaseId: 'builder_circle',
+  databaseId: '69b008400000b872c17a',
 };
 
 // ========================================

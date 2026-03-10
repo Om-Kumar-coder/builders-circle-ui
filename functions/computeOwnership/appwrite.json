@@ -1,9 +1,9 @@
 {
-  "projectId": "69948407003ab1a59d8d",
+  "projectId": "69adee6a00043e4e9c46",
   "projectName": "Builder's Circle",
   "functions": [
     {
-      "$id": "computeOwnership",
+      "$id": "69b01734003cfc6e4ab1",
       "name": "Compute Ownership",
       "runtime": "node-22",
       "execute": ["any"],

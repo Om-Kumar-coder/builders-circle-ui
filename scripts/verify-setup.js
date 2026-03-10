@@ -31,9 +31,9 @@ const EXPECTED_COLLECTIONS = [
 
 // Expected functions
 const EXPECTED_FUNCTIONS = [
-  'computeOwnership',
-  'stallEvaluator',
-  'adjustMultiplier',
+  'computeOwnership', // computeOwnership
+  '69b026500015eb784443', // stallEvaluator
+  '69b02eed00387c6c0414', // adjustMultiplier
 ];
 
 // Verification results
