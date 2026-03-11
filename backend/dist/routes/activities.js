@@ -84,8 +84,13 @@ router.post('/', auth_1.authMiddleware, async (req, res) => {
         // Create activity
         const activity = await database_1.prisma.activityEvent.create({
             data: {
-                ...data,
                 userId: req.user.id,
+                cycleId: data.cycleId,
+                activityType: data.activityType,
+                proofLink: data.proofLink,
+                description: data.description,
+                contributionType: data.contributionType,
+                contributionWeight: data.contributionWeight,
             },
             include: {
                 user: {

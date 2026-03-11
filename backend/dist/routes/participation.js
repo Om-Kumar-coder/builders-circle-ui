@@ -89,9 +89,10 @@ router.patch('/:id', auth_1.authMiddleware, async (req, res) => {
         const updateData = zod_1.z.object({
             optedIn: zod_1.z.boolean().optional(),
         }).parse(req.body);
+        const participationId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
         const participation = await database_1.prisma.cycleParticipation.update({
             where: {
-                id: req.params.id,
+                id: participationId,
                 userId: req.user.id // Ensure user can only update their own participation
             },
             data: updateData
