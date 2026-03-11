@@ -24,7 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: userData.email,
         name: userData.name,
         createdAt: userData.createdAt,
-        role: userData.role as User['role']
+        role: userData.role as User['role'],
+        status: userData.status,
+        bio: userData.bio,
+        avatar: userData.avatar
       });
     } catch (error) {
       setUser(null);
@@ -43,7 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: userData.email,
         name: userData.name,
         createdAt: userData.createdAt,
-        role: userData.role as User['role']
+        role: userData.role as User['role'],
+        status: userData.status,
+        bio: userData.bio,
+        avatar: userData.avatar
       });
       
       // Role-based redirection
@@ -67,7 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: userData.email,
         name: userData.name,
         createdAt: userData.createdAt,
-        role: userData.role as User['role']
+        role: userData.role as User['role'],
+        status: userData.status,
+        bio: userData.bio,
+        avatar: userData.avatar
       });
       
       router.replace('/dashboard');

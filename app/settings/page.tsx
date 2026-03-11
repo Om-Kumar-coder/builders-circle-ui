@@ -274,9 +274,9 @@ export default function SettingsPage() {
               </span>
             </div>
             <div className="flex items-center justify-between py-2">
-              <span className="text-gray-400">Email Verified</span>
-              <span className={`text-sm font-medium ${user.emailVerification ? 'text-green-400' : 'text-yellow-400'}`}>
-                {user.emailVerification ? 'Verified' : 'Not Verified'}
+              <span className="text-gray-400">Account Status</span>
+              <span className={`text-sm font-medium ${user.status === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
+                {user.status === 'active' ? 'Active' : user.status || 'Unknown'}
               </span>
             </div>
           </div>
