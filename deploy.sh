@@ -143,9 +143,12 @@ fi
 # --------------------------------------------------------------------------
 print_message "Configuring environment variables..."
 
+# URL encode the password for PostgreSQL connection string
+DB_PASS_ENCODED=$(node -e "console.log(encodeURIComponent('$DB_PASS'))")
+
 # Backend .env
 cat > backend/.env <<EOF
-DATABASE_URL="postgresql://builders_user:$DB_PASS@localhost:5432/builders_circle"
+DATABASE_URL="postgresql://builders_user:$DB_PASS_ENCODED@localhost:5432/builders_circle"
 JWT_SECRET="$JWT_SECRET"
 JWT_EXPIRES=7d
 PORT=3001
