@@ -101,8 +101,8 @@ export default function NotificationPanel({
           <div className="p-2 space-y-1">
             {notifications.map((notification) => (
               <button
-                key={notification.$id}
-                onClick={() => !notification.read && onMarkRead(notification.$id)}
+                key={notification.id}
+                onClick={() => !notification.read && onMarkRead(notification.id)}
                 className={`w-full text-left p-3 rounded-lg transition-colors ${
                   notification.read
                     ? 'hover:bg-gray-800/50'
@@ -121,7 +121,7 @@ export default function NotificationPanel({
                       {notification.message}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      {formatTime(notification.$createdAt)}
+                      {formatTime(notification.createdAt)}
                     </p>
                   </div>
 

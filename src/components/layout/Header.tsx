@@ -87,7 +87,7 @@ export default function Header({ title = 'Dashboard', onMenuClick }: HeaderProps
         {/* Right: Notifications + User */}
         <div className="flex items-center space-x-3">
           {/* Notifications */}
-          {user && <NotificationBell userId={user.$id} />}
+          {user && <NotificationBell userId={user.id} />}
 
           {/* User Menu */}
           <div className="relative" ref={dropdownRef}>

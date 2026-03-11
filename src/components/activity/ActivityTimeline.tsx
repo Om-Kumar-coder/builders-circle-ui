@@ -85,7 +85,7 @@ export default function ActivityTimeline({ userId, cycleId, refreshTrigger = 0 }
       ) : (
         <div className="space-y-3">
           {activities.map((activity) => (
-            <ActivityItem key={activity.$id} activity={activity} />
+            <ActivityItem key={activity.id} activity={activity} />
           ))}
         </div>
       )}

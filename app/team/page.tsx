@@ -8,7 +8,7 @@ import { apiClient } from '@/lib/api-client';
 import { Users, RefreshCw, Activity, Clock, AlertCircle } from 'lucide-react';
 
 interface TeamMember {
-  $id: string;
+  id: string;
   userId: string;
   userName?: string;
   userEmail?: string;
@@ -44,7 +44,7 @@ export default function TeamPage() {
       // TODO: Implement proper participation API endpoint
       const mockTeamMembers: TeamMember[] = [
         {
-          $id: '1',
+          id: '1',
           userId: 'user1',
           userName: 'Alice Johnson',
           userEmail: 'alice@example.com',
@@ -55,7 +55,7 @@ export default function TeamPage() {
           optedIn: true
         },
         {
-          $id: '2',
+          id: '2',
           userId: 'user2',
           userName: 'Bob Smith',
           userEmail: 'bob@example.com',
@@ -243,7 +243,7 @@ export default function TeamPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {teamMembers.map((member) => (
                 <div
-                  key={member.$id}
+                  key={member.id}
                   className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-4 hover:bg-gray-800 hover:border-gray-600 transition-all"
                 >
                   <div className="flex items-start gap-3 mb-3">

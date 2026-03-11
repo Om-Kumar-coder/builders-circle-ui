@@ -1,7 +1,8 @@
 export interface User {
-  $id: string;
+  id: string;
   email: string;
   name?: string;
+  createdAt?: string;
   role?: 'founder' | 'admin' | 'contributor' | 'employee' | 'observer';
 }
 

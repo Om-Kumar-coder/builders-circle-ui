@@ -14,7 +14,7 @@ interface CycleCardProps {
 }
 
 export default function CycleCard({ cycle, userId }: CycleCardProps) {
-  const { participation, refetch } = useParticipation(userId, cycle.$id);
+  const { participation, refetch } = useParticipation(userId, cycle.id);
   const [showButton, setShowButton] = useState(false);
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function CycleCard({ cycle, userId }: CycleCardProps) {
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-gray-700 hover:shadow-lg hover:shadow-indigo-500/10 transition-all duration-200 group">
-      <Link href={`/build-cycles/${cycle.$id}`} className="block mb-4">
+      <Link href={`/build-cycles/${cycle.id}`} className="block mb-4">
         <div className="flex items-start justify-between mb-4">
           <h3 className="text-xl font-semibold text-gray-100 group-hover:text-indigo-400 transition-colors">
             {cycle.name}
@@ -70,7 +70,7 @@ export default function CycleCard({ cycle, userId }: CycleCardProps) {
         ) : showButton ? (
           <JoinBuildButton
             userId={userId!}
-            cycleId={cycle.$id}
+            cycleId={cycle.id}
             onSuccess={handleJoinSuccess}
             className="w-full justify-center"
           />

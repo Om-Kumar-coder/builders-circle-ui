@@ -20,9 +20,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userData = await apiClient.getCurrentUser();
       setUser({
-        $id: userData.id,
+        id: userData.id,
         email: userData.email,
         name: userData.name,
+        createdAt: userData.createdAt,
         role: userData.role as User['role']
       });
     } catch (error) {
@@ -38,9 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = response.user;
       
       setUser({
-        $id: userData.id,
+        id: userData.id,
         email: userData.email,
         name: userData.name,
+        createdAt: userData.createdAt,
         role: userData.role as User['role']
       });
       
@@ -61,9 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = response.user;
       
       setUser({
-        $id: userData.id,
+        id: userData.id,
         email: userData.email,
         name: userData.name,
+        createdAt: userData.createdAt,
         role: userData.role as User['role']
       });
       

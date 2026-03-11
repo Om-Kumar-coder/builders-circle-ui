@@ -8,7 +8,7 @@ export default function Page() {
   const { user } = useAuth();
   
   // TODO: Replace with actual user ID and cycle ID from auth/context
-  const userId = user?.$id || "user123";
+  const userId = user?.id || "user123";
   const cycleId = "cycle456";
 
   return (

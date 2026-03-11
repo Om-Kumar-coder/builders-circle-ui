@@ -123,7 +123,7 @@ export default function ParticipationSummary({ userId }: ParticipationSummaryPro
       <div className="space-y-3">
         {participations.map((participation) => (
           <Link
-            key={participation.$id}
+            key={participation.id}
             href={`/build-cycles/${participation.cycleId}`}
             className="block bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-lg p-4 transition-colors"
           >

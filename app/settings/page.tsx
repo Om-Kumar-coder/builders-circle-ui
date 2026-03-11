@@ -261,12 +261,12 @@ export default function SettingsPage() {
           <div className="space-y-2 text-sm">
             <div className="flex items-center justify-between py-2 border-b border-gray-800">
               <span className="text-gray-400">User ID</span>
-              <span className="text-gray-300 font-mono text-xs">{user.$id}</span>
+              <span className="text-gray-300 font-mono text-xs">{user.id}</span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-gray-800">
               <span className="text-gray-400">Account Created</span>
               <span className="text-gray-300">
-                {new Date(user.$createdAt).toLocaleDateString('en-US', {
+                {new Date(user.createdAt || '').toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'

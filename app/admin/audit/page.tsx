@@ -8,8 +8,8 @@ import { apiClient } from '@/lib/api-client';
 import { Shield, Filter, RefreshCw, AlertCircle, Search } from 'lucide-react';
 
 interface AuditEvent {
-  $id: string;
-  $createdAt: string;
+  id: string;
+  createdAt: string;
   userId: string;
   cycleId: string;
   eventType: string;
@@ -53,8 +53,8 @@ export default function AuditPage() {
 
       // Transform the events to match our interface
       const transformedEvents = filteredEvents.map((event: any) => ({
-        $id: event.id,
-        $createdAt: event.createdAt,
+        id: event.id,
+        createdAt: event.createdAt,
         userId: event.userId,
         cycleId: event.cycleId,
         eventType: event.eventType,
@@ -69,8 +69,8 @@ export default function AuditPage() {
       // Fallback to mock data if API fails
       const mockEvents: AuditEvent[] = [
         {
-          $id: '1',
-          $createdAt: new Date().toISOString(),
+          id: '1',
+          createdAt: new Date().toISOString(),
           userId: 'user123',
           cycleId: 'cycle456',
           eventType: 'activity_submitted',
@@ -78,8 +78,8 @@ export default function AuditPage() {
           reason: 'Daily contribution submitted'
         },
         {
-          $id: '2',
-          $createdAt: new Date(Date.now() - 86400000).toISOString(),
+          id: '2',
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
           userId: 'user456',
           cycleId: 'cycle456',
           eventType: 'multiplier_adjustment',
@@ -299,7 +299,7 @@ export default function AuditPage() {
             <div className="space-y-3">
               {events.map((event) => (
                 <div
-                  key={event.$id}
+                  key={event.id}
                   className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-4 hover:bg-gray-800 transition-colors"
                 >
                   <div className="flex items-start gap-3">
@@ -316,7 +316,7 @@ export default function AuditPage() {
                             {formatEventType(event.eventType)}
                           </h3>
                           <p className="text-xs text-gray-500 mt-0.5">
-                            {new Date(event.$createdAt).toLocaleString('en-US', {
+                            {new Date(event.createdAt).toLocaleString('en-US', {
                               month: 'short',
                               day: 'numeric',
                               year: 'numeric',

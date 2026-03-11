@@ -224,7 +224,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
             </p>
             {cycle.state === 'active' ? (
               <JoinBuildButton
-                userId={user.$id}
+                userId={user.id}
                 cycleId={cycle.id}
                 onSuccess={onUpdate}
                 className="mx-auto"

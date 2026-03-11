@@ -68,7 +68,7 @@ export default function ActivityItem({ activity, showUser = false }: ActivityIte
             )}
             
             <div className="flex items-center gap-3 text-xs text-gray-500">
-              <span>{formatTimeAgo(activity.$createdAt)}</span>
+              <span>{formatTimeAgo(activity.createdAt)}</span>
               <a
                 href={activity.proofLink}
                 target="_blank"

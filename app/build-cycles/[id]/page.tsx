@@ -39,7 +39,7 @@ export default function CycleDetailsPage() {
       setCycle(cycleDoc as BuildCycle);
 
       // Fetch user participation
-      const participationData = await getParticipation(user.$id, cycleId);
+      const participationData = await getParticipation(user.id, cycleId);
       setParticipation(participationData);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch cycle details');
@@ -126,7 +126,7 @@ export default function CycleDetailsPage() {
         {participation && participation.optedIn && cycle.state === 'active' && (
           <div className="mt-6">
             <SubmitActivityForm
-              userId={user.$id}
+              userId={user.id}
               cycleId={cycle.id}
               onSuccess={handleActivitySubmitted}
             />
@@ -137,7 +137,7 @@ export default function CycleDetailsPage() {
         {participation && participation.optedIn && (
           <div className="mt-6">
             <ActivityTimeline
-              userId={user.$id}
+              userId={user.id}
               cycleId={cycle.id}
               refreshTrigger={refreshTrigger}
             />

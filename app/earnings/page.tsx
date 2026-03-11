@@ -21,17 +21,17 @@ export default function EarningsPage() {
   const { user, loading: authLoading } = useAuth();
   const cycleId = 'cycle456'; // TODO: Get from context
   
-  const { data, loading, error, refetch } = useOwnershipData(user?.$id || '', cycleId);
+  const { data, loading, error, refetch } = useOwnershipData(user?.id || '', cycleId);
   const [ledgerEvents, setLedgerEvents] = useState<LedgerEvent[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(true);
 
   useEffect(() => {
     const fetchLedgerEvents = async () => {
-      if (!user?.$id) return;
+      if (!user?.id) return;
       
       try {
         setLedgerLoading(true);
-        const response = await apiClient.getOwnership(user.$id, cycleId);
+        const response = await apiClient.getOwnership(user.id, cycleId);
         
         if (response.success && response.entries) {
           // Transform the entries to match our interface
@@ -56,7 +56,7 @@ export default function EarningsPage() {
     };
 
     fetchLedgerEvents();
-  }, [user?.$id, cycleId]);
+  }, [user?.id, cycleId]);
 
   if (authLoading) {
     return <LoadingScreen />;
