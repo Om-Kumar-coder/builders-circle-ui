@@ -3,6 +3,7 @@ export interface User {
   email: string;
   name?: string;
   createdAt?: string;
+  emailVerification?: boolean;
   role?: 'founder' | 'admin' | 'contributor' | 'employee' | 'observer';
 }
 
