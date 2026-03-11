@@ -7,6 +7,7 @@ export interface User {
   status?: string;
   bio?: string;
   avatar?: string;
+  emailVerification?: boolean;
 }
 
 export interface AuthContextType {
