@@ -39,15 +39,19 @@ fi
 # --------------------------------------------------------------------------
 print_message "Starting Builder's Circle deployment..."
 
-# Domain name (required for nginx and SSL)
-read -p "Enter your domain name (e.g., example.com): " DOMAIN
-if [ -z "$DOMAIN" ]; then
-    print_error "Domain name is required."
-    exit 1
-fi
+# Domain name (required for nginx and SSL) - COMMENTED OUT FOR HTTP DEPLOYMENT
+# read -p "Enter your domain name (e.g., example.com): " DOMAIN
+# if [ -z "$DOMAIN" ]; then
+#     print_error "Domain name is required."
+#     exit 1
+# fi
 
-# Email for Let's Encrypt (optional but recommended)
-read -p "Enter your email address for Let's Encrypt (optional, press Enter to skip): " EMAIL
+# Using IP address for HTTP deployment
+DOMAIN="148.230.90.1"
+
+# Email for Let's Encrypt (optional but recommended) - COMMENTED OUT FOR HTTP DEPLOYMENT
+# read -p "Enter your email address for Let's Encrypt (optional, press Enter to skip): " EMAIL
+EMAIL=""
 
 # Database password (generate if not provided)
 read -sp "Enter PostgreSQL password for 'builders_user' (leave empty to auto-generate): " DB_PASS
@@ -153,13 +157,13 @@ JWT_SECRET="$JWT_SECRET"
 JWT_EXPIRES=7d
 PORT=3001
 NODE_ENV=production
-FRONTEND_URL=https://$DOMAIN
-CORS_ORIGIN=https://$DOMAIN
+FRONTEND_URL=http://$DOMAIN
+CORS_ORIGIN=http://$DOMAIN
 EOF
 
 # Frontend .env.local (for build)
 cat > .env.local <<EOF
-NEXT_PUBLIC_API_URL=https://$DOMAIN/api
+NEXT_PUBLIC_API_URL=http://$DOMAIN/api
 EOF
 
 # Also create .env.production for reference (optional)
@@ -249,7 +253,7 @@ print_message "Configuring Nginx as reverse proxy..."
 cat > /etc/nginx/sites-available/builders-circle <<EOF
 server {
     listen 80;
-    server_name $DOMAIN;
+    server_name $DOMAIN _;
 
     # Frontend
     location / {
@@ -290,14 +294,16 @@ nginx -t
 systemctl restart nginx
 
 # --------------------------------------------------------------------------
-# SSL Certificate (Let's Encrypt)
+# SSL Certificate (Let's Encrypt) - COMMENTED OUT FOR HTTP DEPLOYMENT
 # --------------------------------------------------------------------------
-if [ -n "$EMAIL" ]; then
-    print_message "Obtaining SSL certificate from Let's Encrypt..."
-    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$EMAIL"
-else
-    print_warning "No email provided, skipping SSL certificate. You can obtain one later with: certbot --nginx -d $DOMAIN"
-fi
+# if [ -n "$EMAIL" ]; then
+#     print_message "Obtaining SSL certificate from Let's Encrypt..."
+#     certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$EMAIL"
+# else
+#     print_warning "No email provided, skipping SSL certificate. You can obtain one later with: certbot --nginx -d $DOMAIN"
+# fi
+
+print_message "Skipping SSL certificate setup - using HTTP deployment"
 
 # --------------------------------------------------------------------------
 # Final Checks
@@ -325,8 +331,8 @@ fi
 # Output final instructions
 print_message "------------------------------------------------"
 print_message "Deployment successful!"
-print_message "Your application is available at: https://$DOMAIN"
-print_message "Backend API: https://$DOMAIN/api"
+print_message "Your application is available at: http://$DOMAIN"
+print_message "Backend API: http://$DOMAIN/api"
 print_message ""
 print_message "PM2 Commands:"
 print_message "  pm2 status                # View process status"
@@ -341,7 +347,6 @@ print_message "  Password: $DB_PASS"
 print_message ""
 print_message "JWT Secret: $JWT_SECRET"
 print_message ""
-print_message "Make sure to:"
-print_message "  - Update DNS A record for $DOMAIN to point to this server's IP"
-print_message "  - If you skipped SSL, run: certbot --nginx -d $DOMAIN"
+print_message "Note: Currently configured for HTTP deployment"
+print_message "To enable HTTPS later, uncomment SSL sections and run certbot"
 print_message "------------------------------------------------"
