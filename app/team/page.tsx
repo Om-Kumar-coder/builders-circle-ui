@@ -31,7 +31,8 @@ export default function TeamPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const cycleId = 'cycle456'; // TODO: Get from context
+  // TODO: Get active cycle ID from context or user selection
+  const cycleId = 'cycle456';
 
   const isAdmin = user?.role === 'admin' || user?.role === 'founder';
 
@@ -40,34 +41,27 @@ export default function TeamPage() {
       setLoading(true);
       setError('');
 
-      // For now, we'll use mock data since we don't have a participation endpoint yet
-      // TODO: Implement proper participation API endpoint
-      const mockTeamMembers: TeamMember[] = [
-        {
-          id: '1',
-          userId: 'user1',
-          userName: 'Alice Johnson',
-          userEmail: 'alice@example.com',
-          role: 'contributor',
-          participationStatus: 'active',
-          stallStage: 'active',
-          lastActivityDate: new Date().toISOString(),
-          optedIn: true
-        },
-        {
-          id: '2',
-          userId: 'user2',
-          userName: 'Bob Smith',
-          userEmail: 'bob@example.com',
-          role: 'contributor',
-          participationStatus: 'at_risk',
-          stallStage: 'at_risk',
-          lastActivityDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          optedIn: true
-        }
-      ];
+      if (!isAdmin) {
+        setError('Admin access required to view team members');
+        return;
+      }
 
-      setTeamMembers(mockTeamMembers);
+      const participants = await apiClient.getTeamMembers(cycleId);
+      
+      // Transform the data to match our interface
+      const transformedMembers: TeamMember[] = participants.map((participant: any) => ({
+        id: participant.id,
+        userId: participant.userId,
+        userName: participant.user.name,
+        userEmail: participant.user.email,
+        role: participant.user.profile?.role || 'contributor',
+        participationStatus: participant.participationStatus,
+        stallStage: participant.calculatedStallStage || participant.stallStage,
+        lastActivityDate: participant.lastActivityDate,
+        optedIn: participant.optedIn
+      }));
+
+      setTeamMembers(transformedMembers);
     } catch (err: any) {
       setError(err.message || 'Failed to load team members');
     } finally {

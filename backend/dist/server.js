@@ -18,12 +18,34 @@ const activities_1 = __importDefault(require("./routes/activities"));
 const ownership_1 = __importDefault(require("./routes/ownership"));
 const notifications_1 = __importDefault(require("./routes/notifications"));
 const admin_1 = __importDefault(require("./routes/admin"));
+const analytics_1 = __importDefault(require("./routes/analytics"));
 const app = (0, express_1.default)();
 // Security middleware
-app.use((0, helmet_1.default)());
+app.use((0, helmet_1.default)({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false
+}));
+// Handle preflight requests explicitly
+app.options('*', (req, res) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.sendStatus(200);
+});
+// More permissive CORS for development
 app.use((0, cors_1.default)({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin)
+            return callback(null, true);
+        return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    preflightContinue: false,
+    optionsSuccessStatus: 200
 }));
 // Rate limiting
 const limiter = (0, express_rate_limit_1.default)({
@@ -39,7 +61,9 @@ app.use(express_1.default.urlencoded({ extended: true }));
 app.use((req, res, next) => {
     logger_1.default.info(`${req.method} ${req.path}`, {
         ip: req.ip,
-        userAgent: req.get('User-Agent')
+        origin: req.headers.origin,
+        userAgent: req.get('User-Agent'),
+        authorization: req.headers.authorization ? 'Bearer ***' : 'none'
     });
     next();
 });
@@ -55,6 +79,7 @@ app.use('/api/activities', activities_1.default);
 app.use('/api/ownership', ownership_1.default);
 app.use('/api/notifications', notifications_1.default);
 app.use('/api/admin', admin_1.default);
+app.use('/api/analytics', analytics_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     logger_1.default.error('Unhandled error:', err);
@@ -64,8 +89,9 @@ app.use((err, req, res, next) => {
 app.use('*', (req, res) => {
     res.status(404).json({ error: 'Route not found' });
 });
+// Listen on all network interfaces
 const PORT = parseInt(env_1.env.PORT);
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     logger_1.default.info(`Server running on port ${PORT}`);
     // Start job scheduler
     scheduler_1.JobScheduler.start();

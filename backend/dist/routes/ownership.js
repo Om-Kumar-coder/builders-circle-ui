@@ -33,16 +33,38 @@ router.get('/:userId/:cycleId', auth_1.authMiddleware, async (req, res) => {
         });
         const multiplier = latestMultiplier?.multiplier || 1.0;
         const effectiveOwnership = totalOwnership * multiplier;
+        // Calculate vested vs provisional ownership
+        // Business logic: Ownership becomes vested based on time and activity
+        // For now, we'll use a simple time-based vesting schedule
+        const cycle = await database_1.prisma.buildCycle.findUnique({
+            where: { id: cycleId }
+        });
+        let vestedPercentage = 0;
+        if (cycle) {
+            const now = new Date();
+            const cycleStart = new Date(cycle.startDate);
+            const cycleEnd = new Date(cycle.endDate);
+            const cycleDuration = cycleEnd.getTime() - cycleStart.getTime();
+            const elapsed = Math.max(0, now.getTime() - cycleStart.getTime());
+            // Vesting schedule: 0% at start, 100% at end, linear progression
+            vestedPercentage = Math.min(1, elapsed / cycleDuration);
+        }
+        const vestedOwnership = totalOwnership * vestedPercentage;
+        const provisionalOwnership = totalOwnership - vestedOwnership;
         res.json({
             success: true,
             totalOwnership,
+            vestedOwnership,
+            provisionalOwnership,
             multiplier,
             effectiveOwnership,
+            vestedPercentage: Math.round(vestedPercentage * 100),
             entriesCount: ledgerEntries.length,
             entries: ledgerEntries
         });
     }
     catch (error) {
+        console.error('Ownership error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

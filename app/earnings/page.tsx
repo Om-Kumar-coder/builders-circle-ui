@@ -19,7 +19,8 @@ interface LedgerEvent {
 
 export default function EarningsPage() {
   const { user, loading: authLoading } = useAuth();
-  const cycleId = 'cycle456'; // TODO: Get from context
+  // TODO: Get active cycle ID from context or user selection
+  const cycleId = 'cycle456';
   
   const { data, loading, error, refetch } = useOwnershipData(user?.id || '', cycleId);
   const [ledgerEvents, setLedgerEvents] = useState<LedgerEvent[]>([]);

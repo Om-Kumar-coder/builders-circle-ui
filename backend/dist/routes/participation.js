@@ -106,5 +106,58 @@ router.patch('/:id', auth_1.authMiddleware, async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+// Get all participants in a cycle (admin only)
+router.get('/:cycleId/all', auth_1.authMiddleware, (0, auth_1.roleMiddleware)(['admin', 'founder']), async (req, res) => {
+    try {
+        const cycleId = Array.isArray(req.params.cycleId) ? req.params.cycleId[0] : req.params.cycleId;
+        const participants = await database_1.prisma.cycleParticipation.findMany({
+            where: { cycleId },
+            include: {
+                user: {
+                    include: {
+                        profile: true,
+                        activityEvents: {
+                            where: { cycleId },
+                            orderBy: { createdAt: 'desc' },
+                            take: 1
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        // Calculate stall stages based on last activity
+        const now = new Date();
+        const participantsWithStallStage = participants.map(participation => {
+            const lastActivity = participation.user.activityEvents[0];
+            let calculatedStallStage = 'paused';
+            if (lastActivity) {
+                const daysSinceLastActivity = Math.floor((now.getTime() - lastActivity.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+                if (daysSinceLastActivity <= 6) {
+                    calculatedStallStage = 'active';
+                }
+                else if (daysSinceLastActivity <= 13) {
+                    calculatedStallStage = 'at_risk';
+                }
+                else if (daysSinceLastActivity <= 20) {
+                    calculatedStallStage = 'diminishing';
+                }
+                else {
+                    calculatedStallStage = 'paused';
+                }
+            }
+            return {
+                ...participation,
+                calculatedStallStage,
+                lastActivityDate: lastActivity?.createdAt || null
+            };
+        });
+        res.json(participantsWithStallStage);
+    }
+    catch (error) {
+        console.error('Participants error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 exports.default = router;
 //# sourceMappingURL=participation.js.map

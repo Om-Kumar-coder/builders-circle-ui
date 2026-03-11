@@ -142,6 +142,11 @@ class ApiClient {
     });
   }
 
+  // Get team members for a cycle (admin only)
+  async getTeamMembers(cycleId: string): Promise<any[]> {
+    return this.request<any[]>(`/participation/${cycleId}/all`);
+  }
+
   // Activities methods
   async getActivities(params?: { userId?: string; cycleId?: string }): Promise<any[]> {
     const searchParams = new URLSearchParams();
@@ -181,17 +186,23 @@ class ApiClient {
   async getOwnership(userId: string, cycleId: string): Promise<{ 
     success?: boolean; 
     entries?: any[]; 
-    totalOwnership?: number; 
+    totalOwnership?: number;
+    vestedOwnership?: number;
+    provisionalOwnership?: number;
     multiplier?: number; 
-    effectiveOwnership?: number; 
+    effectiveOwnership?: number;
+    vestedPercentage?: number;
     error?: string 
   }> {
     return this.request<{ 
       success?: boolean; 
       entries?: any[]; 
-      totalOwnership?: number; 
+      totalOwnership?: number;
+      vestedOwnership?: number;
+      provisionalOwnership?: number;
       multiplier?: number; 
-      effectiveOwnership?: number; 
+      effectiveOwnership?: number;
+      vestedPercentage?: number;
       error?: string 
     }>(`/ownership/${userId}/${cycleId}`);
   }
@@ -229,6 +240,42 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ disputeId, resolution }),
     });
+  }
+
+  // Analytics methods
+  async getDashboardAnalytics(cycleId?: string): Promise<{
+    totalActivities: number;
+    verifiedActivities: number;
+    pendingActivities: number;
+    rejectedActivities: number;
+    participationHealth: {
+      active: number;
+      atRisk: number;
+      diminishing: number;
+      paused: number;
+    };
+    totalSubmissions: number;
+    avgFrequency: number;
+    inactiveUsers: number;
+    totalUsers: number;
+    activeUsers: number;
+  }> {
+    const params = cycleId ? `?cycleId=${cycleId}` : '';
+    return this.request<any>(`/analytics/dashboard${params}`);
+  }
+
+  async getCycleAnalytics(cycleId: string): Promise<{
+    cycleId: string;
+    cycleName: string;
+    participantCount: number;
+    currentStage: string;
+    lastActivityDate: string | null;
+    progress: number;
+    startDate: string;
+    endDate: string;
+    state: string;
+  }> {
+    return this.request<any>(`/analytics/cycle/${cycleId}`);
   }
 }
 

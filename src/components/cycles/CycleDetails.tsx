@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { BuildCycle, CycleState } from '@/types/cycle';
 import type { User } from '@/types/auth';
 import type { ParticipationRecord } from '@/lib/participation';
+import { useCycleAnalytics } from '@/hooks/useAnalytics';
 import CycleStatusBadge from './CycleStatusBadge';
 import ParticipationBadge from '../participation/ParticipationBadge';
 import StallStageIndicator from '../participation/StallStageIndicator';
@@ -27,6 +28,9 @@ const stateTransitions: Record<CycleState, CycleState[]> = {
 export default function CycleDetails({ cycle, user, participation, onUpdate }: CycleDetailsProps) {
   const [loading, setLoading] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  
+  // Get dynamic cycle analytics
+  const { analytics: cycleAnalytics, loading: analyticsLoading } = useCycleAnalytics(cycle.id);
 
   const isAdmin = user.role === 'admin' || user.role === 'founder';
   const canTransition = stateTransitions[cycle.state];
@@ -48,6 +52,26 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
       hour: 'numeric',
       minute: '2-digit',
     });
+  };
+
+  const getStageColor = (stage: string) => {
+    switch (stage) {
+      case 'active': return 'text-green-400';
+      case 'at_risk': return 'text-yellow-400';
+      case 'diminishing': return 'text-orange-400';
+      case 'paused': return 'text-red-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getStageLabel = (stage: string) => {
+    switch (stage) {
+      case 'active': return 'Active';
+      case 'at_risk': return 'At Risk';
+      case 'diminishing': return 'Diminishing';
+      case 'paused': return 'Paused';
+      default: return 'Unknown';
+    }
   };
 
   const handleStateChange = async (newState: CycleState) => {
@@ -79,7 +103,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
           <div className="bg-gray-800/50 rounded-lg p-4">
             <p className="text-sm text-gray-400 mb-1">Start Date</p>
             <p className="text-lg font-semibold text-gray-100">{formatDate(cycle.startDate)}</p>
@@ -90,9 +114,35 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
           </div>
           <div className="bg-gray-800/50 rounded-lg p-4">
             <p className="text-sm text-gray-400 mb-1">Participants</p>
-            <p className="text-lg font-semibold text-gray-100">{cycle.participantCount || 0}</p>
+            <p className="text-lg font-semibold text-gray-100">
+              {analyticsLoading ? '...' : (cycleAnalytics?.participantCount || cycle.participantCount || 0)}
+            </p>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-4">
+            <p className="text-sm text-gray-400 mb-1">Progress</p>
+            <p className="text-lg font-semibold text-gray-100">
+              {analyticsLoading ? '...' : `${cycleAnalytics?.progress?.toFixed(1) || '0.0'}%`}
+            </p>
           </div>
         </div>
+
+        {/* Cycle Analytics */}
+        {cycleAnalytics && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <p className="text-sm text-gray-400 mb-1">Current Stage</p>
+              <p className={`text-lg font-semibold ${getStageColor(cycleAnalytics.currentStage)}`}>
+                {getStageLabel(cycleAnalytics.currentStage)}
+              </p>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <p className="text-sm text-gray-400 mb-1">Last Activity</p>
+              <p className="text-lg font-semibold text-gray-100">
+                {formatDateTime(cycleAnalytics.lastActivityDate)}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Admin Controls */}
@@ -194,7 +244,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
               <div className="bg-gray-800/50 rounded-lg p-4">
                 <p className="text-sm text-gray-400 mb-1">Cycle Progress</p>
                 <p className="text-base font-medium text-gray-200">
-                  Active
+                  {analyticsLoading ? 'Loading...' : `${cycleAnalytics?.progress?.toFixed(1) || '0.0'}%`}
                 </p>
               </div>
             </div>

@@ -2,30 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
-import { apiClient } from '@/lib/api-client';
 import { TrendingUp, Users, Activity, AlertCircle, BarChart3, PieChart, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-
-interface InsightsData {
-  participationHealth: {
-    active: number;
-    atRisk: number;
-    diminishing: number;
-    paused: number;
-    total: number;
-  };
-  activityInsights: {
-    totalSubmissions: number;
-    averageFrequency: number;
-    inactiveParticipants: number;
-  };
-  cycleInsights: {
-    participationRate: number;
-    engagementScore: number;
-  };
-}
 
 const COLORS = {
   active: '#10b981',
@@ -36,81 +17,12 @@ const COLORS = {
 
 export default function InsightsPage() {
   const { user, loading: authLoading } = useAuth();
-  const [data, setData] = useState<InsightsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const cycleId = 'cycle456'; // TODO: Get from context
+  // TODO: Get active cycle ID from context or user selection
+  const cycleId = 'cycle456';
+  
+  const { analytics, loading, error, refetch } = useAnalytics(cycleId);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'founder';
-
-  const fetchInsights = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      // For now, we'll use mock data since we don't have participation endpoints yet
-      // TODO: Implement proper participation and activity API endpoints
-      const mockParticipants = [
-        { stallStage: 'active' },
-        { stallStage: 'active' },
-        { stallStage: 'at_risk' },
-        { stallStage: 'paused' },
-        { stallStage: 'active' },
-      ];
-
-      const mockActivities = [
-        { type: 'contribution' },
-        { type: 'contribution' },
-        { type: 'contribution' },
-        { type: 'contribution' },
-        { type: 'contribution' },
-        { type: 'contribution' },
-        { type: 'contribution' },
-      ];
-
-      // Calculate participation health
-      const participationHealth = {
-        active: mockParticipants.filter(p => p.stallStage === 'active' || p.stallStage === 'none').length,
-        atRisk: mockParticipants.filter(p => p.stallStage === 'at_risk').length,
-        diminishing: mockParticipants.filter(p => p.stallStage === 'diminishing').length,
-        paused: mockParticipants.filter(p => p.stallStage === 'paused').length,
-        total: mockParticipants.length,
-      };
-
-      // Calculate activity insights
-      const activityInsights = {
-        totalSubmissions: mockActivities.length,
-        averageFrequency: mockParticipants.length > 0 ? mockActivities.length / mockParticipants.length : 0,
-        inactiveParticipants: mockParticipants.filter(p => 
-          p.stallStage === 'paused' || p.stallStage === 'diminishing'
-        ).length,
-      };
-
-      // Calculate cycle insights
-      const cycleInsights = {
-        participationRate: mockParticipants.length > 0 ? (participationHealth.active / mockParticipants.length) * 100 : 0,
-        engagementScore: mockParticipants.length > 0 
-          ? ((participationHealth.active * 100 + participationHealth.atRisk * 75 + participationHealth.diminishing * 50) / mockParticipants.length)
-          : 0,
-      };
-
-      setData({
-        participationHealth,
-        activityInsights,
-        cycleInsights,
-      });
-    } catch (err: any) {
-      setError(err.message || 'Failed to load insights');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      fetchInsights();
-    }
-  }, [user, cycleId]);
 
   if (authLoading) {
     return <LoadingScreen />;
@@ -140,18 +52,24 @@ export default function InsightsPage() {
   }
 
   // Prepare chart data
-  const stallStageData = data ? [
-    { name: 'Active', value: data.participationHealth.active, color: COLORS.active },
-    { name: 'At Risk', value: data.participationHealth.atRisk, color: COLORS.atRisk },
-    { name: 'Diminishing', value: data.participationHealth.diminishing, color: COLORS.diminishing },
-    { name: 'Paused', value: data.participationHealth.paused, color: COLORS.paused },
+  const stallStageData = analytics ? [
+    { name: 'Active', value: analytics.participationHealth.active, color: COLORS.active },
+    { name: 'At Risk', value: analytics.participationHealth.atRisk, color: COLORS.atRisk },
+    { name: 'Diminishing', value: analytics.participationHealth.diminishing, color: COLORS.diminishing },
+    { name: 'Paused', value: analytics.participationHealth.paused, color: COLORS.paused },
   ] : [];
 
-  const activityTrendData = data ? [
-    { name: 'Total', value: data.activityInsights.totalSubmissions },
-    { name: 'Avg/User', value: Math.round(data.activityInsights.averageFrequency * 10) / 10 },
-    { name: 'Inactive', value: data.activityInsights.inactiveParticipants },
+  const activityTrendData = analytics ? [
+    { name: 'Total', value: analytics.totalSubmissions },
+    { name: 'Avg/User', value: Math.round(analytics.avgFrequency * 10) / 10 },
+    { name: 'Inactive', value: analytics.inactiveUsers },
   ] : [];
+
+  const totalParticipants = analytics ? 
+    analytics.participationHealth.active + 
+    analytics.participationHealth.atRisk + 
+    analytics.participationHealth.diminishing + 
+    analytics.participationHealth.paused : 0;
 
   return (
     <MainLayout title="Insights">
@@ -163,7 +81,7 @@ export default function InsightsPage() {
             <p className="text-gray-400 mt-1">Participation health and behavior insights</p>
           </div>
           <button
-            onClick={fetchInsights}
+            onClick={refetch}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 
               border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50"
@@ -189,7 +107,7 @@ export default function InsightsPage() {
               </div>
             ))}
           </div>
-        ) : data ? (
+        ) : analytics ? (
           <>
             {/* Participation Health Cards */}
             <div>
@@ -200,37 +118,37 @@ export default function InsightsPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">Active</p>
-                  <p className="text-2xl font-bold text-green-400">{data.participationHealth.active}</p>
+                  <p className="text-2xl font-bold text-green-400">{analytics.participationHealth.active}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {data.participationHealth.total > 0 
-                      ? Math.round((data.participationHealth.active / data.participationHealth.total) * 100)
+                    {totalParticipants > 0 
+                      ? Math.round((analytics.participationHealth.active / totalParticipants) * 100)
                       : 0}% of total
                   </p>
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">At Risk</p>
-                  <p className="text-2xl font-bold text-yellow-400">{data.participationHealth.atRisk}</p>
+                  <p className="text-2xl font-bold text-yellow-400">{analytics.participationHealth.atRisk}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {data.participationHealth.total > 0 
-                      ? Math.round((data.participationHealth.atRisk / data.participationHealth.total) * 100)
+                    {totalParticipants > 0 
+                      ? Math.round((analytics.participationHealth.atRisk / totalParticipants) * 100)
                       : 0}% of total
                   </p>
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">Diminishing</p>
-                  <p className="text-2xl font-bold text-orange-400">{data.participationHealth.diminishing}</p>
+                  <p className="text-2xl font-bold text-orange-400">{analytics.participationHealth.diminishing}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {data.participationHealth.total > 0 
-                      ? Math.round((data.participationHealth.diminishing / data.participationHealth.total) * 100)
+                    {totalParticipants > 0 
+                      ? Math.round((analytics.participationHealth.diminishing / totalParticipants) * 100)
                       : 0}% of total
                   </p>
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">Paused</p>
-                  <p className="text-2xl font-bold text-red-400">{data.participationHealth.paused}</p>
+                  <p className="text-2xl font-bold text-red-400">{analytics.participationHealth.paused}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    {data.participationHealth.total > 0 
-                      ? Math.round((data.participationHealth.paused / data.participationHealth.total) * 100)
+                    {totalParticipants > 0 
+                      ? Math.round((analytics.participationHealth.paused / totalParticipants) * 100)
                       : 0}% of total
                   </p>
                 </div>
@@ -246,19 +164,19 @@ export default function InsightsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">Total Submissions</p>
-                  <p className="text-2xl font-bold text-gray-100">{data.activityInsights.totalSubmissions}</p>
+                  <p className="text-2xl font-bold text-gray-100">{analytics.totalSubmissions}</p>
                   <p className="text-xs text-gray-500 mt-1">All time</p>
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">Avg Frequency</p>
                   <p className="text-2xl font-bold text-gray-100">
-                    {data.activityInsights.averageFrequency.toFixed(1)}
+                    {analytics.avgFrequency.toFixed(1)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Activities per user</p>
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">Inactive Users</p>
-                  <p className="text-2xl font-bold text-gray-100">{data.activityInsights.inactiveParticipants}</p>
+                  <p className="text-2xl font-bold text-gray-100">{analytics.inactiveUsers}</p>
                   <p className="text-xs text-gray-500 mt-1">Need attention</p>
                 </div>
               </div>
@@ -274,14 +192,20 @@ export default function InsightsPage() {
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">Participation Rate</p>
                   <p className="text-2xl font-bold text-indigo-400">
-                    {data.cycleInsights.participationRate.toFixed(1)}%
+                    {totalParticipants > 0 
+                      ? ((analytics.participationHealth.active / totalParticipants) * 100).toFixed(1)
+                      : '0.0'}%
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Active participants</p>
                 </div>
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                   <p className="text-sm text-gray-400 mb-1">Engagement Score</p>
                   <p className="text-2xl font-bold text-indigo-400">
-                    {data.cycleInsights.engagementScore.toFixed(1)}
+                    {totalParticipants > 0 
+                      ? (((analytics.participationHealth.active * 100 + 
+                           analytics.participationHealth.atRisk * 75 + 
+                           analytics.participationHealth.diminishing * 50) / totalParticipants)).toFixed(1)
+                      : '0.0'}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Weighted average</p>
                 </div>

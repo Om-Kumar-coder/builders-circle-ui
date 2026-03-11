@@ -37,15 +37,9 @@ export function useOwnershipData(
         throw new Error(result.error || 'Failed to fetch ownership data');
       }
 
-      // Derive vested and provisional from total
-      // For demo: 60% vested, 40% provisional
-      const totalOwnership = result.totalOwnership || 0;
-      const vested = totalOwnership * 0.6;
-      const provisional = totalOwnership * 0.4;
-
       setData({
-        vested: parseFloat(vested.toFixed(2)),
-        provisional: parseFloat(provisional.toFixed(2)),
+        vested: result.vestedOwnership || 0,
+        provisional: result.provisionalOwnership || 0,
         multiplier: result.multiplier || 1,
         effective: result.effectiveOwnership || 0,
       });

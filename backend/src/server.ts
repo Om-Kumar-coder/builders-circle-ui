@@ -14,6 +14,7 @@ import activityRoutes from './routes/activities';
 import ownershipRoutes from './routes/ownership';
 import notificationRoutes from './routes/notifications';
 import adminRoutes from './routes/admin';
+import analyticsRoutes from './routes/analytics';
 
 const app = express();
 
@@ -82,6 +83,7 @@ app.use('/api/activities', activityRoutes);
 app.use('/api/ownership', ownershipRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
