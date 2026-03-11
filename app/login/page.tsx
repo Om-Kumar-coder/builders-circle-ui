@@ -5,7 +5,6 @@ import { useAuth } from '../../src/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LogIn, Loader2 } from 'lucide-react';
-import { account } from '../../src/lib/appwrite';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');

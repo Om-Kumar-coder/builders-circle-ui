@@ -1,46 +1,13 @@
-import { databases } from './appwrite';
-import { ID, Query, Models } from 'appwrite';
+import { apiClient } from './api-client';
 
-export interface Notification extends Models.Document {
+export interface Notification {
+  id: string;
   userId: string;
   type: 'stall_warning' | 'participation_paused' | 'activity_verified' | 'multiplier_changed' | 'cycle_started' | 'admin_message';
   message: string;
   read: boolean;
-  metadata?: Record<string, any>;
-}
-
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '';
-const NOTIFICATIONS_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_NOTIFICATIONS_COLLECTION_ID || 'notifications';
-
-/**
- * Create a new notification
- */
-export async function createNotification(
-  userId: string,
-  type: Notification['type'],
-  message: string,
-  metadata?: Record<string, any>
-): Promise<Notification> {
-  try {
-    const notification = await databases.createDocument(
-      DATABASE_ID,
-      NOTIFICATIONS_COLLECTION_ID,
-      ID.unique(),
-      {
-        userId,
-        type,
-        message,
-        read: false,
-        metadata: metadata || {},
-        createdAt: new Date().toISOString(),
-      }
-    );
-
-    return notification as Notification;
-  } catch (error) {
-    console.error('Error creating notification:', error);
-    throw error;
-  }
+  metadata?: string;
+  createdAt: string;
 }
 
 /**
@@ -52,23 +19,14 @@ export async function getUserNotifications(
   unreadOnly: boolean = false
 ): Promise<Notification[]> {
   try {
-    const queries = [
-      Query.equal('userId', userId),
-      Query.orderDesc('$createdAt'),
-      Query.limit(limit),
-    ];
-
+    const notifications = await apiClient.getNotifications();
+    
+    let filtered = notifications;
     if (unreadOnly) {
-      queries.push(Query.equal('read', false));
+      filtered = notifications.filter((n: Notification) => !n.read);
     }
-
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      NOTIFICATIONS_COLLECTION_ID,
-      queries
-    );
-
-    return response.documents as Notification[];
+    
+    return filtered.slice(0, limit);
   } catch (error) {
     console.error('Error fetching notifications:', error);
     return [];
@@ -80,16 +38,8 @@ export async function getUserNotifications(
  */
 export async function getUnreadCount(userId: string): Promise<number> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      NOTIFICATIONS_COLLECTION_ID,
-      [
-        Query.equal('userId', userId),
-        Query.equal('read', false),
-      ]
-    );
-
-    return response.total;
+    const notifications = await apiClient.getNotifications();
+    return notifications.filter((n: Notification) => !n.read).length;
   } catch (error) {
     console.error('Error fetching unread count:', error);
     return 0;
@@ -101,12 +51,7 @@ export async function getUnreadCount(userId: string): Promise<number> {
  */
 export async function markAsRead(notificationId: string): Promise<void> {
   try {
-    await databases.updateDocument(
-      DATABASE_ID,
-      NOTIFICATIONS_COLLECTION_ID,
-      notificationId,
-      { read: true }
-    );
+    await apiClient.markNotificationAsRead(notificationId);
   } catch (error) {
     console.error('Error marking notification as read:', error);
     throw error;
@@ -121,38 +66,11 @@ export async function markAllAsRead(userId: string): Promise<void> {
     const notifications = await getUserNotifications(userId, 100, true);
     
     await Promise.all(
-      notifications.map(notification => markAsRead(notification.$id))
+      notifications.map(notification => markAsRead(notification.id))
     );
   } catch (error) {
     console.error('Error marking all as read:', error);
     throw error;
-  }
-}
-
-/**
- * Delete old notifications (cleanup)
- */
-export async function deleteOldNotifications(userId: string, daysOld: number = 30): Promise<void> {
-  try {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      NOTIFICATIONS_COLLECTION_ID,
-      [
-        Query.equal('userId', userId),
-        Query.lessThan('$createdAt', cutoffDate.toISOString()),
-      ]
-    );
-
-    await Promise.all(
-      response.documents.map(doc => 
-        databases.deleteDocument(DATABASE_ID, NOTIFICATIONS_COLLECTION_ID, doc.$id)
-      )
-    );
-  } catch (error) {
-    console.error('Error deleting old notifications:', error);
   }
 }
 
@@ -208,13 +126,6 @@ export async function sendNotificationEmail(
   type: Notification['type'],
   message: string
 ): Promise<void> {
-  // TODO: Implement email notification via Appwrite Functions
-  // This will use an email service provider (SendGrid, Mailgun, etc.)
+  // TODO: Implement email notification via backend service
   console.log('Email notification placeholder:', { userId, type, message });
-  
-  // Future implementation:
-  // 1. Get user email from user profile
-  // 2. Format email template based on notification type
-  // 3. Call Appwrite Function to send email
-  // 4. Log email sent event
 }

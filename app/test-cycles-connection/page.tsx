@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { apiClient } from '@/lib/api-client';
 
 export default function TestCyclesConnection() {
   const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -15,18 +14,16 @@ export default function TestCyclesConnection() {
     setResult(null);
 
     try {
-      console.log('Testing Appwrite connection...');
-      console.log('Database ID:', process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID);
-      console.log('Collection ID:', process.env.NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID);
+      console.log('Testing API connection...');
+      console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
 
-      const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-        process.env.NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID || '',
-        [Query.orderDesc('$createdAt')]
-      );
+      const response = await apiClient.getCycles();
 
       console.log('✅ Success! Response:', response);
-      setResult(response);
+      setResult({
+        total: response.length,
+        documents: response
+      });
       setStatus('success');
     } catch (err: any) {
       console.error('❌ Error:', err);
@@ -38,28 +35,16 @@ export default function TestCyclesConnection() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-2">Build Cycles Connection Test</h1>
-        <p className="text-gray-400 mb-8">Test if the app can connect to Appwrite and retrieve build cycles data</p>
+        <h1 className="text-3xl font-bold mb-2">API Connection Test</h1>
+        <p className="text-gray-400 mb-8">Test if the app can connect to the backend API and retrieve build cycles data</p>
 
         {/* Environment Variables */}
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Environment Configuration</h2>
           <div className="space-y-2 font-mono text-sm">
             <div className="flex gap-2">
-              <span className="text-gray-500">Endpoint:</span>
-              <span className="text-green-400">{process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '❌ Not set'}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-500">Project ID:</span>
-              <span className="text-green-400">{process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '❌ Not set'}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-500">Database ID:</span>
-              <span className="text-green-400">{process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '❌ Not set'}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-500">Cycles Collection:</span>
-              <span className="text-green-400">{process.env.NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID || '❌ Not set'}</span>
+              <span className="text-gray-500">API URL:</span>
+              <span className="text-green-400">{process.env.NEXT_PUBLIC_API_URL || '❌ Not set'}</span>
             </div>
           </div>
         </div>
@@ -87,7 +72,7 @@ export default function TestCyclesConnection() {
                   <h3 className="text-lg font-semibold mb-3">Cycles:</h3>
                   <div className="space-y-3">
                     {result.documents.map((cycle: any, index: number) => (
-                      <div key={cycle.$id} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+                      <div key={cycle.id} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-semibold text-lg">{index + 1}. {cycle.name}</h4>
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -103,7 +88,7 @@ export default function TestCyclesConnection() {
                           <p>Start: {new Date(cycle.startDate).toLocaleDateString()}</p>
                           <p>End: {new Date(cycle.endDate).toLocaleDateString()}</p>
                           <p>Participants: {cycle.participantCount || 0}</p>
-                          <p className="text-xs text-gray-500">ID: {cycle.$id}</p>
+                          <p className="text-xs text-gray-500">ID: {cycle.id}</p>
                         </div>
                       </div>
                     ))}
@@ -131,12 +116,11 @@ export default function TestCyclesConnection() {
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
               <h3 className="font-semibold mb-2">Common Issues:</h3>
               <ul className="list-disc list-inside space-y-1 text-sm text-gray-400">
-                <li>Check if .env.local file exists with correct values</li>
-                <li>Verify Project ID matches your Appwrite project</li>
-                <li>Verify Database ID exists in your Appwrite console</li>
-                <li>Verify Collection ID matches your build_cycles collection</li>
-                <li>Check API permissions allow reading the collection</li>
-                <li>Ensure Appwrite endpoint is accessible</li>
+                <li>Check if .env.local file exists with correct API URL</li>
+                <li>Verify backend server is running on the correct port</li>
+                <li>Check if authentication token is valid</li>
+                <li>Ensure backend API endpoints are accessible</li>
+                <li>Check network connectivity to backend</li>
               </ul>
             </div>
           </div>
@@ -146,7 +130,8 @@ export default function TestCyclesConnection() {
         <div className="mt-8 bg-gray-900 border border-gray-800 rounded-lg p-6">
           <h2 className="text-xl font-semibold mb-4">How to Use This Test</h2>
           <ol className="list-decimal list-inside space-y-2 text-gray-400">
-            <li>Make sure your .env.local file is configured with Appwrite credentials</li>
+            <li>Make sure your .env.local file is configured with the API URL</li>
+            <li>Ensure the backend server is running</li>
             <li>Click the "Test Connection" button above</li>
             <li>Check the results - green means success, red means there's an issue</li>
             <li>Open browser DevTools (F12) to see detailed console logs</li>

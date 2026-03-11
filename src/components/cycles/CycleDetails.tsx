@@ -8,7 +8,7 @@ import CycleStatusBadge from './CycleStatusBadge';
 import ParticipationBadge from '../participation/ParticipationBadge';
 import StallStageIndicator from '../participation/StallStageIndicator';
 import JoinBuildButton from '../participation/JoinBuildButton';
-import { databases } from '@/lib/appwrite';
+import { apiClient } from '@/lib/api-client';
 
 interface CycleDetailsProps {
   cycle: BuildCycle;
@@ -58,15 +58,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
 
     setLoading(true);
     try {
-      await databases.updateDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-        process.env.NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID || '',
-        cycle.$id,
-        {
-          state: newState,
-          // Don't set updatedAt - Appwrite handles $updatedAt automatically
-        }
-      );
+      await apiClient.updateCycle(cycle.id, { state: newState });
       setConfirmClose(false);
       onUpdate();
     } catch (error) {
@@ -196,7 +188,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
               <div className="bg-gray-800/50 rounded-lg p-4">
                 <p className="text-sm text-gray-400 mb-1">Joined</p>
                 <p className="text-base font-medium text-gray-200">
-                  {formatDate(participation.$createdAt)}
+                  {formatDate(participation.createdAt)}
                 </p>
               </div>
               <div className="bg-gray-800/50 rounded-lg p-4">
@@ -233,7 +225,7 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
             {cycle.state === 'active' ? (
               <JoinBuildButton
                 userId={user.$id}
-                cycleId={cycle.$id}
+                cycleId={cycle.id}
                 onSuccess={onUpdate}
                 className="mx-auto"
               />
@@ -250,11 +242,11 @@ export default function CycleDetails({ cycle, user, participation, onUpdate }: C
         <div className="text-gray-400 space-y-2">
           <div className="flex justify-between">
             <span>Cycle created:</span>
-            <span className="text-gray-300">{formatDateTime(cycle.$createdAt)}</span>
+            <span className="text-gray-300">{formatDateTime(cycle.createdAt)}</span>
           </div>
           <div className="flex justify-between">
             <span>Last updated:</span>
-            <span className="text-gray-300">{formatDateTime(cycle.$updatedAt)}</span>
+            <span className="text-gray-300">{formatDateTime(cycle.updatedAt)}</span>
           </div>
         </div>
       </div>

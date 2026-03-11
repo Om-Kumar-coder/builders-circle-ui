@@ -1,7 +1,31 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getUserCycleActivity, getLastActivity, type ActivityEvent } from '@/lib/activity';
+import { apiClient } from '@/lib/api-client';
+
+export interface ActivityEvent {
+  id: string;
+  userId: string;
+  cycleId: string;
+  activityType: string;
+  proofLink: string;
+  description?: string;
+  verified: 'pending' | 'verified' | 'rejected';
+  contributionType: 'code' | 'documentation' | 'review' | 'hours_logged';
+  contributionWeight: number;
+  calculatedOwnership: number;
+  createdAt: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  cycle?: {
+    id: string;
+    name: string;
+    state: string;
+  };
+}
 
 interface UseActivityResult {
   activities: ActivityEvent[];
@@ -22,7 +46,7 @@ export function useActivity(userId: string, cycleId: string): UseActivityResult 
     try {
       setLoading(true);
       setError(null);
-      const data = await getUserCycleActivity(userId, cycleId);
+      const data = await apiClient.getActivities({ userId, cycleId });
       setActivities(data);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch activities');
@@ -62,8 +86,11 @@ export function useLastActivity(userId: string): UseLastActivityResult {
     try {
       setLoading(true);
       setError(null);
-      const data = await getLastActivity(userId);
-      setLastActivity(data);
+      const activities = await apiClient.getActivities({ userId });
+      const sortedActivities = activities.sort((a: ActivityEvent, b: ActivityEvent) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setLastActivity(sortedActivities[0] || null);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch last activity');
     } finally {

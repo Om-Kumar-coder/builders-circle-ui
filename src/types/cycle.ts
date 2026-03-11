@@ -1,16 +1,14 @@
-import { Models } from 'appwrite';
-
 export type CycleState = 'planned' | 'active' | 'paused' | 'closed';
 
-export interface BuildCycle extends Models.Document {
+export interface BuildCycle {
+  id: string;
   name: string;
   state: CycleState;
   startDate: string;
   endDate: string;
-  participantCount?: number; // Optional since it might not be in the schema yet
-  // Appwrite provides these with $ prefix
-  $createdAt: string;
-  $updatedAt: string;
+  participantCount?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Legacy type - kept for backward compatibility

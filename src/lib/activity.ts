@@ -1,32 +1,27 @@
-import { databases } from './appwrite';
-import { ID, Query, Models } from 'appwrite';
+import { apiClient } from './api-client';
 
-export interface ActivityEvent extends Models.Document {
+export interface ActivityEvent {
+  id: string;
   userId: string;
   cycleId: string;
   activityType: string;
   proofLink: string;
   description?: string;
-  verified: string; // 'pending' | 'verified' | 'rejected'
-}
-
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '';
-const ACTIVITY_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_ACTIVITY_COLLECTION_ID || '';
-const PARTICIPATION_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_PARTICIPATION_COLLECTION_ID || '';
-
-// Debug logging - remove after fixing
-if (typeof window !== 'undefined') {
-  console.log('🔍 Activity.ts Environment Check:', {
-    DATABASE_ID,
-    ACTIVITY_COLLECTION_ID,
-    PARTICIPATION_COLLECTION_ID,
-    allEnvVars: {
-      endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT,
-      projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID,
-      databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
-      activityCollectionId: process.env.NEXT_PUBLIC_APPWRITE_ACTIVITY_COLLECTION_ID,
-    }
-  });
+  verified: 'pending' | 'verified' | 'rejected';
+  contributionType: 'code' | 'documentation' | 'review' | 'hours_logged';
+  contributionWeight: number;
+  calculatedOwnership: number;
+  createdAt: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  cycle?: {
+    id: string;
+    name: string;
+    state: string;
+  };
 }
 
 // Cooldown tracking (in-memory, resets on page reload)
@@ -41,7 +36,9 @@ export async function submitActivity(
   cycleId: string,
   activityType: string,
   proofLink: string,
-  description?: string
+  description?: string,
+  contributionType: 'code' | 'documentation' | 'review' | 'hours_logged' = 'code',
+  contributionWeight: number = 1.0
 ): Promise<{ success: boolean; activity?: ActivityEvent; error?: string }> {
   try {
     // Validate inputs
@@ -62,34 +59,22 @@ export async function submitActivity(
       };
     }
 
-    // Debug log (temporary)
-    console.log('COLLECTION:', process.env.NEXT_PUBLIC_APPWRITE_ACTIVITY_COLLECTION_ID);
-    console.log('DATABASE:', process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID);
-
-    // Create activity document
-    const activity = await databases.createDocument(
-      DATABASE_ID,
-      ACTIVITY_COLLECTION_ID,
-      ID.unique(),
-      {
-        userId,
-        cycleId,
-        activityType,
-        proofLink: proofLink.trim(),
-        description: description?.trim() || '',
-        verified: 'pending',
-      }
-    );
-
-    // Update participation record
-    await updateParticipationActivity(userId, cycleId);
+    // Create activity
+    const activity = await apiClient.createActivity({
+      cycleId,
+      activityType,
+      proofLink: proofLink.trim(),
+      description: description?.trim(),
+      contributionType,
+      contributionWeight,
+    });
 
     // Update cooldown
     lastSubmissionTime.set(cooldownKey, now);
 
     return {
       success: true,
-      activity: activity as ActivityEvent,
+      activity,
     };
   } catch (error: any) {
     console.error('Error submitting activity:', error);
@@ -101,48 +86,6 @@ export async function submitActivity(
 }
 
 /**
- * Update participation record with latest activity timestamp
- */
-export async function updateParticipationActivity(
-  userId: string,
-  cycleId: string
-): Promise<void> {
-  try {
-    // Find participation record
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      PARTICIPATION_COLLECTION_ID,
-      [
-        Query.equal('userId', userId),
-        Query.equal('cycleId', cycleId),
-        Query.limit(1),
-      ]
-    );
-
-    if (response.documents.length === 0) {
-      throw new Error('Participation record not found');
-    }
-
-    const participation = response.documents[0];
-
-    // Update with current timestamp and reset stall stage
-    await databases.updateDocument(
-      DATABASE_ID,
-      PARTICIPATION_COLLECTION_ID,
-      participation.$id,
-      {
-        lastActivityDate: new Date().toISOString(),
-        participationStatus: 'active',
-        stallStage: 'none',
-      }
-    );
-  } catch (error) {
-    console.error('Error updating participation activity:', error);
-    throw error;
-  }
-}
-
-/**
  * Get all activities for a user in a specific cycle
  */
 export async function getUserCycleActivity(
@@ -150,18 +93,7 @@ export async function getUserCycleActivity(
   cycleId: string
 ): Promise<ActivityEvent[]> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      ACTIVITY_COLLECTION_ID,
-      [
-        Query.equal('userId', userId),
-        Query.equal('cycleId', cycleId),
-        Query.orderDesc('$createdAt'),
-        Query.limit(100),
-      ]
-    );
-
-    return response.documents as ActivityEvent[];
+    return await apiClient.getActivities({ userId, cycleId });
   } catch (error) {
     console.error('Error fetching user cycle activity:', error);
     return [];
@@ -173,17 +105,7 @@ export async function getUserCycleActivity(
  */
 export async function getCycleActivity(cycleId: string): Promise<ActivityEvent[]> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      ACTIVITY_COLLECTION_ID,
-      [
-        Query.equal('cycleId', cycleId),
-        Query.orderDesc('$createdAt'),
-        Query.limit(100),
-      ]
-    );
-
-    return response.documents as ActivityEvent[];
+    return await apiClient.getActivities({ cycleId });
   } catch (error) {
     console.error('Error fetching cycle activity:', error);
     return [];
@@ -195,20 +117,11 @@ export async function getCycleActivity(cycleId: string): Promise<ActivityEvent[]
  */
 export async function getLastActivity(userId: string): Promise<ActivityEvent | null> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      ACTIVITY_COLLECTION_ID,
-      [
-        Query.equal('userId', userId),
-        Query.orderDesc('$createdAt'),
-        Query.limit(1),
-      ]
+    const activities = await apiClient.getActivities({ userId });
+    const sortedActivities = activities.sort((a: ActivityEvent, b: ActivityEvent) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
-
-    if (response.documents.length > 0) {
-      return response.documents[0] as ActivityEvent;
-    }
-    return null;
+    return sortedActivities[0] || null;
   } catch (error) {
     console.error('Error fetching last activity:', error);
     return null;
@@ -223,16 +136,8 @@ export async function getActivityCount(
   cycleId: string
 ): Promise<number> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      ACTIVITY_COLLECTION_ID,
-      [
-        Query.equal('userId', userId),
-        Query.equal('cycleId', cycleId),
-      ]
-    );
-
-    return response.total;
+    const activities = await apiClient.getActivities({ userId, cycleId });
+    return activities.length;
   } catch (error) {
     console.error('Error fetching activity count:', error);
     return 0;

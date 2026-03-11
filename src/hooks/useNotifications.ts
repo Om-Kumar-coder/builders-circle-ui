@@ -1,7 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getUserNotifications, getUnreadCount, markAsRead, markAllAsRead, type Notification } from '@/lib/notifications';
+import { apiClient } from '@/lib/api-client';
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  message: string;
+  read: boolean;
+  metadata?: string;
+  sent: boolean;
+  createdAt: string;
+  sentAt?: string;
+}
 
 interface UseNotificationsResult {
   notifications: Notification[];
@@ -13,40 +25,38 @@ interface UseNotificationsResult {
   markAllRead: () => Promise<void>;
 }
 
-export function useNotifications(userId: string, autoRefresh: boolean = true): UseNotificationsResult {
+export function useNotifications(autoRefresh: boolean = true): UseNotificationsResult {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchNotifications = useCallback(async () => {
-    if (!userId) return;
-
     try {
       setLoading(true);
       setError(null);
 
-      const [notifs, count] = await Promise.all([
-        getUserNotifications(userId, 20),
-        getUnreadCount(userId),
+      const [notifs, countData] = await Promise.all([
+        apiClient.getNotifications(),
+        apiClient.getUnreadCount(),
       ]);
 
       setNotifications(notifs);
-      setUnreadCount(count);
+      setUnreadCount(countData.count);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch notifications');
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   const markRead = useCallback(async (notificationId: string) => {
     try {
-      await markAsRead(notificationId);
+      await apiClient.markNotificationRead(notificationId);
       
       // Update local state
       setNotifications(prev =>
-        prev.map(n => n.$id === notificationId ? { ...n, read: true } : n)
+        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err: any) {
@@ -56,7 +66,7 @@ export function useNotifications(userId: string, autoRefresh: boolean = true): U
 
   const markAllRead = useCallback(async () => {
     try {
-      await markAllAsRead(userId);
+      await apiClient.markAllNotificationsRead();
       
       // Update local state
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
@@ -64,7 +74,7 @@ export function useNotifications(userId: string, autoRefresh: boolean = true): U
     } catch (err: any) {
       console.error('Error marking all as read:', err);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     fetchNotifications();

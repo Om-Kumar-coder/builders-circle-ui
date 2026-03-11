@@ -1,6 +1,7 @@
-import { Models } from 'appwrite';
-
-export interface User extends Models.User<Models.Preferences> {
+export interface User {
+  $id: string;
+  email: string;
+  name?: string;
   role?: 'founder' | 'admin' | 'contributor' | 'employee' | 'observer';
 }
 

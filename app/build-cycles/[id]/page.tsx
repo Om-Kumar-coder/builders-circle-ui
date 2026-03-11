@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { databases } from '@/lib/appwrite';
+import { apiClient } from '@/lib/api-client';
 import type { BuildCycle } from '@/types/cycle';
 import type { ParticipationRecord } from '@/lib/participation';
 import { getParticipation } from '@/lib/participation';
@@ -35,11 +35,7 @@ export default function CycleDetailsPage() {
       setError(null);
 
       // Fetch cycle details
-      const cycleDoc = await databases.getDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-        process.env.NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID || '',
-        cycleId
-      );
+      const cycleDoc = await apiClient.getCycle(cycleId);
       setCycle(cycleDoc as BuildCycle);
 
       // Fetch user participation
@@ -131,7 +127,7 @@ export default function CycleDetailsPage() {
           <div className="mt-6">
             <SubmitActivityForm
               userId={user.$id}
-              cycleId={cycle.$id}
+              cycleId={cycle.id}
               onSuccess={handleActivitySubmitted}
             />
           </div>
@@ -142,7 +138,7 @@ export default function CycleDetailsPage() {
           <div className="mt-6">
             <ActivityTimeline
               userId={user.$id}
-              cycleId={cycle.$id}
+              cycleId={cycle.id}
               refreshTrigger={refreshTrigger}
             />
           </div>

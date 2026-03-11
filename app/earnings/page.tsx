@@ -6,12 +6,11 @@ import { useOwnershipData } from '@/hooks/useOwnershipData';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import { TrendingUp, Coins, Percent, Zap, RefreshCw, Info } from 'lucide-react';
-import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { apiClient } from '@/lib/api-client';
 
 interface LedgerEvent {
-  $id: string;
-  $createdAt: string;
+  id: string;
+  createdAt: string;
   eventType: string;
   ownershipAmount: number;
   multiplierSnapshot?: number;
@@ -32,19 +31,25 @@ export default function EarningsPage() {
       
       try {
         setLedgerLoading(true);
-        const response = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-          process.env.NEXT_PUBLIC_APPWRITE_LEDGER_COLLECTION_ID || 'ownership_ledger',
-          [
-            Query.equal('userId', user.$id),
-            Query.equal('cycleId', cycleId),
-            Query.orderDesc('$createdAt'),
-            Query.limit(10)
-          ]
-        );
-        setLedgerEvents(response.documents as any);
+        const response = await apiClient.getOwnership(user.$id, cycleId);
+        
+        if (response.success && response.entries) {
+          // Transform the entries to match our interface
+          const transformedEvents = response.entries.map((entry: any) => ({
+            id: entry.id,
+            createdAt: entry.createdAt,
+            eventType: entry.eventType || 'ownership_change',
+            ownershipAmount: entry.ownershipAmount,
+            multiplierSnapshot: entry.multiplierSnapshot,
+            reason: entry.reason
+          }));
+          setLedgerEvents(transformedEvents);
+        } else {
+          setLedgerEvents([]);
+        }
       } catch (err) {
         console.error('Error fetching ledger events:', err);
+        setLedgerEvents([]);
       } finally {
         setLedgerLoading(false);
       }
@@ -268,7 +273,7 @@ export default function EarningsPage() {
             <div className="space-y-3">
               {ledgerEvents.map((event) => (
                 <div
-                  key={event.$id}
+                  key={event.id}
                   className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-4 hover:bg-gray-800 transition-colors"
                 >
                   <div className="flex items-start gap-3">
@@ -279,7 +284,7 @@ export default function EarningsPage() {
                           {formatEventType(event.eventType)}
                         </h3>
                         <span className="text-xs text-gray-500 whitespace-nowrap">
-                          {new Date(event.$createdAt).toLocaleDateString('en-US', {
+                          {new Date(event.createdAt).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             hour: '2-digit',

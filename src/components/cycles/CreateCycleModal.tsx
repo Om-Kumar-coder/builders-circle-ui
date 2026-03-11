@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { databases } from '@/lib/appwrite';
-import { ID } from 'appwrite';
+import { apiClient } from '@/lib/api-client';
 
 interface CreateCycleModalProps {
   isOpen: boolean;
@@ -23,18 +22,11 @@ export default function CreateCycleModal({ isOpen, onClose, onSuccess }: CreateC
     setLoading(true);
 
     try {
-      await databases.createDocument(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-        process.env.NEXT_PUBLIC_APPWRITE_CYCLES_COLLECTION_ID || '',
-        ID.unique(),
-        {
-          name,
-          state: 'planned',
-          startDate,
-          endDate,
-          participantCount: 0,
-        }
-      );
+      await apiClient.createCycle({
+        name,
+        startDate,
+        endDate,
+      });
 
       setName('');
       setStartDate('');

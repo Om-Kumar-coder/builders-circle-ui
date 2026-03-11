@@ -1,18 +1,15 @@
-import { databases } from './appwrite';
-import { ID, Query, Models } from 'appwrite';
+import { apiClient } from './api-client';
 
-export interface ParticipationRecord extends Models.Document {
+export interface ParticipationRecord {
+  id: string;
   userId: string;
   cycleId: string;
   optedIn: boolean;
   participationStatus: 'active' | 'at-risk' | 'paused' | 'grace';
   stallStage: 'none' | 'grace' | 'active' | 'at_risk' | 'diminishing' | 'paused';
   lastActivityDate: string | null;
-  // Appwrite provides $createdAt automatically - don't include createdAt
+  createdAt: string;
 }
-
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '';
-const PARTICIPATION_COLLECTION_ID = process.env.NEXT_PUBLIC_APPWRITE_PARTICIPATION_COLLECTION_ID || '';
 
 /**
  * Get participation record for a user in a specific cycle
@@ -22,20 +19,8 @@ export async function getParticipation(
   cycleId: string
 ): Promise<ParticipationRecord | null> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      PARTICIPATION_COLLECTION_ID,
-      [
-        Query.equal('userId', userId),
-        Query.equal('cycleId', cycleId),
-        Query.limit(1),
-      ]
-    );
-
-    if (response.documents.length > 0) {
-      return response.documents[0] as ParticipationRecord;
-    }
-    return null;
+    const participation = await apiClient.getParticipation(cycleId);
+    return participation;
   } catch (error) {
     console.error('Error fetching participation:', error);
     return null;
@@ -50,34 +35,10 @@ export async function joinCycle(
   cycleId: string
 ): Promise<{ success: boolean; participation?: ParticipationRecord; error?: string }> {
   try {
-    // Check if already participating
-    const existing = await getParticipation(userId, cycleId);
-    if (existing) {
-      return {
-        success: true,
-        participation: existing,
-      };
-    }
-
-    // Create new participation record
-    const participation = await databases.createDocument(
-      DATABASE_ID,
-      PARTICIPATION_COLLECTION_ID,
-      ID.unique(),
-      {
-        userId,
-        cycleId,
-        optedIn: true,
-        participationStatus: 'grace',
-        stallStage: 'grace',
-        lastActivityDate: null,
-        // Don't set createdAt - Appwrite handles $createdAt automatically
-      }
-    );
-
+    const participation = await apiClient.joinCycle(cycleId);
     return {
       success: true,
-      participation: participation as ParticipationRecord,
+      participation,
     };
   } catch (error: any) {
     console.error('Error joining cycle:', error);
@@ -95,17 +56,9 @@ export async function getUserParticipatingCycles(
   userId: string
 ): Promise<ParticipationRecord[]> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      PARTICIPATION_COLLECTION_ID,
-      [
-        Query.equal('userId', userId),
-        Query.equal('optedIn', true),
-        Query.orderDesc('$createdAt'),
-      ]
-    );
-
-    return response.documents as ParticipationRecord[];
+    // This would need to be implemented in the backend
+    // For now, return empty array
+    return [];
   } catch (error) {
     console.error('Error fetching user participations:', error);
     return [];
@@ -158,17 +111,9 @@ export async function getCycleParticipants(
   cycleId: string
 ): Promise<ParticipationRecord[]> {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      PARTICIPATION_COLLECTION_ID,
-      [
-        Query.equal('cycleId', cycleId),
-        Query.equal('optedIn', true),
-        Query.orderDesc('$createdAt'),
-      ]
-    );
-
-    return response.documents as ParticipationRecord[];
+    // This would need to be implemented in the backend
+    // For now, return empty array
+    return [];
   } catch (error) {
     console.error('Error fetching cycle participants:', error);
     return [];

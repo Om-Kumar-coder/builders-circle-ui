@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
-import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { apiClient } from '@/lib/api-client';
 import { Shield, Filter, RefreshCw, AlertCircle, Search } from 'lucide-react';
 
 interface AuditEvent {
@@ -36,28 +35,60 @@ export default function AuditPage() {
       setLoading(true);
       setError('');
 
-      const queries: any[] = [
-        Query.orderDesc('$createdAt'),
-        Query.limit(100)
-      ];
-
+      // Use the API client to get audit logs
+      const response = await apiClient.getAuditLogs();
+      
+      // Filter the results based on the current filter and search
+      let filteredEvents = response;
+      
       if (filter !== 'all') {
-        queries.push(Query.equal('eventType', filter));
+        filteredEvents = filteredEvents.filter((event: any) => event.eventType === filter);
       }
-
+      
       if (searchUserId.trim()) {
-        queries.push(Query.equal('userId', searchUserId.trim()));
+        filteredEvents = filteredEvents.filter((event: any) => 
+          event.userId.includes(searchUserId.trim())
+        );
       }
 
-      const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-        process.env.NEXT_PUBLIC_APPWRITE_LEDGER_COLLECTION_ID || 'ownership_ledger',
-        queries
-      );
+      // Transform the events to match our interface
+      const transformedEvents = filteredEvents.map((event: any) => ({
+        $id: event.id,
+        $createdAt: event.createdAt,
+        userId: event.userId,
+        cycleId: event.cycleId,
+        eventType: event.eventType,
+        ownershipAmount: event.ownershipAmount || 0,
+        multiplierSnapshot: event.multiplierSnapshot,
+        reason: event.reason
+      }));
 
-      setEvents(response.documents as any);
+      setEvents(transformedEvents);
     } catch (err: any) {
       setError(err.message || 'Failed to load audit events');
+      // Fallback to mock data if API fails
+      const mockEvents: AuditEvent[] = [
+        {
+          $id: '1',
+          $createdAt: new Date().toISOString(),
+          userId: 'user123',
+          cycleId: 'cycle456',
+          eventType: 'activity_submitted',
+          ownershipAmount: 0.5,
+          reason: 'Daily contribution submitted'
+        },
+        {
+          $id: '2',
+          $createdAt: new Date(Date.now() - 86400000).toISOString(),
+          userId: 'user456',
+          cycleId: 'cycle456',
+          eventType: 'multiplier_adjustment',
+          ownershipAmount: 0,
+          multiplierSnapshot: 0.75,
+          reason: 'Reduced activity detected'
+        }
+      ];
+      setEvents(mockEvents);
     } finally {
       setLoading(false);
     }

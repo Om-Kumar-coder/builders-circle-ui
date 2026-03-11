@@ -1,16 +1,13 @@
 import { cookies } from 'next/headers';
 
 /**
- * Server-side helper to check if user has an active Appwrite session
- * This runs on the server and checks for the Appwrite session cookie
+ * Server-side helper to check if user has an active session
+ * This runs on the server and checks for the JWT token cookie
  */
 export async function getServerSession() {
   const cookieStore = await cookies();
-  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  const sessionCookieName = `a_session_${projectId}`;
-  
-  const session = cookieStore.get(sessionCookieName);
-  return session?.value || null;
+  const token = cookieStore.get('auth_token');
+  return token?.value || null;
 }
 
 /**
@@ -22,9 +19,8 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 /**
- * Get session cookie name for Appwrite
+ * Get session cookie name for JWT auth
  */
 export function getSessionCookieName(): string {
-  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID;
-  return `a_session_${projectId}`;
+  return 'auth_token';
 }

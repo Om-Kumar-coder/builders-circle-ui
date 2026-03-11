@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
-import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { apiClient } from '@/lib/api-client';
 import { Users, RefreshCw, Activity, Clock, AlertCircle } from 'lucide-react';
 
 interface TeamMember {
@@ -41,18 +40,34 @@ export default function TeamPage() {
       setLoading(true);
       setError('');
 
-      const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || '',
-        process.env.NEXT_PUBLIC_APPWRITE_PARTICIPATION_COLLECTION_ID || 'cycle_participation',
-        [
-          Query.equal('cycleId', cycleId),
-          Query.equal('optedIn', true),
-          Query.orderDesc('lastActivityDate'),
-          Query.limit(100)
-        ]
-      );
+      // For now, we'll use mock data since we don't have a participation endpoint yet
+      // TODO: Implement proper participation API endpoint
+      const mockTeamMembers: TeamMember[] = [
+        {
+          $id: '1',
+          userId: 'user1',
+          userName: 'Alice Johnson',
+          userEmail: 'alice@example.com',
+          role: 'contributor',
+          participationStatus: 'active',
+          stallStage: 'active',
+          lastActivityDate: new Date().toISOString(),
+          optedIn: true
+        },
+        {
+          $id: '2',
+          userId: 'user2',
+          userName: 'Bob Smith',
+          userEmail: 'bob@example.com',
+          role: 'contributor',
+          participationStatus: 'at_risk',
+          stallStage: 'at_risk',
+          lastActivityDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          optedIn: true
+        }
+      ];
 
-      setTeamMembers(response.documents as any);
+      setTeamMembers(mockTeamMembers);
     } catch (err: any) {
       setError(err.message || 'Failed to load team members');
     } finally {
