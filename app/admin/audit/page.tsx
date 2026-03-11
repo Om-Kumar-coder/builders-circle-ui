@@ -39,7 +39,7 @@ export default function AuditPage() {
       const response = await apiClient.getAuditLogs();
       
       // Filter the results based on the current filter and search
-      let filteredEvents = response;
+      let filteredEvents: any[] = Array.isArray(response) ? response : [];
       
       if (filter !== 'all') {
         filteredEvents = filteredEvents.filter((event: any) => event.eventType === filter);
