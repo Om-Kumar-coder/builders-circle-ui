@@ -186,9 +186,20 @@ cd ..
 # --------------------------------------------------------------------------
 print_message "Running database migrations..."
 cd backend
-npx prisma migrate deploy --preview-feature  # or db push if no migrations yet
-# If you don't have migrations yet, use db push:
-# npx prisma db push
+
+# Generate Prisma client for PostgreSQL
+npx prisma generate
+
+# Create initial migration if none exist, or deploy existing ones
+if [ ! -d "prisma/migrations" ]; then
+    print_message "Creating initial database migration..."
+    npx prisma migrate dev --name init --create-only
+    npx prisma migrate deploy
+else
+    print_message "Deploying existing migrations..."
+    npx prisma migrate deploy
+fi
+
 cd ..
 
 # --------------------------------------------------------------------------
