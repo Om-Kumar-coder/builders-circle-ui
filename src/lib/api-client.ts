@@ -29,6 +29,8 @@ class ApiClient {
     
     const response = await fetch(url, {
       ...options,
+      mode: 'cors',
+      credentials: 'include',
       headers: {
         ...this.getAuthHeaders(),
         ...options.headers,
