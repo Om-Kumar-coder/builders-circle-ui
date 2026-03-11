@@ -17,7 +17,7 @@ export default function ActivityPage() {
   // TODO: Get active cycle ID from context or user selection
   const cycleId = 'cycle456';
   
-  const { activities, loading, error, refetch } = useActivity(user?.$id || '', cycleId);
+  const { activities, loading, error, refetch } = useActivity(user?.id || '', cycleId);
 
   // Filter activities based on selected filter
   const filteredActivities = useMemo(() => {
@@ -164,7 +164,7 @@ export default function ActivityPage() {
           ) : (
             <div className="space-y-3">
               {filteredActivities.map((activity) => (
-                <ActivityItem key={activity.$id} activity={activity} />
+                <ActivityItem key={activity.id} activity={activity} />
               ))}
             </div>
           )}
