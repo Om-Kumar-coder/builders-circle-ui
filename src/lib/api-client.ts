@@ -44,8 +44,8 @@ class ApiClient {
   }
 
   // Auth methods
-  async signup(email: string, password: string, name?: string) {
-    const response = await this.request('/auth/signup', {
+  async signup(email: string, password: string, name?: string): Promise<{ token?: string; user?: any; success?: boolean; error?: string }> {
+    const response = await this.request<{ token?: string; user?: any; success?: boolean; error?: string }>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ email, password, name }),
     });
@@ -58,8 +58,8 @@ class ApiClient {
     return response;
   }
 
-  async login(email: string, password: string) {
-    const response = await this.request('/auth/login', {
+  async login(email: string, password: string): Promise<{ token?: string; user?: any; success?: boolean; error?: string }> {
+    const response = await this.request<{ token?: string; user?: any; success?: boolean; error?: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
@@ -72,12 +72,12 @@ class ApiClient {
     return response;
   }
 
-  async getCurrentUser() {
-    return this.request('/auth/me');
+  async getCurrentUser(): Promise<any> {
+    return this.request<any>('/auth/me');
   }
 
-  async logout() {
-    const response = await this.request('/auth/logout', { method: 'POST' });
+  async logout(): Promise<{ success?: boolean }> {
+    const response = await this.request<{ success?: boolean }>('/auth/logout', { method: 'POST' });
     
     // Remove token from localStorage
     localStorage.removeItem('auth_token');
@@ -86,20 +86,20 @@ class ApiClient {
   }
 
   // Cycles methods
-  async getCycles() {
-    return this.request('/cycles');
+  async getCycles(): Promise<any[]> {
+    return this.request<any[]>('/cycles');
   }
 
-  async getCycle(id: string) {
-    return this.request(`/cycles/${id}`);
+  async getCycle(id: string): Promise<any> {
+    return this.request<any>(`/cycles/${id}`);
   }
 
   async createCycle(data: {
     name: string;
     startDate: string;
     endDate: string;
-  }) {
-    return this.request('/cycles', {
+  }): Promise<any> {
+    return this.request<any>('/cycles', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -110,44 +110,44 @@ class ApiClient {
     state: string;
     startDate: string;
     endDate: string;
-  }>) {
-    return this.request(`/cycles/${id}`, {
+  }>): Promise<any> {
+    return this.request<any>(`/cycles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
-  async deleteCycle(id: string) {
-    return this.request(`/cycles/${id}`, { method: 'DELETE' });
+  async deleteCycle(id: string): Promise<{ success?: boolean }> {
+    return this.request<{ success?: boolean }>(`/cycles/${id}`, { method: 'DELETE' });
   }
 
   // Participation methods
-  async joinCycle(cycleId: string) {
-    return this.request('/participation/join', {
+  async joinCycle(cycleId: string): Promise<any> {
+    return this.request<any>('/participation/join', {
       method: 'POST',
       body: JSON.stringify({ cycleId }),
     });
   }
 
-  async getParticipation(cycleId: string) {
-    return this.request(`/participation/${cycleId}`);
+  async getParticipation(cycleId: string): Promise<any> {
+    return this.request<any>(`/participation/${cycleId}`);
   }
 
-  async updateParticipation(id: string, data: any) {
-    return this.request(`/participation/${id}`, {
+  async updateParticipation(id: string, data: any): Promise<any> {
+    return this.request<any>(`/participation/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
   // Activities methods
-  async getActivities(params?: { userId?: string; cycleId?: string }) {
+  async getActivities(params?: { userId?: string; cycleId?: string }): Promise<any[]> {
     const searchParams = new URLSearchParams();
     if (params?.userId) searchParams.append('userId', params.userId);
     if (params?.cycleId) searchParams.append('cycleId', params.cycleId);
     
     const query = searchParams.toString();
-    return this.request(`/activities${query ? `?${query}` : ''}`);
+    return this.request<any[]>(`/activities${query ? `?${query}` : ''}`);
   }
 
   async createActivity(data: {
@@ -155,44 +155,60 @@ class ApiClient {
     activityType: string;
     proofLink: string;
     description?: string;
-  }) {
-    return this.request('/activities', {
+    contributionType?: string;
+    contributionWeight?: number;
+  }): Promise<any> {
+    return this.request<any>('/activities', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateActivity(id: string, data: any) {
-    return this.request(`/activities/${id}`, {
+  async updateActivity(id: string, data: any): Promise<any> {
+    return this.request<any>(`/activities/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
-  async deleteActivity(id: string) {
-    return this.request(`/activities/${id}`, { method: 'DELETE' });
+  async deleteActivity(id: string): Promise<{ success?: boolean }> {
+    return this.request<{ success?: boolean }>(`/activities/${id}`, { method: 'DELETE' });
   }
 
   // Ownership methods
-  async getOwnership(userId: string, cycleId: string) {
-    return this.request(`/ownership/${userId}/${cycleId}`);
+  async getOwnership(userId: string, cycleId: string): Promise<{ 
+    success?: boolean; 
+    entries?: any[]; 
+    totalOwnership?: number; 
+    multiplier?: number; 
+    effectiveOwnership?: number; 
+    error?: string 
+  }> {
+    return this.request<{ 
+      success?: boolean; 
+      entries?: any[]; 
+      totalOwnership?: number; 
+      multiplier?: number; 
+      effectiveOwnership?: number; 
+      error?: string 
+    }>(`/ownership/${userId}/${cycleId}`);
   }
 
   // Notifications methods
-  async getNotifications() {
-    return this.request('/notifications');
+  async getNotifications(): Promise<any[]> {
+    return this.request<any[]>('/notifications');
   }
 
-  async getUnreadCount() {
+  async getUnreadCount(): Promise<{ count: number }> {
     const notifications = await this.getNotifications();
     return { count: notifications.filter((n: any) => !n.read).length };
   }
 
-  async markNotificationRead(id: string) {
-    return this.request(`/notifications/${id}/read`, { method: 'PATCH' });
+  async markNotificationRead(id: string): Promise<{ success?: boolean }> {
+    return this.request<{ success?: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' });
   }
 
-  async markAllNotificationsRead() {
+  async markAllNotificationsRead(): Promise<void> {
     const notifications = await this.getNotifications();
     const unreadIds = notifications.filter((n: any) => !n.read).map((n: any) => n.id);
     
@@ -202,12 +218,12 @@ class ApiClient {
   }
 
   // Admin methods
-  async getAuditLogs() {
-    return this.request('/admin/audit');
+  async getAuditLogs(): Promise<any[]> {
+    return this.request<any[]>('/admin/audit');
   }
 
-  async resolveDispute(disputeId: string, resolution: string) {
-    return this.request('/admin/resolve-dispute', {
+  async resolveDispute(disputeId: string, resolution: string): Promise<{ success?: boolean }> {
+    return this.request<{ success?: boolean }>('/admin/resolve-dispute', {
       method: 'POST',
       body: JSON.stringify({ disputeId, resolution }),
     });

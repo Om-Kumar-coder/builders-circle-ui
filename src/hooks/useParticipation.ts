@@ -10,7 +10,7 @@ export interface ParticipationRecord {
   optedIn: boolean;
   participationStatus: 'active' | 'at-risk' | 'paused' | 'grace';
   stallStage: 'none' | 'grace' | 'active' | 'at_risk' | 'diminishing' | 'paused';
-  lastActivityDate?: string;
+  lastActivityDate: string | null;
   createdAt: string;
   cycle?: {
     id: string;

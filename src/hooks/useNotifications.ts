@@ -2,17 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
-
-export interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  read: boolean;
-  createdAt: string;
-  userId: string;
-  metadata?: Record<string, any>;
-}
+import type { Notification, NotificationType } from '@/lib/notifications';
 
 interface UseNotificationsResult {
   notifications: Notification[];

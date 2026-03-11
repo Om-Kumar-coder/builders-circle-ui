@@ -39,14 +39,15 @@ export function useOwnershipData(
 
       // Derive vested and provisional from total
       // For demo: 60% vested, 40% provisional
-      const vested = result.totalOwnership * 0.6;
-      const provisional = result.totalOwnership * 0.4;
+      const totalOwnership = result.totalOwnership || 0;
+      const vested = totalOwnership * 0.6;
+      const provisional = totalOwnership * 0.4;
 
       setData({
         vested: parseFloat(vested.toFixed(2)),
         provisional: parseFloat(provisional.toFixed(2)),
-        multiplier: result.multiplier,
-        effective: result.effectiveOwnership,
+        multiplier: result.multiplier || 1,
+        effective: result.effectiveOwnership || 0,
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';

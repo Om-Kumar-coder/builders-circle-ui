@@ -9,6 +9,16 @@ export interface ParticipationRecord {
   stallStage: 'none' | 'grace' | 'active' | 'at_risk' | 'diminishing' | 'paused';
   lastActivityDate: string | null;
   createdAt: string;
+  cycle?: {
+    id: string;
+    name: string;
+    state: string;
+  };
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+  };
 }
 
 /**

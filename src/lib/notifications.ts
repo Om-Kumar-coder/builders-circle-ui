@@ -21,9 +21,9 @@ export interface Notification {
 
 export async function getNotifications(unreadOnly = false, limit = 50): Promise<Notification[]> {
   try {
-    const notifications = await apiClient.getNotifications(unreadOnly) as any;
+    const notifications = await apiClient.getNotifications();
     
-    let filtered: any;
+    let filtered: Notification[];
     if (unreadOnly && Array.isArray(notifications)) {
       filtered = notifications.filter((n: Notification) => !n.read);
     } else {
@@ -39,8 +39,8 @@ export async function getNotifications(unreadOnly = false, limit = 50): Promise<
 
 export async function getUnreadCount(): Promise<number> {
   try {
-    const notifications = await apiClient.getNotifications(true) as any;
-    return Array.isArray(notifications) ? notifications.filter((n: Notification) => !n.read).length : 0;
+    const result = await apiClient.getUnreadCount();
+    return result.count || 0;
   } catch (error) {
     console.error('Failed to fetch unread count:', error);
     return 0;

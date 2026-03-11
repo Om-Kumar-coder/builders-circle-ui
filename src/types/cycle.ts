@@ -12,7 +12,8 @@ export interface BuildCycle {
 }
 
 // Legacy type - kept for backward compatibility
-export interface CycleParticipation extends Models.Document {
+export interface CycleParticipation {
+  id: string;
   cycleId: string;
   userId: string;
   userName: string;
