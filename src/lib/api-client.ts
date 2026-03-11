@@ -27,22 +27,79 @@ class ApiClient {
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     
-    const response = await fetch(url, {
-      ...options,
-      mode: 'cors',
-      credentials: 'include',
-      headers: {
-        ...this.getAuthHeaders(),
-        ...options.headers,
-      },
+    console.log('🌐 API Request:', {
+      method: options.method || 'GET',
+      url,
+      hasBody: !!options.body
     });
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        mode: 'cors',
+        credentials: 'include',
+        headers: {
+          ...this.getAuthHeaders(),
+          ...options.headers,
+        },
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new ApiError(response.status, errorData.error || 'Request failed');
+      let responseData;
+      try {
+        responseData = await response.json();
+      } catch (parseError) {
+        responseData = {};
+      }
+      
+      console.log('📥 API Response:', {
+        status: response.status,
+        ok: response.ok,
+        data: responseData
+      });
+
+      if (!response.ok) {
+        // Handle different types of error responses
+        let errorMessage = 'Request failed';
+        
+        if (response.status === 429) {
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
+        } else if (responseData.error) {
+          errorMessage = responseData.error;
+        } else if (responseData.message) {
+          errorMessage = responseData.message;
+        } else if (response.status === 401) {
+          errorMessage = 'Authentication required';
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied';
+        } else if (response.status === 404) {
+          errorMessage = 'Resource not found';
+        } else if (response.status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+        
+        throw new ApiError(response.status, errorMessage);
+      }
+
+      // Handle standardized success format
+      if (responseData.success !== undefined) {
+        if (responseData.success) {
+          return responseData.data;
+        } else {
+          throw new ApiError(400, responseData.error || 'Request failed');
+        }
+      }
+
+      // Fallback for non-standardized responses
+      return responseData;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      // Handle network errors
+      console.error('💥 Network error:', error);
+      throw new ApiError(0, 'Network error. Please check your connection.');
     }
-
-    return response.json();
   }
 
   // Auth methods

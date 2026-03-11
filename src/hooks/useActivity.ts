@@ -43,13 +43,31 @@ export function useActivity(userId: string, cycleId: string): UseActivityResult 
   const [error, setError] = useState<string | null>(null);
 
   const fetchActivities = useCallback(async () => {
+    if (!userId || !cycleId) {
+      console.log('⏭️ Skipping activity fetch - missing userId or cycleId:', { userId, cycleId });
+      setActivities([]);
+      setLoading(false);
+      return;
+    }
+
     try {
+      console.log('📋 Fetching activities:', { userId, cycleId });
       setLoading(true);
       setError(null);
+      
       const data = await apiClient.getActivities({ userId, cycleId });
+      
+      console.log('✅ Activities fetched:', { count: data.length });
       setActivities(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch activities');
+      console.error('❌ Error fetching activities:', err);
+      
+      // Handle rate limiting gracefully
+      if (err.status === 429) {
+        setError('Too many requests. Please wait a moment before refreshing.');
+      } else {
+        setError(err.message || 'Failed to fetch activities');
+      }
     } finally {
       setLoading(false);
     }

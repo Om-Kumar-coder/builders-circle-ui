@@ -11,10 +11,13 @@ export function useCycles() {
 
   const fetchCycles = async () => {
     try {
+      console.log('📋 Fetching cycles...');
       setLoading(true);
       setError(null);
       
       const data = await apiClient.getCycles();
+
+      console.log('✅ Cycles fetched:', { count: data.length });
 
       // Sort: active cycles first, then by start date
       const sorted = data.sort((a: BuildCycle, b: BuildCycle) => {
@@ -27,7 +30,14 @@ export function useCycles() {
 
       setCycles(sorted);
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch cycles');
+      console.error('❌ Error fetching cycles:', err);
+      
+      // Handle rate limiting gracefully
+      if (err.status === 429) {
+        setError('Too many requests. Please wait a moment before refreshing.');
+      } else {
+        setError(err.message || 'Failed to fetch cycles');
+      }
     } finally {
       setLoading(false);
     }

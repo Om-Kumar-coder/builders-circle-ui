@@ -20,7 +20,11 @@ export const authMiddleware = async (
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
-      return res.status(401).json({ error: 'Access denied. No token provided.' });
+      return res.status(401).json({
+        success: false,
+        data: null,
+        error: 'Access denied. No token provided.'
+      });
     }
 
     const decoded = jwt.verify(token, env.JWT_SECRET) as any;
@@ -32,7 +36,11 @@ export const authMiddleware = async (
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid token.' });
+      return res.status(401).json({
+        success: false,
+        data: null,
+        error: 'Invalid token.'
+      });
     }
 
     req.user = {
@@ -43,18 +51,30 @@ export const authMiddleware = async (
 
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token.' });
+    res.status(401).json({
+      success: false,
+      data: null,
+      error: 'Invalid token.'
+    });
   }
 };
 
 export const roleMiddleware = (allowedRoles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required.' });
+      return res.status(401).json({
+        success: false,
+        data: null,
+        error: 'Authentication required.'
+      });
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions.' });
+      return res.status(403).json({
+        success: false,
+        data: null,
+        error: 'Insufficient permissions.'
+      });
     }
 
     next();

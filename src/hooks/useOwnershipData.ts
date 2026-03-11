@@ -27,16 +27,23 @@ export function useOwnershipData(
   const [error, setError] = useState<string | null>(null);
 
   const fetchOwnership = useCallback(async () => {
+    if (!userId || !cycleId) {
+      console.log('⏭️ Skipping ownership fetch - missing userId or cycleId:', { userId, cycleId });
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
     try {
+      console.log('📊 Fetching ownership data:', { userId, cycleId });
       setLoading(true);
       setError(null);
 
       const result = await apiClient.getOwnership(userId, cycleId);
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch ownership data');
-      }
+      console.log('✅ Ownership data received:', result);
 
+      // The API client now returns the data directly (after extracting from standardized response)
       setData({
         vested: result.vestedOwnership || 0,
         provisional: result.provisionalOwnership || 0,
@@ -45,8 +52,8 @@ export function useOwnershipData(
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('❌ Error fetching ownership data:', err);
       setError(errorMessage);
-      console.error('Error fetching ownership data:', err);
     } finally {
       setLoading(false);
     }

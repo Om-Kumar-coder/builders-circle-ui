@@ -3,21 +3,39 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useActivity } from '@/hooks/useActivity';
+import { useCycles } from '@/hooks/useCycles';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import ActivityItem from '@/components/activity/ActivityItem';
-import { Filter, RefreshCw } from 'lucide-react';
+import SubmitActivityForm from '@/components/activity/SubmitActivityForm';
+import { Filter, RefreshCw, Plus, ChevronDown } from 'lucide-react';
 
 type FilterType = 'all' | 'verified' | 'pending' | 'rejected';
 
 export default function ActivityPage() {
   const { user, loading: authLoading } = useAuth();
   const [filter, setFilter] = useState<FilterType>('all');
+  const [selectedCycleId, setSelectedCycleId] = useState<string>('');
+  const [showSubmitForm, setShowSubmitForm] = useState(false);
   
-  // TODO: Get active cycle ID from context or user selection
-  const cycleId = 'cycle456';
+  // Fetch cycles to allow user selection
+  const { cycles, loading: cyclesLoading } = useCycles();
+  
+  // Get active cycles (user can submit activities to active cycles)
+  const activeCycles = cycles.filter(cycle => cycle.state === 'active');
+  
+  // Auto-select first active cycle if none selected
+  const cycleId = selectedCycleId || (activeCycles.length > 0 ? activeCycles[0].id : '');
   
   const { activities, loading, error, refetch } = useActivity(user?.id || '', cycleId);
+
+  console.log('🔍 Activity Page Debug:', {
+    userId: user?.id,
+    selectedCycleId,
+    cycleId,
+    activeCyclesCount: activeCycles.length,
+    activitiesCount: activities.length
+  });
 
   // Filter activities based on selected filter
   const filteredActivities = useMemo(() => {
@@ -58,16 +76,79 @@ export default function ActivityPage() {
             <h1 className="text-2xl font-semibold text-gray-100">Activity History</h1>
             <p className="text-gray-400 mt-1">Track your submitted work and verification status</p>
           </div>
-          <button
-            onClick={refetch}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 
-              border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {activeCycles.length > 0 && (
+              <button
+                onClick={() => setShowSubmitForm(!showSubmitForm)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 
+                  text-white rounded-lg transition-colors font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Submit Activity</span>
+              </button>
+            )}
+            <button
+              onClick={refetch}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 
+                border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
+
+        {/* Cycle Selection */}
+        {activeCycles.length > 0 && (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-gray-300">Active Cycle:</label>
+              <div className="relative">
+                <select
+                  value={cycleId}
+                  onChange={(e) => setSelectedCycleId(e.target.value)}
+                  className="appearance-none bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 pr-8 
+                    text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  {activeCycles.map((cycle) => (
+                    <option key={cycle.id} value={cycle.id}>
+                      {cycle.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
+              {cycleId && (
+                <span className="text-xs text-gray-500">
+                  {activities.length} activities submitted
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* No Active Cycles Warning */}
+        {activeCycles.length === 0 && (
+          <div className="bg-yellow-900/20 border border-yellow-800/50 text-yellow-400 px-4 py-3 rounded-lg">
+            <p className="font-medium">No active build cycles</p>
+            <p className="text-sm text-yellow-400/80 mt-1">
+              Activities can only be submitted to active cycles. Contact an admin to start a new cycle.
+            </p>
+          </div>
+        )}
+
+        {/* Submit Activity Form */}
+        {showSubmitForm && cycleId && (
+          <SubmitActivityForm
+            userId={user!.id}
+            cycleId={cycleId}
+            onSuccess={() => {
+              setShowSubmitForm(false);
+              refetch();
+            }}
+          />
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

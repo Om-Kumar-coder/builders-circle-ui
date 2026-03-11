@@ -21,12 +21,20 @@ export default function CreateCycleModal({ isOpen, onClose, onSuccess }: CreateC
     setError('');
     setLoading(true);
 
+    console.log('🚀 Creating cycle:', {
+      name,
+      startDate,
+      endDate
+    });
+
     try {
-      await apiClient.createCycle({
+      const result = await apiClient.createCycle({
         name,
         startDate,
         endDate,
       });
+
+      console.log('✅ Cycle created successfully:', result);
 
       setName('');
       setStartDate('');
@@ -34,6 +42,7 @@ export default function CreateCycleModal({ isOpen, onClose, onSuccess }: CreateC
       onSuccess();
       onClose();
     } catch (err: any) {
+      console.error('❌ Cycle creation failed:', err);
       setError(err.message || 'Failed to create cycle');
     } finally {
       setLoading(false);

@@ -31,6 +31,14 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
     setSuccess(false);
     setLoading(true);
 
+    console.log('🚀 Submitting activity:', {
+      userId,
+      cycleId,
+      activityType,
+      proofLink,
+      description: description || '(none)'
+    });
+
     try {
       const result = await submitActivity(
         userId,
@@ -40,7 +48,10 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
         description
       );
 
+      console.log('📥 Activity submission result:', result);
+
       if (result.success) {
+        console.log('✅ Activity submitted successfully:', result.activity);
         setSuccess(true);
         setProofLink('');
         setDescription('');
@@ -52,9 +63,11 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
           onSuccess();
         }, 2000);
       } else {
+        console.error('❌ Activity submission failed:', result.error);
         setError(result.error || 'Failed to submit activity');
       }
     } catch (err: any) {
+      console.error('💥 Activity submission error:', err);
       setError(err.message || 'An error occurred');
     } finally {
       setLoading(false);

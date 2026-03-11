@@ -41,8 +41,18 @@ export async function submitActivity(
   contributionWeight: number = 1.0
 ): Promise<{ success: boolean; activity?: ActivityEvent; error?: string }> {
   try {
+    console.log('📝 Activity submission started:', {
+      userId,
+      cycleId,
+      activityType,
+      proofLink,
+      contributionType,
+      contributionWeight
+    });
+
     // Validate inputs
     if (!proofLink.trim()) {
+      console.log('❌ Validation failed: Empty proof link');
       return { success: false, error: 'Proof link is required' };
     }
 
@@ -53,11 +63,14 @@ export async function submitActivity(
     
     if (lastSubmission && now - lastSubmission < COOLDOWN_MS) {
       const remainingSeconds = Math.ceil((COOLDOWN_MS - (now - lastSubmission)) / 1000);
+      console.log('⏰ Cooldown active:', { remainingSeconds });
       return { 
         success: false, 
         error: `Please wait ${remainingSeconds} seconds before submitting again` 
       };
     }
+
+    console.log('🚀 Calling API to create activity...');
 
     // Create activity
     const activity = await apiClient.createActivity({
@@ -72,12 +85,14 @@ export async function submitActivity(
     // Update cooldown
     lastSubmissionTime.set(cooldownKey, now);
 
+    console.log('✅ Activity created successfully:', activity);
+
     return {
       success: true,
       activity,
     };
   } catch (error: any) {
-    console.error('Error submitting activity:', error);
+    console.error('💥 Activity submission error:', error);
     return {
       success: false,
       error: error.message || 'Failed to submit activity',
