@@ -5,14 +5,13 @@ import { apiClient } from '@/lib/api-client';
 
 export interface Notification {
   id: string;
-  userId: string;
   type: string;
+  title: string;
   message: string;
   read: boolean;
-  metadata?: string;
-  sent: boolean;
   createdAt: string;
-  sentAt?: string;
+  userId: string;
+  metadata?: Record<string, any>;
 }
 
 interface UseNotificationsResult {

@@ -14,7 +14,7 @@ export default function NotificationBell({ userId }: NotificationBellProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   
-  const { notifications, unreadCount, loading, markRead, markAllRead, refetch } = useNotifications(userId);
+  const { notifications, unreadCount, loading, markRead, markAllRead, refetch } = useNotifications(true);
 
   // Close panel when clicking outside
   useEffect(() => {

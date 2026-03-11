@@ -1,94 +1,82 @@
 import { apiClient } from './api-client';
 
+export type NotificationType = 
+  | 'stall_warning' 
+  | 'activity_verified' 
+  | 'multiplier_changed' 
+  | 'cycle_started' 
+  | 'participation_paused' 
+  | 'admin_message';
+
 export interface Notification {
   id: string;
-  userId: string;
-  type: 'stall_warning' | 'participation_paused' | 'activity_verified' | 'multiplier_changed' | 'cycle_started' | 'admin_message';
+  type: NotificationType;
+  title: string;
   message: string;
   read: boolean;
-  metadata?: string;
   createdAt: string;
+  userId: string;
+  metadata?: Record<string, any>;
 }
 
-/**
- * Get notifications for a user
- */
-export async function getUserNotifications(
-  userId: string,
-  limit: number = 20,
-  unreadOnly: boolean = false
-): Promise<Notification[]> {
+export async function getNotifications(unreadOnly = false, limit = 50): Promise<Notification[]> {
   try {
-    const notifications = await apiClient.getNotifications();
+    const notifications = await apiClient.getNotifications(unreadOnly) as any;
     
-    let filtered = notifications;
-    if (unreadOnly) {
+    let filtered: any;
+    if (unreadOnly && Array.isArray(notifications)) {
       filtered = notifications.filter((n: Notification) => !n.read);
+    } else {
+      filtered = notifications || [];
     }
     
-    return filtered.slice(0, limit);
+    return Array.isArray(filtered) ? filtered.slice(0, limit) : [];
   } catch (error) {
-    console.error('Error fetching notifications:', error);
+    console.error('Failed to fetch notifications:', error);
     return [];
   }
 }
 
-/**
- * Get unread notification count
- */
-export async function getUnreadCount(userId: string): Promise<number> {
+export async function getUnreadCount(): Promise<number> {
   try {
-    const notifications = await apiClient.getNotifications();
-    return notifications.filter((n: Notification) => !n.read).length;
+    const notifications = await apiClient.getNotifications(true) as any;
+    return Array.isArray(notifications) ? notifications.filter((n: Notification) => !n.read).length : 0;
   } catch (error) {
-    console.error('Error fetching unread count:', error);
+    console.error('Failed to fetch unread count:', error);
     return 0;
   }
 }
 
-/**
- * Mark notification as read
- */
 export async function markAsRead(notificationId: string): Promise<void> {
   try {
-    await apiClient.markNotificationAsRead(notificationId);
+    await apiClient.markNotificationRead(notificationId);
   } catch (error) {
-    console.error('Error marking notification as read:', error);
+    console.error('Failed to mark notification as read:', error);
     throw error;
   }
 }
 
-/**
- * Mark all notifications as read for a user
- */
-export async function markAllAsRead(userId: string): Promise<void> {
+export async function markAllAsRead(): Promise<void> {
   try {
-    const notifications = await getUserNotifications(userId, 100, true);
-    
-    await Promise.all(
-      notifications.map(notification => markAsRead(notification.id))
-    );
+    await apiClient.markAllNotificationsRead();
   } catch (error) {
-    console.error('Error marking all as read:', error);
+    console.error('Failed to mark all notifications as read:', error);
     throw error;
   }
 }
 
-/**
- * Get notification icon based on type
- */
-export function getNotificationIcon(type: Notification['type']): string {
+export function getNotificationIcon(type: NotificationType): string {
   switch (type) {
     case 'stall_warning':
       return '⚠️';
-    case 'participation_paused':
-      return '⏸️';
     case 'activity_verified':
       return '✅';
     case 'multiplier_changed':
-      return '⚡';
+      return '📊';
     case 'cycle_started':
       return '🚀';
+    case 'participation_paused':
+      return '⏸️';
     case 'admin_message':
       return '📢';
     default:
@@ -96,36 +84,21 @@ export function getNotificationIcon(type: Notification['type']): string {
   }
 }
 
-/**
- * Get notification color based on type
- */
-export function getNotificationColor(type: Notification['type']): string {
+export function getNotificationColor(type: NotificationType): string {
   switch (type) {
     case 'stall_warning':
-      return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
-    case 'participation_paused':
-      return 'text-red-400 bg-red-500/10 border-red-500/20';
+      return 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400';
     case 'activity_verified':
-      return 'text-green-400 bg-green-500/10 border-green-500/20';
+      return 'bg-green-500/10 border-green-500/30 text-green-400';
     case 'multiplier_changed':
-      return 'text-purple-400 bg-purple-500/10 border-purple-500/20';
+      return 'bg-blue-500/10 border-blue-500/30 text-blue-400';
     case 'cycle_started':
-      return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+      return 'bg-purple-500/10 border-purple-500/30 text-purple-400';
+    case 'participation_paused':
+      return 'bg-orange-500/10 border-orange-500/30 text-orange-400';
     case 'admin_message':
-      return 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20';
+      return 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400';
     default:
-      return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
+      return 'bg-gray-500/10 border-gray-500/30 text-gray-400';
   }
-}
-
-/**
- * Email notification placeholder (future implementation)
- */
-export async function sendNotificationEmail(
-  userId: string,
-  type: Notification['type'],
-  message: string
-): Promise<void> {
-  // TODO: Implement email notification via backend service
-  console.log('Email notification placeholder:', { userId, type, message });
 }
