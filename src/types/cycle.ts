@@ -3,6 +3,7 @@ export type CycleState = 'planned' | 'active' | 'paused' | 'closed';
 export interface BuildCycle {
   id: string;
   name: string;
+  description?: string; // Optional description
   state: CycleState;
   startDate: string;
   endDate: string;

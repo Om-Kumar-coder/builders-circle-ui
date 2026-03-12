@@ -6,19 +6,41 @@ const database_1 = require("../config/database");
 const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
 const createCycleSchema = zod_1.z.object({
-    name: zod_1.z.string().min(1),
-    startDate: zod_1.z.string().datetime(),
-    endDate: zod_1.z.string().datetime(),
+    name: zod_1.z.string().min(1, "Cycle name is required"),
+    description: zod_1.z.string().optional(),
+    startDate: zod_1.z.string().refine((date) => {
+        const parsed = new Date(date);
+        return !isNaN(parsed.getTime());
+    }, "Invalid start date format"),
+    endDate: zod_1.z.string().refine((date) => {
+        const parsed = new Date(date);
+        return !isNaN(parsed.getTime());
+    }, "Invalid end date format"),
+}).refine((data) => {
+    const start = new Date(data.startDate);
+    const end = new Date(data.endDate);
+    return end > start;
+}, {
+    message: "End date must be after start date",
+    path: ["endDate"]
 });
 const updateCycleSchema = zod_1.z.object({
     name: zod_1.z.string().min(1).optional(),
+    description: zod_1.z.string().optional(),
     state: zod_1.z.enum(['planned', 'active', 'paused', 'closed']).optional(),
-    startDate: zod_1.z.string().datetime().optional(),
-    endDate: zod_1.z.string().datetime().optional(),
+    startDate: zod_1.z.string().refine((date) => {
+        const parsed = new Date(date);
+        return !isNaN(parsed.getTime());
+    }, "Invalid start date format").optional(),
+    endDate: zod_1.z.string().refine((date) => {
+        const parsed = new Date(date);
+        return !isNaN(parsed.getTime());
+    }, "Invalid end date format").optional(),
 });
 // Get all cycles
 router.get('/', auth_1.authMiddleware, async (_req, res) => {
     try {
+        console.log('📋 Fetching all cycles');
         const cycles = await database_1.prisma.buildCycle.findMany({
             orderBy: { createdAt: 'desc' },
             include: {
@@ -31,10 +53,20 @@ router.get('/', auth_1.authMiddleware, async (_req, res) => {
             ...cycle,
             participantCount: cycle._count.participations
         }));
-        res.json(cyclesWithCount);
+        console.log('✅ Cycles fetched:', { count: cyclesWithCount.length });
+        res.json({
+            success: true,
+            data: cyclesWithCount,
+            error: null
+        });
     }
     catch (error) {
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('❌ Error fetching cycles:', error);
+        res.status(500).json({
+            success: false,
+            data: null,
+            error: 'Failed to fetch cycles'
+        });
     }
 });
 // Get single cycle
@@ -64,22 +96,66 @@ router.get('/:id', auth_1.authMiddleware, async (req, res) => {
 // Create cycle (admin only)
 router.post('/', auth_1.authMiddleware, (0, auth_1.roleMiddleware)(['admin', 'founder']), async (req, res) => {
     try {
-        const { name, startDate, endDate } = createCycleSchema.parse(req.body);
+        console.log('🚀 Creating cycle:', {
+            userId: req.user?.id,
+            body: req.body
+        });
+        const validatedData = createCycleSchema.parse(req.body);
+        const { name, description, startDate, endDate } = validatedData;
+        // Parse dates (validation already done by schema)
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        console.log('📅 Parsed dates:', {
+            startDate,
+            endDate,
+            startParsed: start.toISOString(),
+            endParsed: end.toISOString()
+        });
+        // Check for duplicate names
+        const existingCycle = await database_1.prisma.buildCycle.findFirst({
+            where: { name }
+        });
+        if (existingCycle) {
+            console.log('❌ Cycle name already exists:', name);
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: 'Cycle name already exists'
+            });
+        }
         const cycle = await database_1.prisma.buildCycle.create({
             data: {
                 name,
+                description: description || null,
                 state: 'planned',
-                startDate: new Date(startDate),
-                endDate: new Date(endDate),
+                startDate: start,
+                endDate: end,
             }
         });
-        res.status(201).json(cycle);
+        console.log('✅ Cycle created successfully:', {
+            cycleId: cycle.id,
+            name: cycle.name
+        });
+        res.status(201).json({
+            success: true,
+            data: cycle,
+            error: null
+        });
     }
     catch (error) {
+        console.error('❌ Error creating cycle:', error);
         if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.issues });
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: `Validation error: ${error.errors.map(e => e.message).join(', ')}`
+            });
         }
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({
+            success: false,
+            data: null,
+            error: 'Failed to create cycle'
+        });
     }
 });
 // Update cycle (admin only)

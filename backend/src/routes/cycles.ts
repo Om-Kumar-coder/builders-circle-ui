@@ -6,16 +6,37 @@ import { authMiddleware, roleMiddleware, AuthRequest } from '../middleware/auth'
 const router = Router();
 
 const createCycleSchema = z.object({
-  name: z.string().min(1),
-  startDate: z.string().datetime(),
-  endDate: z.string().datetime(),
+  name: z.string().min(1, "Cycle name is required"),
+  description: z.string().optional(),
+  startDate: z.string().refine((date) => {
+    const parsed = new Date(date);
+    return !isNaN(parsed.getTime());
+  }, "Invalid start date format"),
+  endDate: z.string().refine((date) => {
+    const parsed = new Date(date);
+    return !isNaN(parsed.getTime());
+  }, "Invalid end date format"),
+}).refine((data) => {
+  const start = new Date(data.startDate);
+  const end = new Date(data.endDate);
+  return end > start;
+}, {
+  message: "End date must be after start date",
+  path: ["endDate"]
 });
 
 const updateCycleSchema = z.object({
   name: z.string().min(1).optional(),
+  description: z.string().optional(),
   state: z.enum(['planned', 'active', 'paused', 'closed']).optional(),
-  startDate: z.string().datetime().optional(),
-  endDate: z.string().datetime().optional(),
+  startDate: z.string().refine((date) => {
+    const parsed = new Date(date);
+    return !isNaN(parsed.getTime());
+  }, "Invalid start date format").optional(),
+  endDate: z.string().refine((date) => {
+    const parsed = new Date(date);
+    return !isNaN(parsed.getTime());
+  }, "Invalid end date format").optional(),
 });
 
 // Get all cycles
@@ -89,20 +110,19 @@ router.post('/', authMiddleware, roleMiddleware(['admin', 'founder']), async (re
       body: req.body
     });
 
-    const { name, startDate, endDate } = createCycleSchema.parse(req.body);
+    const validatedData = createCycleSchema.parse(req.body);
+    const { name, description, startDate, endDate } = validatedData;
 
-    // Validate dates
+    // Parse dates (validation already done by schema)
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    if (end <= start) {
-      console.log('❌ Invalid dates:', { startDate, endDate });
-      return res.status(400).json({
-        success: false,
-        data: null,
-        error: 'End date must be after start date'
-      });
-    }
+    console.log('📅 Parsed dates:', {
+      startDate,
+      endDate,
+      startParsed: start.toISOString(),
+      endParsed: end.toISOString()
+    });
 
     // Check for duplicate names
     const existingCycle = await prisma.buildCycle.findFirst({
@@ -121,6 +141,7 @@ router.post('/', authMiddleware, roleMiddleware(['admin', 'founder']), async (re
     const cycle = await prisma.buildCycle.create({
       data: {
         name,
+        description: description || null,
         state: 'planned',
         startDate: start,
         endDate: end,

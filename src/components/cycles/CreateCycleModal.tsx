@@ -11,6 +11,7 @@ interface CreateCycleModalProps {
 
 export default function CreateCycleModal({ isOpen, onClose, onSuccess }: CreateCycleModalProps) {
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,22 +22,29 @@ export default function CreateCycleModal({ isOpen, onClose, onSuccess }: CreateC
     setError('');
     setLoading(true);
 
+    // Format dates to ISO string format for backend
+    const startDateISO = startDate ? new Date(startDate + 'T00:00:00').toISOString() : '';
+    const endDateISO = endDate ? new Date(endDate + 'T23:59:59').toISOString() : '';
+
     console.log('🚀 Creating cycle:', {
       name,
-      startDate,
-      endDate
+      description,
+      startDate: startDateISO,
+      endDate: endDateISO
     });
 
     try {
       const result = await apiClient.createCycle({
         name,
-        startDate,
-        endDate,
+        description: description.trim() || undefined,
+        startDate: startDateISO,
+        endDate: endDateISO,
       });
 
       console.log('✅ Cycle created successfully:', result);
 
       setName('');
+      setDescription('');
       setStartDate('');
       setEndDate('');
       onSuccess();
@@ -69,6 +77,20 @@ export default function CreateCycleModal({ isOpen, onClose, onSuccess }: CreateC
               required
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               placeholder="Q1 2024 Build Cycle"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1">
+              Description <span className="text-gray-500">(optional)</span>
+            </label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+              placeholder="Brief description of this build cycle's goals and objectives..."
             />
           </div>
 

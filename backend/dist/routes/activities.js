@@ -20,6 +20,10 @@ const updateActivitySchema = zod_1.z.object({
 // Get activities
 router.get('/', auth_1.authMiddleware, async (req, res) => {
     try {
+        console.log('📋 Fetching activities:', {
+            userId: req.user?.id,
+            query: req.query
+        });
         const { cycleId, userId } = req.query;
         const where = {};
         if (cycleId)
@@ -49,25 +53,52 @@ router.get('/', auth_1.authMiddleware, async (req, res) => {
                 }
             }
         });
-        res.json(activities);
+        console.log('✅ Activities fetched:', {
+            count: activities.length,
+            where
+        });
+        res.json({
+            success: true,
+            data: activities,
+            error: null
+        });
     }
     catch (error) {
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('❌ Error fetching activities:', error);
+        res.status(500).json({
+            success: false,
+            data: null,
+            error: 'Failed to fetch activities'
+        });
     }
 });
 // Create activity
 router.post('/', auth_1.authMiddleware, async (req, res) => {
     try {
+        console.log('🚀 Creating activity:', {
+            userId: req.user?.id,
+            body: req.body
+        });
         const data = createActivitySchema.parse(req.body);
         // Check if cycle exists and is active
         const cycle = await database_1.prisma.buildCycle.findUnique({
             where: { id: data.cycleId }
         });
         if (!cycle) {
-            return res.status(404).json({ error: 'Cycle not found' });
+            console.log('❌ Cycle not found:', data.cycleId);
+            return res.status(404).json({
+                success: false,
+                data: null,
+                error: 'Cycle not found'
+            });
         }
         if (cycle.state !== 'active') {
-            return res.status(400).json({ error: 'Cycle is not active' });
+            console.log('❌ Cycle not active:', { cycleId: data.cycleId, state: cycle.state });
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: 'Cycle is not active'
+            });
         }
         // Check if user is participating in the cycle
         const participation = await database_1.prisma.cycleParticipation.findUnique({
@@ -79,7 +110,12 @@ router.post('/', auth_1.authMiddleware, async (req, res) => {
             }
         });
         if (!participation || !participation.optedIn) {
-            return res.status(400).json({ error: 'Must be participating in cycle to submit activities' });
+            console.log('❌ User not participating:', { userId: req.user.id, cycleId: data.cycleId });
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: 'Must be participating in cycle to submit activities'
+            });
         }
         // Create activity
         const activity = await database_1.prisma.activityEvent.create({
@@ -123,13 +159,31 @@ router.post('/', auth_1.authMiddleware, async (req, res) => {
                 participationStatus: 'active'
             }
         });
-        res.status(201).json(activity);
+        console.log('✅ Activity created successfully:', {
+            activityId: activity.id,
+            userId: req.user.id,
+            cycleId: data.cycleId
+        });
+        res.status(201).json({
+            success: true,
+            data: activity,
+            error: null
+        });
     }
     catch (error) {
+        console.error('❌ Error creating activity:', error);
         if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.errors });
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: `Validation error: ${error.errors.map(e => e.message).join(', ')}`
+            });
         }
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({
+            success: false,
+            data: null,
+            error: 'Failed to create activity'
+        });
     }
 });
 // Update activity (admin only for verification)

@@ -44,6 +44,13 @@ export default function CycleCard({ cycle, userId }: CycleCardProps) {
           <CycleStatusBadge state={cycle.state} />
         </div>
 
+        {/* Description */}
+        {cycle.description && (
+          <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+            {cycle.description}
+          </p>
+        )}
+
         <div className="space-y-2 text-sm text-gray-400">
           <div className="flex items-center justify-between">
             <span className="font-medium">Start Date:</span>

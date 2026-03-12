@@ -11,7 +11,11 @@ const authMiddleware = async (req, res, next) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '');
         if (!token) {
-            return res.status(401).json({ error: 'Access denied. No token provided.' });
+            return res.status(401).json({
+                success: false,
+                data: null,
+                error: 'Access denied. No token provided.'
+            });
         }
         const decoded = jsonwebtoken_1.default.verify(token, env_1.env.JWT_SECRET);
         // Get user with profile to include role
@@ -20,7 +24,11 @@ const authMiddleware = async (req, res, next) => {
             include: { profile: true }
         });
         if (!user) {
-            return res.status(401).json({ error: 'Invalid token.' });
+            return res.status(401).json({
+                success: false,
+                data: null,
+                error: 'Invalid token.'
+            });
         }
         req.user = {
             id: user.id,
@@ -30,17 +38,29 @@ const authMiddleware = async (req, res, next) => {
         next();
     }
     catch (error) {
-        res.status(401).json({ error: 'Invalid token.' });
+        res.status(401).json({
+            success: false,
+            data: null,
+            error: 'Invalid token.'
+        });
     }
 };
 exports.authMiddleware = authMiddleware;
 const roleMiddleware = (allowedRoles) => {
     return (req, res, next) => {
         if (!req.user) {
-            return res.status(401).json({ error: 'Authentication required.' });
+            return res.status(401).json({
+                success: false,
+                data: null,
+                error: 'Authentication required.'
+            });
         }
         if (!allowedRoles.includes(req.user.role)) {
-            return res.status(403).json({ error: 'Insufficient permissions.' });
+            return res.status(403).json({
+                success: false,
+                data: null,
+                error: 'Insufficient permissions.'
+            });
         }
         next();
     };

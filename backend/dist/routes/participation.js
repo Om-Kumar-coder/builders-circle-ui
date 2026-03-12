@@ -17,10 +17,18 @@ router.post('/join', auth_1.authMiddleware, async (req, res) => {
             where: { id: cycleId }
         });
         if (!cycle) {
-            return res.status(404).json({ error: 'Cycle not found' });
+            return res.status(404).json({
+                success: false,
+                data: null,
+                error: 'Cycle not found'
+            });
         }
         if (cycle.state !== 'active') {
-            return res.status(400).json({ error: 'Cycle is not active' });
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: 'Cycle is not active'
+            });
         }
         // Check if already participating
         const existingParticipation = await database_1.prisma.cycleParticipation.findUnique({
@@ -32,7 +40,11 @@ router.post('/join', auth_1.authMiddleware, async (req, res) => {
             }
         });
         if (existingParticipation) {
-            return res.status(400).json({ error: 'Already participating in this cycle' });
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: 'Already participating in this cycle'
+            });
         }
         // Create participation
         const participation = await database_1.prisma.cycleParticipation.create({
@@ -44,13 +56,25 @@ router.post('/join', auth_1.authMiddleware, async (req, res) => {
                 stallStage: 'grace'
             }
         });
-        res.status(201).json(participation);
+        res.status(201).json({
+            success: true,
+            data: participation,
+            error: null
+        });
     }
     catch (error) {
         if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({ error: error.issues });
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: `Validation error: ${error.errors.map(e => e.message).join(', ')}`
+            });
         }
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({
+            success: false,
+            data: null,
+            error: 'Failed to join cycle'
+        });
     }
 });
 // Get participation for a cycle
