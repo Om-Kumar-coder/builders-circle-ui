@@ -20,9 +20,9 @@ router.get('/dashboard', authMiddleware, async (req: AuthRequest, res: Response)
       rejectedActivities
     ] = await Promise.all([
       prisma.activityEvent.count({ where: whereClause }),
-      prisma.activityEvent.count({ where: { ...whereClause, verified: 'verified' } }),
-      prisma.activityEvent.count({ where: { ...whereClause, verified: 'pending' } }),
-      prisma.activityEvent.count({ where: { ...whereClause, verified: 'rejected' } })
+      prisma.activityEvent.count({ where: { ...whereClause, status: 'verified' } }),
+      prisma.activityEvent.count({ where: { ...whereClause, status: 'pending' } }),
+      prisma.activityEvent.count({ where: { ...whereClause, status: 'rejected' } })
     ]);
 
     // Get participation health (calculate stall stages based on last activity)

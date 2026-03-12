@@ -31,7 +31,7 @@ export class ActivityArchiverJob {
             activityType: activity.activityType,
             proofLink: activity.proofLink,
             description: activity.description,
-            verified: activity.verified,
+            verified: activity.status === 'verified' ? 'yes' : 'no',
             contributionType: activity.contributionType,
             contributionWeight: activity.contributionWeight,
             calculatedOwnership: activity.calculatedOwnership,

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getUserCycleActivity, type ActivityEvent } from '@/lib/activity';
+import { getUserCycleActivity } from '@/lib/activity';
+import { ActivityEvent } from '@/types/activity';
 import ActivityItem from './ActivityItem';
 
 interface ActivityTimelineProps {
