@@ -8,9 +8,11 @@ import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import ActivityItem from '@/components/activity/ActivityItem';
 import SubmitActivityForm from '@/components/activity/SubmitActivityForm';
+import WorkHoursSummary from '@/components/activity/WorkHoursSummary';
+import { ActivityStatus } from '@/types/activity';
 import { Filter, RefreshCw, Plus, ChevronDown } from 'lucide-react';
 
-type FilterType = 'all' | 'verified' | 'pending' | 'rejected';
+type FilterType = 'all' | ActivityStatus;
 
 export default function ActivityPage() {
   const { user, loading: authLoading } = useAuth();
@@ -40,16 +42,17 @@ export default function ActivityPage() {
   // Filter activities based on selected filter
   const filteredActivities = useMemo(() => {
     if (filter === 'all') return activities;
-    return activities.filter(activity => activity.verified === filter);
+    return activities.filter(activity => activity.status === filter);
   }, [activities, filter]);
 
   // Count by status
   const counts = useMemo(() => {
     return {
       all: activities.length,
-      verified: activities.filter(a => a.verified === 'verified').length,
-      pending: activities.filter(a => a.verified === 'pending').length,
-      rejected: activities.filter(a => a.verified === 'rejected').length,
+      verified: activities.filter(a => a.status === 'verified').length,
+      pending: activities.filter(a => a.status === 'pending').length,
+      rejected: activities.filter(a => a.status === 'rejected').length,
+      changes_requested: activities.filter(a => a.status === 'changes_requested').length,
     };
   }, [activities]);
 
@@ -150,8 +153,12 @@ export default function ActivityPage() {
           />
         )}
 
+        {/* Work Hours Summary */}
+        {cycleId && (
+          <WorkHoursSummary userId={user!.id} cycleId={cycleId} />
+        )}
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <p className="text-sm text-gray-400 mb-1">Total</p>
             <p className="text-2xl font-bold text-gray-100">{counts.all}</p>
@@ -163,6 +170,10 @@ export default function ActivityPage() {
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <p className="text-sm text-gray-400 mb-1">Pending</p>
             <p className="text-2xl font-bold text-yellow-400">{counts.pending}</p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+            <p className="text-sm text-gray-400 mb-1">Changes Req.</p>
+            <p className="text-2xl font-bold text-orange-400">{counts.changes_requested}</p>
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
             <p className="text-sm text-gray-400 mb-1">Rejected</p>
@@ -178,7 +189,7 @@ export default function ActivityPage() {
               <span className="text-sm font-medium">Filter:</span>
             </div>
             <div className="flex gap-2">
-              {(['all', 'verified', 'pending', 'rejected'] as FilterType[]).map((filterType) => (
+              {(['all', 'verified', 'pending', 'changes_requested', 'rejected'] as const).map((filterType) => (
                 <button
                   key={filterType}
                   onClick={() => setFilter(filterType)}
@@ -188,7 +199,7 @@ export default function ActivityPage() {
                       : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
                   }`}
                 >
-                  {filterType.charAt(0).toUpperCase() + filterType.slice(1)}
+                  {filterType === 'changes_requested' ? 'Changes Req.' : filterType.charAt(0).toUpperCase() + filterType.slice(1)}
                   <span className="ml-1.5 text-xs opacity-75">
                     ({counts[filterType]})
                   </span>

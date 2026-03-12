@@ -22,6 +22,7 @@ model User {
   profile              UserProfile?
   cycleParticipations  CycleParticipation[]
   activityEvents       ActivityEvent[]
+  verifiedActivities   ActivityEvent[]      @relation("ActivityVerifier")
   ownershipLedger      OwnershipLedger[]
   multipliers          Multiplier[]
   notifications        Notification[]
@@ -50,6 +51,7 @@ model UserProfile {
 model BuildCycle {
   id               String   @id @default(cuid())
   name             String
+  description      String?  // Optional description for the cycle
   state            String // planned, active, paused, closed
   startDate        DateTime
   endDate          DateTime
@@ -85,21 +87,29 @@ model CycleParticipation {
 }
 
 model ActivityEvent {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   userId              String
   cycleId             String
-  activityType        String
+  activityType        String    // code, documentation, review, task_completion, hours_logged, meeting, research
   proofLink           String
   description         String?
-  verified            String   @default("pending") // pending, verified, rejected
-  contributionType    String   @default("code") // code, documentation, review, hours_logged
-  contributionWeight  Float    @default(1.0)
-  calculatedOwnership Float    @default(0.0)
-  createdAt           DateTime @default(now())
+  hoursLogged         Float?    // Hours worked on this activity
+  workSummary         String?   // Summary of work done
+  taskReference       String?   // Reference to task/issue
+  status              String    @default("pending") // pending, verified, rejected, changes_requested
+  verifiedBy          String?   // Admin who verified/rejected
+  verifiedAt          DateTime? // When verification happened
+  rejectionReason     String?   // Reason for rejection/changes requested
+  contributionType    String    @default("code") // code, documentation, review, hours_logged, meeting, research, task_completion
+  contributionWeight  Float     @default(1.0)
+  calculatedOwnership Float     @default(0.0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cycle   BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  disputes Dispute[]
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle      BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  verifier   User?      @relation("ActivityVerifier", fields: [verifiedBy], references: [id])
+  disputes   Dispute[]
 
   @@map("activity_events")
 }

@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { submitActivity } from '@/lib/activity';
+import { ActivitySubmission, ACTIVITY_TYPE_LABELS, CONTRIBUTION_WEIGHTS, ACTIVITY_LIMITS } from '@/types/activity';
+import { Clock, FileText, Link as LinkIcon, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface SubmitActivityFormProps {
   userId: string;
@@ -9,171 +11,243 @@ interface SubmitActivityFormProps {
   onSuccess: () => void;
 }
 
-const ACTIVITY_TYPES = [
-  { value: 'task_completed', label: 'Task Completed' },
-  { value: 'pr_submitted', label: 'PR Submitted' },
-  { value: 'documentation', label: 'Documentation' },
-  { value: 'review_work', label: 'Review Work' },
-  { value: 'hours_logged', label: 'Hours Logged' },
-];
-
 export default function SubmitActivityForm({ userId, cycleId, onSuccess }: SubmitActivityFormProps) {
-  const [activityType, setActivityType] = useState('task_completed');
-  const [proofLink, setProofLink] = useState('');
-  const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [formData, setFormData] = useState<Partial<ActivitySubmission>>({
+    cycleId,
+    contributionType: 'code',
+    activityType: '',
+    proofLink: '',
+    description: '',
+    hoursLogged: undefined,
+    workSummary: '',
+    taskReference: '',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess(false);
-    setLoading(true);
+    
+    if (!formData.activityType || !formData.proofLink || !formData.contributionType) {
+      setError('Please fill in all required fields');
+      return;
+    }
 
-    console.log('🚀 Submitting activity:', {
-      userId,
-      cycleId,
-      activityType,
-      proofLink,
-      description: description || '(none)'
-    });
+    // Validate hours if provided
+    if (formData.hoursLogged !== undefined) {
+      if (formData.hoursLogged <= 0 || formData.hoursLogged > ACTIVITY_LIMITS.MAX_HOURS_PER_DAY) {
+        setError(`Hours must be between 0.1 and ${ACTIVITY_LIMITS.MAX_HOURS_PER_DAY}`);
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+    setError(null);
 
     try {
-      const result = await submitActivity(
-        userId,
+      const submission: ActivitySubmission = {
         cycleId,
-        activityType,
-        proofLink,
-        description
-      );
+        activityType: formData.activityType!,
+        proofLink: formData.proofLink!,
+        description: formData.description,
+        hoursLogged: formData.hoursLogged,
+        workSummary: formData.workSummary,
+        taskReference: formData.taskReference,
+        contributionType: formData.contributionType!,
+        contributionWeight: CONTRIBUTION_WEIGHTS[formData.contributionType!],
+      };
 
-      console.log('📥 Activity submission result:', result);
-
+      const result = await submitActivity(userId, submission);
+      
       if (result.success) {
-        console.log('✅ Activity submitted successfully:', result.activity);
         setSuccess(true);
-        setProofLink('');
-        setDescription('');
-        setActivityType('task_completed');
-        
-        // Show success animation
         setTimeout(() => {
-          setSuccess(false);
           onSuccess();
-        }, 2000);
+        }, 1500);
       } else {
-        console.error('❌ Activity submission failed:', result.error);
         setError(result.error || 'Failed to submit activity');
       }
     } catch (err: any) {
-      console.error('💥 Activity submission error:', err);
-      setError(err.message || 'An error occurred');
+      setError(err.message || 'Failed to submit activity');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
+  const handleInputChange = (field: keyof ActivitySubmission, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setError(null);
+  };
+
+  if (success) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
+        <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+        <h3 className="text-xl font-semibold text-gray-100 mb-2">Activity Submitted!</h3>
+        <p className="text-gray-400">Your activity has been submitted for review.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-      <h2 className="text-xl font-semibold text-gray-100 mb-4">Submit Activity</h2>
-      
-      {success && (
-        <div className="mb-4 p-4 bg-green-900/20 border border-green-800/50 rounded-lg animate-in fade-in zoom-in duration-300">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">✓</span>
-            <div>
-              <p className="text-green-400 font-medium">Activity submitted successfully!</p>
-              <p className="text-sm text-green-400/80">Your participation status has been updated.</p>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="flex items-center gap-3 mb-6">
+        <FileText className="w-6 h-6 text-indigo-400" />
+        <h2 className="text-xl font-semibold text-gray-100">Submit Activity</h2>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Contribution Type */}
         <div>
-          <label htmlFor="activityType" className="block text-sm font-medium text-gray-300 mb-2">
-            Activity Type
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Contribution Type *
           </label>
           <select
-            id="activityType"
-            value={activityType}
-            onChange={(e) => setActivityType(e.target.value)}
-            disabled={loading}
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50"
+            value={formData.contributionType}
+            onChange={(e) => handleInputChange('contributionType', e.target.value as any)}
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 
+              focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            required
           >
-            {ACTIVITY_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
+            {Object.entries(ACTIVITY_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label} (Weight: {CONTRIBUTION_WEIGHTS[value as keyof typeof CONTRIBUTION_WEIGHTS]}x)
               </option>
             ))}
           </select>
         </div>
 
+        {/* Activity Type */}
         <div>
-          <label htmlFor="proofLink" className="block text-sm font-medium text-gray-300 mb-2">
-            Proof Link <span className="text-red-400">*</span>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Activity Type *
           </label>
           <input
-            type="url"
-            id="proofLink"
-            value={proofLink}
-            onChange={(e) => setProofLink(e.target.value)}
+            type="text"
+            value={formData.activityType}
+            onChange={(e) => handleInputChange('activityType', e.target.value)}
+            placeholder="e.g., Feature implementation, Bug fix, Documentation update"
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 
+              placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             required
-            disabled={loading}
-            placeholder="https://github.com/user/repo/pull/123"
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            Link to GitHub PR, commit, issue, or other verifiable work
+        </div>
+
+        {/* Hours Logged */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            <Clock className="w-4 h-4 inline mr-1" />
+            Hours Worked
+          </label>
+          <input
+            type="number"
+            step="0.25"
+            min="0.1"
+            max={ACTIVITY_LIMITS.MAX_HOURS_PER_DAY}
+            value={formData.hoursLogged || ''}
+            onChange={(e) => handleInputChange('hoursLogged', e.target.value ? parseFloat(e.target.value) : undefined)}
+            placeholder="e.g., 2.5"
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 
+              placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Optional. Maximum {ACTIVITY_LIMITS.MAX_HOURS_PER_DAY} hours per day.
           </p>
         </div>
 
+        {/* Work Summary */}
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-2">
-            Description <span className="text-gray-500">(optional)</span>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Work Summary
           </label>
           <textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={loading}
+            value={formData.workSummary}
+            onChange={(e) => handleInputChange('workSummary', e.target.value)}
+            placeholder="Briefly describe what you accomplished..."
             rows={3}
-            placeholder="Brief description of what you accomplished..."
-            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-md text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 resize-none"
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 
+              placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
           />
         </div>
 
+        {/* Task Reference */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Task/Issue Reference
+          </label>
+          <input
+            type="text"
+            value={formData.taskReference}
+            onChange={(e) => handleInputChange('taskReference', e.target.value)}
+            placeholder="e.g., Issue #123, Ticket ABC-456"
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 
+              placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          />
+        </div>
+
+        {/* Proof Link */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            <LinkIcon className="w-4 h-4 inline mr-1" />
+            Proof Link *
+          </label>
+          <input
+            type="url"
+            value={formData.proofLink}
+            onChange={(e) => handleInputChange('proofLink', e.target.value)}
+            placeholder="https://github.com/repo/pull/123 or https://docs.example.com/page"
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 
+              placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            required
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Link to PR, commit, document, or other proof of work
+          </p>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Additional Details
+          </label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => handleInputChange('description', e.target.value)}
+            placeholder="Any additional context or details about this activity..."
+            rows={3}
+            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 
+              placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+          />
+        </div>
+
+        {/* Error Display */}
         {error && (
-          <div className="bg-red-900/20 border border-red-800/50 text-red-400 px-4 py-3 rounded-md text-sm">
-            {error}
+          <div className="flex items-center gap-2 p-4 bg-red-900/20 border border-red-800/50 rounded-lg text-red-400">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading || !proofLink.trim()}
-          className="w-full px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <>
-              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Submitting...
-            </>
-          ) : (
-            'Submit Activity'
-          )}
-        </button>
-      </form>
+        {/* Submit Button */}
+        <div className="flex gap-3 pt-4">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex-1 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-800 
+              text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Activity'}
+          </button>
+        </div>
 
-      <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-        <p className="text-xs text-blue-400">
-          <strong>Note:</strong> Only verifiable work counts. Messages or intent do not count as activity.
-        </p>
-      </div>
+        {/* Info */}
+        <div className="text-xs text-gray-500 space-y-1">
+          <p>• Activities are reviewed by admins before being verified</p>
+          <p>• Ownership rewards are calculated based on contribution type and hours</p>
+          <p>• Maximum {ACTIVITY_LIMITS.MAX_ACTIVITIES_PER_DAY} activities and {ACTIVITY_LIMITS.MAX_HOURS_PER_DAY} hours per day</p>
+        </div>
+      </form>
     </div>
   );
 }

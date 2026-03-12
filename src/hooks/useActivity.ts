@@ -2,30 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
-
-export interface ActivityEvent {
-  id: string;
-  userId: string;
-  cycleId: string;
-  activityType: string;
-  proofLink: string;
-  description?: string;
-  verified: 'pending' | 'verified' | 'rejected';
-  contributionType: 'code' | 'documentation' | 'review' | 'hours_logged';
-  contributionWeight: number;
-  calculatedOwnership: number;
-  createdAt: string;
-  user?: {
-    id: string;
-    email: string;
-    name: string;
-  };
-  cycle?: {
-    id: string;
-    name: string;
-    state: string;
-  };
-}
+import { ActivityEvent } from '@/types/activity';
 
 interface UseActivityResult {
   activities: ActivityEvent[];

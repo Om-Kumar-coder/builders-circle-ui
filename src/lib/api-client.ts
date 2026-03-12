@@ -155,6 +155,7 @@ class ApiClient {
 
   async createCycle(data: {
     name: string;
+    description?: string;
     startDate: string;
     endDate: string;
   }): Promise<any> {
@@ -214,16 +215,34 @@ class ApiClient {
     return this.request<any[]>(`/activities${query ? `?${query}` : ''}`);
   }
 
+  async getPendingActivities(): Promise<any[]> {
+    return this.request<any[]>('/activities/pending');
+  }
+
   async createActivity(data: {
     cycleId: string;
     activityType: string;
     proofLink: string;
     description?: string;
+    hoursLogged?: number;
+    workSummary?: string;
+    taskReference?: string;
     contributionType?: string;
     contributionWeight?: number;
   }): Promise<any> {
     return this.request<any>('/activities', {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async verifyActivity(id: string, data: {
+    status: 'verified' | 'rejected' | 'changes_requested';
+    rejectionReason?: string;
+    calculatedOwnership?: number;
+  }): Promise<any> {
+    return this.request<any>(`/activities/${id}/verify`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }

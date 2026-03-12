@@ -39,19 +39,16 @@ fi
 # --------------------------------------------------------------------------
 print_message "Starting Builder's Circle deployment..."
 
-# Domain name (required for nginx and SSL) - COMMENTED OUT FOR HTTP DEPLOYMENT
-# read -p "Enter your domain name (e.g., example.com): " DOMAIN
-# if [ -z "$DOMAIN" ]; then
-#     print_error "Domain name is required."
-#     exit 1
-# fi
+# Domain name (required for nginx and SSL)
+DOMAIN="triagebuilders.com"
+print_message "Using domain: $DOMAIN"
 
-# Using IP address for HTTP deployment
-DOMAIN="148.230.90.1"
-
-# Email for Let's Encrypt (optional but recommended) - COMMENTED OUT FOR HTTP DEPLOYMENT
-# read -p "Enter your email address for Let's Encrypt (optional, press Enter to skip): " EMAIL
-EMAIL=""
+# Email for Let's Encrypt
+read -p "Enter your email address for Let's Encrypt SSL certificate: " EMAIL
+if [ -z "$EMAIL" ]; then
+    print_error "Email address is required for SSL certificate."
+    exit 1
+fi
 
 # Database password (generate if not provided)
 read -sp "Enter PostgreSQL password for 'builders_user' (leave empty to auto-generate): " DB_PASS
@@ -96,6 +93,8 @@ npm install -g pm2
 print_message "Configuring firewall..."
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
+ufw allow 80/tcp
+ufw allow 443/tcp
 ufw --force enable
 ufw status
 
@@ -157,16 +156,17 @@ JWT_SECRET="$JWT_SECRET"
 JWT_EXPIRES=7d
 PORT=3001
 NODE_ENV=production
-FRONTEND_URL=http://$DOMAIN
-CORS_ORIGIN=http://$DOMAIN
+FRONTEND_URL=https://$DOMAIN
+CORS_ORIGIN=https://$DOMAIN
 EOF
 
 # Frontend .env.local (for build)
 cat > .env.local <<EOF
-NEXT_PUBLIC_API_URL=http://$DOMAIN/api
+NEXT_PUBLIC_API_URL=https://$DOMAIN/api
+NEXT_PUBLIC_APP_URL=https://$DOMAIN
 EOF
 
-# Also create .env.production for reference (optional)
+# Also create .env.production for reference
 cp .env.local .env.production
 
 # --------------------------------------------------------------------------
@@ -207,6 +207,10 @@ else
     npx prisma migrate deploy
 fi
 
+# Run the activity verification migration
+print_message "Running activity verification migration..."
+npx prisma db push
+
 cd ..
 
 # --------------------------------------------------------------------------
@@ -222,7 +226,15 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3001
-      }
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      max_memory_restart: '1G',
+      error_file: './logs/backend-error.log',
+      out_file: './logs/backend-out.log',
+      log_file: './logs/backend-combined.log',
+      time: true
     },
     {
       name: 'builders-circle-frontend',
@@ -232,28 +244,31 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000,
         HOSTNAME: '0.0.0.0'
-      }
+      },
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+      max_memory_restart: '1G',
+      error_file: './logs/frontend-error.log',
+      out_file: './logs/frontend-out.log',
+      log_file: './logs/frontend-combined.log',
+      time: true
     }
   ]
 };
 EOF
 
-# --------------------------------------------------------------------------
-# Start Applications with PM2
-# --------------------------------------------------------------------------
-print_message "Starting applications with PM2..."
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup systemd -u root --hp /root
+# Create logs directory
+mkdir -p logs
 
 # --------------------------------------------------------------------------
-# Nginx Configuration
+# Nginx Configuration (HTTP first, then HTTPS)
 # --------------------------------------------------------------------------
 print_message "Configuring Nginx as reverse proxy..."
 cat > /etc/nginx/sites-available/builders-circle <<EOF
 server {
     listen 80;
-    server_name $DOMAIN _;
+    server_name $DOMAIN www.$DOMAIN;
 
     # Frontend
     location / {
@@ -266,6 +281,11 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
+        
+        # Security headers
+        proxy_set_header X-Frame-Options DENY;
+        proxy_set_header X-Content-Type-Options nosniff;
+        proxy_set_header X-XSS-Protection "1; mode=block";
     }
 
     # Backend API
@@ -279,6 +299,25 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
+        
+        # CORS headers for API
+        add_header 'Access-Control-Allow-Origin' 'https://$DOMAIN' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
+    }
+
+    # Handle preflight requests
+    location ~ ^/api.*\$ {
+        if (\$request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' 'https://$DOMAIN';
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
     }
 }
 EOF
@@ -294,16 +333,120 @@ nginx -t
 systemctl restart nginx
 
 # --------------------------------------------------------------------------
-# SSL Certificate (Let's Encrypt) - COMMENTED OUT FOR HTTP DEPLOYMENT
+# Start Applications with PM2
 # --------------------------------------------------------------------------
-# if [ -n "$EMAIL" ]; then
-#     print_message "Obtaining SSL certificate from Let's Encrypt..."
-#     certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$EMAIL"
-# else
-#     print_warning "No email provided, skipping SSL certificate. You can obtain one later with: certbot --nginx -d $DOMAIN"
-# fi
+print_message "Starting applications with PM2..."
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup systemd -u root --hp /root
 
-print_message "Skipping SSL certificate setup - using HTTP deployment"
+# --------------------------------------------------------------------------
+# SSL Certificate (Let's Encrypt)
+# --------------------------------------------------------------------------
+print_message "Obtaining SSL certificate from Let's Encrypt..."
+certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos --email "$EMAIL" --redirect
+
+# --------------------------------------------------------------------------
+# Final Nginx Configuration with HTTPS optimizations
+# --------------------------------------------------------------------------
+print_message "Updating Nginx configuration for HTTPS..."
+cat > /etc/nginx/sites-available/builders-circle <<EOF
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    server_name $DOMAIN www.$DOMAIN;
+    return 301 https://\$server_name\$request_uri;
+}
+
+# HTTPS Configuration
+server {
+    listen 443 ssl http2;
+    server_name $DOMAIN www.$DOMAIN;
+
+    # SSL Configuration (managed by Certbot)
+    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Security Headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options DENY always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Frontend
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_cache_bypass \$http_upgrade;
+        
+        # Timeout settings
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Backend API
+    location /api {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_cache_bypass \$http_upgrade;
+        
+        # Timeout settings
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # CORS headers for API
+        add_header 'Access-Control-Allow-Origin' 'https://$DOMAIN' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
+    }
+
+    # Handle preflight requests
+    location ~ ^/api.*\$ {
+        if (\$request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' 'https://$DOMAIN';
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain; charset=utf-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
+    }
+
+    # Static files caching
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)\$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+EOF
+
+# Test and reload nginx
+nginx -t
+systemctl reload nginx
 
 # --------------------------------------------------------------------------
 # Final Checks
@@ -328,17 +471,29 @@ else
     print_warning "Frontend check failed. Check logs with: pm2 logs builders-circle-frontend"
 fi
 
+# Test HTTPS
+if curl -s -o /dev/null -w "%{http_code}" https://$DOMAIN | grep -q "200"; then
+    print_message "HTTPS is working correctly."
+else
+    print_warning "HTTPS check failed. Check SSL certificate and nginx configuration."
+fi
+
 # Output final instructions
 print_message "------------------------------------------------"
-print_message "Deployment successful!"
-print_message "Your application is available at: http://$DOMAIN"
-print_message "Backend API: http://$DOMAIN/api"
+print_message "🎉 Deployment successful!"
+print_message "Your application is available at: https://$DOMAIN"
+print_message "Backend API: https://$DOMAIN/api"
 print_message ""
 print_message "PM2 Commands:"
 print_message "  pm2 status                # View process status"
 print_message "  pm2 logs builders-circle-backend  # View backend logs"
 print_message "  pm2 logs builders-circle-frontend # View frontend logs"
 print_message "  pm2 restart all           # Restart both apps"
+print_message "  pm2 reload all            # Reload both apps (zero downtime)"
+print_message ""
+print_message "SSL Certificate:"
+print_message "  Certificate will auto-renew via cron job"
+print_message "  Manual renewal: certbot renew"
 print_message ""
 print_message "Database credentials:"
 print_message "  Database: builders_circle"
@@ -347,6 +502,6 @@ print_message "  Password: $DB_PASS"
 print_message ""
 print_message "JWT Secret: $JWT_SECRET"
 print_message ""
-print_message "Note: Currently configured for HTTP deployment"
-print_message "To enable HTTPS later, uncomment SSL sections and run certbot"
+print_message "🔒 HTTPS enabled with automatic HTTP redirect"
+print_message "🔄 Auto-renewal configured for SSL certificate"
 print_message "------------------------------------------------"
