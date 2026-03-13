@@ -180,21 +180,14 @@ cd backend
 npm install
 cd ..
 
-print_message "Building frontend..."
-npm run build
-
-print_message "Building backend..."
-cd backend
-npm run build
-cd ..
-
 # --------------------------------------------------------------------------
 # Database Migration (Prisma)
 # --------------------------------------------------------------------------
 print_message "Running database migrations..."
 cd backend
 
-# Generate Prisma client for PostgreSQL
+# First, ensure we have the latest Prisma client
+print_message "Generating Prisma client..."
 npx prisma generate
 
 # Create initial migration if none exist, or deploy existing ones
@@ -207,11 +200,20 @@ else
     npx prisma migrate deploy
 fi
 
-# Run the activity verification migration
+# Run the activity verification migration and force schema sync
 print_message "Running activity verification migration..."
-npx prisma db push
+npx prisma db push --force-reset --accept-data-loss
 
+# Regenerate Prisma client after schema changes
+print_message "Regenerating Prisma client after schema changes..."
+npx prisma generate
+
+print_message "Building backend..."
+npm run build
 cd ..
+
+print_message "Building frontend..."
+npm run build
 
 # --------------------------------------------------------------------------
 # PM2 Ecosystem File
