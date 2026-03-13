@@ -48,6 +48,10 @@ next-env.d.ts
 /backend/dev.db
 /backend/prisma/dev.db
 /backend/prisma/prisma/dev.db
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
 
 # logs and temporary files
 logs/
