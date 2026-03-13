@@ -57,7 +57,7 @@ export default function AdminAnalyticsPage() {
     fetchAnalytics();
   }, [selectedCycleId]);
 
-  if (!user || !['admin', 'founder'].includes(user.role)) {
+  if (!user || !user.role || !['admin', 'founder'].includes(user.role)) {
     return (
       <MainLayout title="Access Denied">
         <div className="text-center py-12">
