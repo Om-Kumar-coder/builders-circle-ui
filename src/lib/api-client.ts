@@ -14,6 +14,13 @@ class ApiError extends Error {
 
 class ApiClient {
   private getAuthHeaders(): HeadersInit {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return {
+        'Content-Type': 'application/json',
+      };
+    }
+    
     const token = localStorage.getItem('auth_token');
     return {
       'Content-Type': 'application/json',
@@ -109,8 +116,8 @@ class ApiClient {
       body: JSON.stringify({ email, password, name }),
     });
     
-    // Store token in localStorage
-    if (response.token) {
+    // Store token in localStorage (only in browser)
+    if (response.token && typeof window !== 'undefined') {
       localStorage.setItem('auth_token', response.token);
     }
     
@@ -123,8 +130,8 @@ class ApiClient {
       body: JSON.stringify({ email, password }),
     });
     
-    // Store token in localStorage
-    if (response.token) {
+    // Store token in localStorage (only in browser)
+    if (response.token && typeof window !== 'undefined') {
       localStorage.setItem('auth_token', response.token);
     }
     
@@ -138,8 +145,10 @@ class ApiClient {
   async logout(): Promise<{ success?: boolean }> {
     const response = await this.request<{ success?: boolean }>('/auth/logout', { method: 'POST' });
     
-    // Remove token from localStorage
-    localStorage.removeItem('auth_token');
+    // Remove token from localStorage (only in browser)
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token');
+    }
     
     return response;
   }
