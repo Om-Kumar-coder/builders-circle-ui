@@ -4,30 +4,57 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting production database setup...');
+  console.log('🌱 Starting database seed...');
 
-  // Create only essential admin user for production
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@buildercircle.com';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-  const adminName = process.env.ADMIN_NAME || 'System Admin';
+  // Test user credentials
+  const testUsers = [
+    {
+      email: 'founder@test.com',
+      password: 'founder123',
+      name: 'Test Founder',
+      role: 'founder'
+    },
+    {
+      email: 'admin@test.com',
+      password: 'admin123',
+      name: 'Test Admin',
+      role: 'admin'
+    },
+    {
+      email: 'user@test.com',
+      password: 'user123',
+      name: 'Test User',
+      role: 'contributor'
+    },
+    {
+      email: 'employee@test.com',
+      password: 'employee123',
+      name: 'Test Employee',
+      role: 'employee'
+    }
+  ];
 
-  const existingAdmin = await prisma.user.findUnique({
-    where: { email: adminEmail }
-  });
+  // Create test users
+  for (const userData of testUsers) {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: userData.email }
+    });
 
-  if (existingAdmin) {
-    console.log(`👤 Admin user ${adminEmail} already exists, skipping...`);
-  } else {
-    const hashedPassword = await bcrypt.hash(adminPassword, 12);
+    if (existingUser) {
+      console.log(`👤 User ${userData.email} already exists, skipping...`);
+      continue;
+    }
 
-    const admin = await prisma.user.create({
+    const hashedPassword = await bcrypt.hash(userData.password, 12);
+
+    const user = await prisma.user.create({
       data: {
-        email: adminEmail,
+        email: userData.email,
         password: hashedPassword,
-        name: adminName,
+        name: userData.name,
         profile: {
           create: {
-            role: 'founder',
+            role: userData.role,
             status: 'active'
           }
         }
@@ -37,17 +64,36 @@ async function main() {
       }
     });
 
-    console.log(`✅ Created admin user: ${adminEmail}`);
-    console.log(`🔑 Password: ${adminPassword}`);
+    console.log(`✅ Created ${userData.role}: ${userData.email} (password: ${userData.password})`);
   }
 
-  console.log('🎉 Production database setup completed!');
-  console.log('📝 Remember to change default admin password after first login');
+  // Create a test build cycle
+  const existingCycle = await prisma.buildCycle.findFirst({
+    where: { name: 'Test Cycle 1' }
+  });
+
+  if (!existingCycle) {
+    const testCycle = await prisma.buildCycle.create({
+      data: {
+        name: 'Test Cycle 1',
+        state: 'active',
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+        participantCount: 0
+      }
+    });
+
+    console.log(`🔄 Created test build cycle: ${testCycle.name}`);
+  } else {
+    console.log('🔄 Test build cycle already exists, skipping...');
+  }
+
+  console.log('🎉 Database seeding completed!');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error during setup:', e);
+    console.error('❌ Error during seeding:', e);
     process.exit(1);
   })
   .finally(async () => {
