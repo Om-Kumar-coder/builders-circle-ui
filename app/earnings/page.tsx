@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useCycle } from '@/context/CycleContext';
 import { useOwnershipData } from '@/hooks/useOwnershipData';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
@@ -19,12 +20,24 @@ interface LedgerEvent {
 
 export default function EarningsPage() {
   const { user, loading: authLoading } = useAuth();
-  // TODO: Get active cycle ID from context or user selection
-  const cycleId = 'cycle456';
+  // Get active cycle ID from context - only proceed if we have a real cycle
+  const { activeCycle } = useCycle();
+  const cycleId = activeCycle?.id || '';
   
   const { data, loading, error, refetch } = useOwnershipData(user?.id || '', cycleId);
   const [ledgerEvents, setLedgerEvents] = useState<LedgerEvent[]>([]);
   const [ledgerLoading, setLedgerLoading] = useState(true);
+
+  // Format numbers to reasonable precision
+  const formatPercentage = (value: number) => {
+    if (value === 0) return '0.00';
+    if (value < 0.01) return '<0.01';
+    return value.toFixed(2);
+  };
+
+  const formatMultiplier = (value: number) => {
+    return value.toFixed(1);
+  };
 
   useEffect(() => {
     const fetchLedgerEvents = async () => {
@@ -161,7 +174,7 @@ export default function EarningsPage() {
                   <Coins className="w-5 h-5 text-blue-400" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-100">{data.vested.toFixed(2)}%</p>
+              <p className="text-3xl font-bold text-gray-100">{formatPercentage(data.vested)}%</p>
               <p className="text-xs text-gray-500 mt-2">Locked & permanent</p>
             </div>
 
@@ -173,7 +186,7 @@ export default function EarningsPage() {
                   <TrendingUp className="w-5 h-5 text-yellow-400" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-100">{data.provisional.toFixed(2)}%</p>
+              <p className="text-3xl font-bold text-gray-100">{formatPercentage(data.provisional)}%</p>
               <p className="text-xs text-gray-500 mt-2">Subject to multiplier</p>
             </div>
 
@@ -185,7 +198,7 @@ export default function EarningsPage() {
                   <Percent className="w-5 h-5 text-purple-400" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-100">{data.multiplier.toFixed(2)}×</p>
+              <p className="text-3xl font-bold text-gray-100">{formatMultiplier(data.multiplier)}×</p>
               <p className="text-xs text-gray-500 mt-2">
                 {data.multiplier === 1 ? 'Full influence' : 
                  data.multiplier === 0.75 ? 'At risk' :
@@ -201,7 +214,7 @@ export default function EarningsPage() {
                   <Zap className="w-5 h-5 text-indigo-400" />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-indigo-400">{data.effective.toFixed(2)}%</p>
+              <p className="text-3xl font-bold text-indigo-400">{formatPercentage(data.effective)}%</p>
               <p className="text-xs text-gray-500 mt-2">Total current influence</p>
             </div>
           </div>
@@ -218,19 +231,19 @@ export default function EarningsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
                 <span className="text-gray-300">Vested Total</span>
-                <span className="text-lg font-semibold text-blue-400">{data.vested.toFixed(2)}%</span>
+                <span className="text-lg font-semibold text-blue-400">{formatPercentage(data.vested)}%</span>
               </div>
               <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
                 <span className="text-gray-300">Provisional Total</span>
-                <span className="text-lg font-semibold text-yellow-400">{data.provisional.toFixed(2)}%</span>
+                <span className="text-lg font-semibold text-yellow-400">{formatPercentage(data.provisional)}%</span>
               </div>
               <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
                 <span className="text-gray-300">Multiplier Applied</span>
-                <span className="text-lg font-semibold text-purple-400">{data.multiplier.toFixed(2)}×</span>
+                <span className="text-lg font-semibold text-purple-400">{formatMultiplier(data.multiplier)}×</span>
               </div>
               <div className="flex items-center justify-between p-4 bg-indigo-900/20 border border-indigo-800/50 rounded-lg">
                 <span className="text-gray-200 font-medium">Effective Result</span>
-                <span className="text-xl font-bold text-indigo-400">{data.effective.toFixed(2)}%</span>
+                <span className="text-xl font-bold text-indigo-400">{formatPercentage(data.effective)}%</span>
               </div>
             </div>
 

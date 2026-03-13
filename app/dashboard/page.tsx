@@ -1,19 +1,39 @@
 'use client';
 
 import { useAuth } from '../../src/context/AuthContext';
+import { useCycle } from '../../src/context/CycleContext';
 import MainLayout from "../../src/components/layout/MainLayout";
 import DashboardGrid from "../../src/components/dashboard/DashboardGrid";
 
 export default function Page() {
   const { user } = useAuth();
+  const { activeCycle, loading: cycleLoading } = useCycle();
   
-  // TODO: Replace with actual user ID and cycle ID from auth/context
-  const userId = user?.id || "user123";
-  const cycleId = "cycle456";
+  if (cycleLoading) {
+    return (
+      <MainLayout title="Dashboard">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!activeCycle) {
+    return (
+      <MainLayout title="Dashboard">
+        <div className="text-center py-12">
+          <div className="text-5xl mb-4 opacity-50">🚀</div>
+          <h2 className="text-xl font-semibold text-gray-100 mb-2">No Active Cycles</h2>
+          <p className="text-gray-400 mb-6">There are no build cycles available at the moment.</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout title="Dashboard">
-      <DashboardGrid userId={userId} cycleId={cycleId} />
+      <DashboardGrid userId={user?.id || ""} cycleId={activeCycle.id} />
     </MainLayout>
   );
 }

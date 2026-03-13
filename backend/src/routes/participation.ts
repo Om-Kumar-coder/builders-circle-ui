@@ -117,6 +117,76 @@ router.get('/:cycleId', authMiddleware, async (req: AuthRequest, res: Response) 
   }
 });
 
+// Get all participations for a user
+router.get('/user/:userId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
+    
+    // Users can only view their own participations unless they're admin
+    if (userId !== req.user!.id && !['admin', 'founder'].includes(req.user!.role)) {
+      return res.status(403).json({
+        success: false,
+        data: null,
+        error: 'Access denied'
+      });
+    }
+
+    const participations = await prisma.cycleParticipation.findMany({
+      where: { userId },
+      include: {
+        cycle: {
+          select: {
+            id: true,
+            name: true,
+            state: true,
+            startDate: true,
+            endDate: true
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Calculate last activity date for each participation
+    const participationsWithActivity = await Promise.all(
+      participations.map(async (participation) => {
+        const lastActivity = await prisma.activityEvent.findFirst({
+          where: {
+            userId: participation.userId,
+            cycleId: participation.cycleId
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        return {
+          ...participation,
+          lastActivityDate: lastActivity?.createdAt?.toISOString() || null
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: participationsWithActivity,
+      error: null
+    });
+  } catch (error) {
+    console.error('Error fetching user participations:', error);
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: 'Failed to fetch participations'
+    });
+  }
+});
+
 // Update participation
 router.patch('/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {

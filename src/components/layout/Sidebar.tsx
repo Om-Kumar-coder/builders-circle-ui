@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '../../context/AuthContext';
 import Image from 'next/image';
 import {
   LayoutDashboard,
@@ -13,6 +14,9 @@ import {
   Settings,
   X,
   BarChart3,
+  Shield,
+  CheckCircle,
+  Clock,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,8 +34,18 @@ const navigationItems = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
+const adminItems = [
+  { name: 'Admin Dashboard', href: '/admin', icon: Shield },
+  { name: 'Activity Review', href: '/admin/activity-review', icon: CheckCircle },
+  { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+  { name: 'Audit Logs', href: '/admin/audit', icon: Clock },
+];
+
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  
+  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
 
   return (
     <>
@@ -108,6 +122,46 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </Link>
               );
             })}
+
+            {/* Admin Section */}
+            {isAdmin && (
+              <>
+                <div className="pt-4 pb-2">
+                  <div className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Administration
+                  </div>
+                </div>
+                {adminItems.map((item) => {
+                  const isActive = pathname === item.href;
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      onClick={() => onClose()}
+                      className={`
+                        flex items-center space-x-3 px-3 py-2.5 rounded-lg
+                        transition-all duration-200 group
+                        ${
+                          isActive
+                            ? 'bg-red-600/10 text-red-400'
+                            : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                        }
+                      `}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      <Icon
+                        className={`w-5 h-5 transition-colors ${
+                          isActive ? 'text-red-400' : 'group-hover:text-gray-200'
+                        }`}
+                      />
+                      <span className="font-medium">{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </>
+            )}
           </nav>
 
           {/* Footer */}

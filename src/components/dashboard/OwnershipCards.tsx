@@ -17,11 +17,22 @@ interface OwnershipCardsProps {
 export default function OwnershipCards({ data }: OwnershipCardsProps) {
   const ownershipData = data;
 
+  // Format numbers to reasonable precision
+  const formatPercentage = (value: number) => {
+    if (value === 0) return '0';
+    if (value < 0.01) return '<0.01';
+    return value.toFixed(2);
+  };
+
+  const formatMultiplier = (value: number) => {
+    return value.toFixed(1);
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       <StatsCard
         title="Vested Ownership"
-        value={`${ownershipData.vested}%`}
+        value={`${formatPercentage(ownershipData.vested)}%`}
         icon={TrendingUp}
         highlightColor="bg-blue-500"
         subtitle="Locked & earned"
@@ -29,7 +40,7 @@ export default function OwnershipCards({ data }: OwnershipCardsProps) {
       
       <StatsCard
         title="Provisional Ownership"
-        value={`${ownershipData.provisional}%`}
+        value={`${formatPercentage(ownershipData.provisional)}%`}
         icon={Zap}
         highlightColor="bg-violet-500"
         subtitle="Pending vesting"
@@ -37,7 +48,7 @@ export default function OwnershipCards({ data }: OwnershipCardsProps) {
       
       <StatsCard
         title="Multiplier"
-        value={`${ownershipData.multiplier}x`}
+        value={`${formatMultiplier(ownershipData.multiplier)}x`}
         icon={Target}
         highlightColor="bg-yellow-500"
         subtitle="Activity factor"
@@ -61,7 +72,7 @@ export default function OwnershipCards({ data }: OwnershipCardsProps) {
           
           <div className="space-y-1">
             <p className="text-3xl font-bold text-green-400 group-hover:text-green-300 transition-colors">
-              {ownershipData.effective}%
+              {formatPercentage(ownershipData.effective)}%
             </p>
             <p className="text-sm text-gray-500">Total stake</p>
           </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useCycle } from '@/context/CycleContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
@@ -17,8 +18,9 @@ const COLORS = {
 
 export default function InsightsPage() {
   const { user, loading: authLoading } = useAuth();
-  // TODO: Get active cycle ID from context or user selection
-  const cycleId = 'cycle456';
+  const { activeCycle } = useCycle();
+  // Get active cycle ID from context - only proceed if we have a real cycle
+  const cycleId = activeCycle?.id || '';
   
   const { analytics, loading, error, refetch } = useAnalytics(cycleId);
 

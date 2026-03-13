@@ -134,7 +134,8 @@ export default function AuditPage() {
     }
   };
 
-  const formatEventType = (eventType: string) => {
+  const formatEventType = (eventType: string | undefined | null) => {
+    if (!eventType) return 'Unknown Event';
     return eventType
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))

@@ -66,9 +66,8 @@ export async function getUserParticipatingCycles(
   userId: string
 ): Promise<ParticipationRecord[]> {
   try {
-    // This would need to be implemented in the backend
-    // For now, return empty array
-    return [];
+    const participations = await apiClient.getUserParticipations(userId);
+    return participations;
   } catch (error) {
     console.error('Error fetching user participations:', error);
     return [];

@@ -193,6 +193,10 @@ class ApiClient {
     return this.request<any>(`/participation/${cycleId}`);
   }
 
+  async getUserParticipations(userId: string): Promise<any[]> {
+    return this.request<any[]>(`/participation/user/${userId}`);
+  }
+
   async updateParticipation(id: string, data: any): Promise<any> {
     return this.request<any>(`/participation/${id}`, {
       method: 'PATCH',

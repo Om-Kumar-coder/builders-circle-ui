@@ -29,7 +29,12 @@ export function useOwnershipData(
   const fetchOwnership = useCallback(async () => {
     if (!userId || !cycleId) {
       console.log('⏭️ Skipping ownership fetch - missing userId or cycleId:', { userId, cycleId });
-      setData(null);
+      setData({
+        vested: 0,
+        provisional: 0,
+        multiplier: 1,
+        effective: 0,
+      });
       setLoading(false);
       return;
     }
@@ -54,6 +59,13 @@ export function useOwnershipData(
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       console.error('❌ Error fetching ownership data:', err);
       setError(errorMessage);
+      // Set default values on error
+      setData({
+        vested: 0,
+        provisional: 0,
+        multiplier: 1,
+        effective: 0,
+      });
     } finally {
       setLoading(false);
     }
