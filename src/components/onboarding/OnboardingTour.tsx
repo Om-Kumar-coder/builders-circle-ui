@@ -8,13 +8,13 @@ interface OnboardingStep {
   description: string;
   icon: string;
   highlight?: string;
+  showForm?: boolean;
 }
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
   {
     title: 'Welcome to Builder\'s Circle',
-    description: 'A transparent ownership system where your contributions directly translate to influence. Let\'s get you started!',
-    icon: '👋',
+    description: 'A transparent ownership system where your contributions directly translate to influence. Let\'s get you started!',    icon: '👋',
   },
   {
     title: 'Join a Build Cycle',
@@ -40,6 +40,12 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     icon: '💎',
     highlight: 'earnings',
   },
+  {
+    title: 'Help Us Improve',
+    description: 'Please take a moment to fill out our feedback form. Your input helps us make Builder\'s Circle better for everyone.',
+    icon: '📝',
+    showForm: true,
+  },
 ];
 
 const STORAGE_KEY = 'builders-circle-onboarding-completed';
@@ -60,9 +66,7 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
       const timer = setTimeout(() => setIsOpen(true), 1000);
       return () => clearTimeout(timer);
     }
-  }, []);
-
-  const handleNext = () => {
+  }, []);  const handleNext = () => {
     if (currentStep < ONBOARDING_STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -135,6 +139,45 @@ export default function OnboardingTour({ onComplete }: OnboardingTourProps) {
             <p className="text-gray-300 text-lg leading-relaxed">
               {step.description}
             </p>
+
+            {/* Google Form Embed */}
+            {step.showForm && (
+              <div className="mt-6">
+                <div className="bg-gray-800 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-gray-400 mb-3">
+                    📝 This form opens in a new tab for the best experience
+                  </p>
+                  <a
+                    href="https://docs.google.com/forms/d/e/1FAIpQLSf5j4p877uErugDzliFP7A5ZqyoT2sq6-W_Jdxm9C2hmuKe5w/viewform"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 
+                      text-white rounded-lg font-medium transition-colors"
+                  >
+                    Open Feedback Form
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                </div>
+                
+                {/* Embedded iframe as backup */}
+                <div className="bg-gray-800 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                  <iframe
+                    src="https://docs.google.com/forms/d/e/1FAIpQLSf5j4p877uErugDzliFP7A5ZqyoT2sq6-W_Jdxm9C2hmuKe5w/viewform?embedded=true"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    marginHeight={0}
+                    marginWidth={0}
+                    title="Builder's Circle Feedback Form"
+                    className="rounded-lg"
+                  >
+                    Loading feedback form...
+                  </iframe>
+                </div>
+              </div>
+            )}
 
             {/* Visual Highlight Hint */}
             {step.highlight && (
@@ -217,7 +260,9 @@ export function useOnboarding() {
 
   useEffect(() => {
     const completed = localStorage.getItem(STORAGE_KEY);
-    setShouldShow(!completed);
+    // Use setTimeout to avoid setState synchronously in effect
+    const timer = setTimeout(() => setShouldShow(!completed), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const resetOnboarding = () => {

@@ -23,6 +23,9 @@ export interface ActivityEvent {
   verifiedBy?: string;
   verifiedAt?: string;
   rejectionReason?: string;
+  feedbackComment?: string;
+  feedbackAuthor?: string;
+  feedbackTimestamp?: string;
   contributionType: ActivityType;
   contributionWeight: number;
   calculatedOwnership: number;
@@ -39,6 +42,11 @@ export interface ActivityEvent {
     state: string;
   };
   verifier?: {
+    id: string;
+    email: string;
+    name: string;
+  };
+  feedbackGiver?: {
     id: string;
     email: string;
     name: string;
@@ -60,6 +68,7 @@ export interface ActivitySubmission {
 export interface ActivityVerification {
   status: ActivityStatus;
   rejectionReason?: string;
+  feedbackComment?: string;
   calculatedOwnership?: number;
 }
 

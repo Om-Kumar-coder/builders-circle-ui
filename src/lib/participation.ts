@@ -50,11 +50,11 @@ export async function joinCycle(
       success: true,
       participation,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error joining cycle:', error);
     return {
       success: false,
-      error: error.message || 'Failed to join cycle',
+      error: error instanceof Error ? error.message : 'Failed to join cycle',
     };
   }
 }
@@ -117,7 +117,7 @@ export async function getParticipationStatus(userId: string): Promise<{
  * Get all participants for a specific cycle
  */
 export async function getCycleParticipants(
-  cycleId: string
+  _cycleId: string
 ): Promise<ParticipationRecord[]> {
   try {
     // This would need to be implemented in the backend

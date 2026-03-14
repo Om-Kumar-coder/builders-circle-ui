@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { useState, useEffect, useCallback } from 'react';
+import { apiClient } from '../lib/api-client';
 
-export interface ParticipationRecord {
+interface Participation {
   id: string;
   userId: string;
   cycleId: string;
@@ -16,6 +16,8 @@ export interface ParticipationRecord {
     id: string;
     name: string;
     state: string;
+    startDate: string;
+    endDate: string;
   };
   user?: {
     id: string;
@@ -24,13 +26,24 @@ export interface ParticipationRecord {
   };
 }
 
-export function useParticipation(userId: string | undefined, cycleId: string) {
-  const [participation, setParticipation] = useState<ParticipationRecord | null>(null);
+interface UseParticipationResult {
+  participation: Participation | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+}
+
+export function useParticipation(
+  userId?: string,
+  cycleId?: string
+): UseParticipationResult {
+  const [participation, setParticipation] = useState<Participation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchParticipation = async () => {
-    if (!userId) {
+  const fetchParticipation = useCallback(async () => {
+    if (!userId || !cycleId) {
+      setParticipation(null);
       setLoading(false);
       return;
     }
@@ -38,23 +51,28 @@ export function useParticipation(userId: string | undefined, cycleId: string) {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiClient.getParticipation(cycleId);
-      setParticipation(data);
-    } catch (err: any) {
-      // If participation not found, that's okay - user hasn't joined yet
-      if (err.message?.includes('not found')) {
+      
+      const participationData = await apiClient.getParticipation(cycleId);
+      setParticipation(participationData);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('404')) {
+        // User is not participating in this cycle
         setParticipation(null);
+        setError(null);
       } else {
-        setError(err.message || 'Failed to fetch participation');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch participation';
+        console.error('Error fetching participation:', err);
+        setError(errorMessage);
+        setParticipation(null);
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, cycleId]);
 
   useEffect(() => {
     fetchParticipation();
-  }, [userId, cycleId]);
+  }, [fetchParticipation]);
 
   return {
     participation,

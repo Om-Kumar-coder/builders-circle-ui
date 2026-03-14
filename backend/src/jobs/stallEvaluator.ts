@@ -1,52 +1,96 @@
 import { prisma } from '../config/database';
-import { NotificationService } from '../services/notificationService';
 
 export class StallEvaluatorJob {
   static async run() {
     console.log('Running stall evaluator job...');
 
     try {
-      // Get all active cycles
+      // OPTIMIZED: Get all active cycles with their participants in one query
+      // This eliminates the N+1 query pattern (1 query for cycles + N queries for participants)
       const activeCycles = await prisma.buildCycle.findMany({
-        where: { state: 'active' }
+        where: { state: 'active' },
+        include: {
+          participations: {
+            where: { optedIn: true },
+            select: {
+              id: true,
+              userId: true,
+              lastActivityDate: true,
+              createdAt: true,
+              stallStage: true,
+              participationStatus: true
+            }
+          }
+        }
       });
 
       for (const cycle of activeCycles) {
-        // Get all opted-in participants for this cycle
-        const participants = await prisma.cycleParticipation.findMany({
-          where: {
-            cycleId: cycle.id,
-            optedIn: true
-          }
-        });
+        // Calculate all updates in memory first
+        const updates = cycle.participations.map(participant => {
+          const daysSinceLastActivity = this.calculateDaysSinceLastActivity(
+            participant.lastActivityDate,
+            participant.createdAt
+          );
+          const daysSinceJoined = this.calculateDaysSinceLastActivity(
+            null,
+            participant.createdAt
+          );
 
-        for (const participant of participants) {
-          const daysSinceLastActivity = this.calculateDaysSinceLastActivity(participant.lastActivityDate);
-          const newStallStage = this.determineStallStage(daysSinceLastActivity);
+          const newStallStage = this.determineStallStage(daysSinceLastActivity, daysSinceJoined);
           const newParticipationStatus = this.determineParticipationStatus(newStallStage);
 
-          // Only update if stage has changed
-          if (newStallStage !== participant.stallStage || newParticipationStatus !== participant.participationStatus) {
-            await prisma.cycleParticipation.update({
-              where: { id: participant.id },
-              data: {
-                stallStage: newStallStage,
-                participationStatus: newParticipationStatus
-              }
-            });
+          return {
+            id: participant.id,
+            userId: participant.userId,
+            newStallStage,
+            newParticipationStatus,
+            oldStallStage: participant.stallStage,
+            oldParticipationStatus: participant.participationStatus,
+            shouldUpdate: newStallStage !== participant.stallStage || newParticipationStatus !== participant.participationStatus,
+            shouldNotify: ['at_risk', 'diminishing', 'paused'].includes(newStallStage) &&
+              newStallStage !== participant.stallStage &&
+              participant.stallStage !== 'grace',
+            daysSinceJoined,
+            daysSinceLastActivity
+          };
+        });
 
-            // Send notification for stall warnings
-            if (['at_risk', 'diminishing', 'paused'].includes(newStallStage) && newStallStage !== participant.stallStage) {
-              await NotificationService.createStallWarning(
-                participant.userId,
-                cycle.id,
-                newStallStage
-              );
+        // OPTIMIZED: Batch update all participants that need changes
+        const participantsToUpdate = updates.filter(u => u.shouldUpdate);
+        
+        for (const update of participantsToUpdate) {
+          await prisma.cycleParticipation.update({
+            where: { id: update.id },
+            data: {
+              stallStage: update.newStallStage,
+              participationStatus: update.newParticipationStatus
             }
+          });
 
-            console.log(`Updated participant ${participant.userId} in cycle ${cycle.id}: ${participant.stallStage} -> ${newStallStage}`);
-          }
+          console.log(`Updated participant ${update.userId} in cycle ${cycle.id}: ${update.oldStallStage} -> ${update.newStallStage} (${update.daysSinceJoined} days since joined, ${update.daysSinceLastActivity} days since activity)`);
         }
+
+        // OPTIMIZED: Batch create notifications for all stall warnings
+        const notificationsToCreate = updates
+          .filter(u => u.shouldNotify)
+          .map(u => ({
+            userId: u.userId,
+            type: 'stall_warning',
+            message: `Your participation status changed to: ${u.newStallStage}. Submit activity to improve your standing.`,
+            metadata: JSON.stringify({ 
+              cycleId: cycle.id, 
+              stallStage: u.newStallStage,
+              previousStage: u.oldStallStage,
+              daysSinceLastActivity: u.daysSinceLastActivity
+            })
+          }));
+
+        if (notificationsToCreate.length > 0) {
+          await prisma.notification.createMany({ data: notificationsToCreate });
+          console.log(`Created ${notificationsToCreate.length} stall warning notifications for cycle ${cycle.id}`);
+        }
+
+        console.log(`Processed ${cycle.participations.length} participants in cycle ${cycle.id}, updated ${participantsToUpdate.length}`);
       }
 
       console.log('Stall evaluator job completed successfully');
@@ -56,9 +100,13 @@ export class StallEvaluatorJob {
     }
   }
 
-  private static calculateDaysSinceLastActivity(lastActivityDate: Date | null): number {
+  private static calculateDaysSinceLastActivity(lastActivityDate: Date | null, createdAt: Date): number {
     if (!lastActivityDate) {
-      return 0; // Grace period for new participants
+      // Calculate days since participation started (grace period)
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - createdAt.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
     }
 
     const now = new Date();
@@ -68,8 +116,13 @@ export class StallEvaluatorJob {
     return diffDays;
   }
 
-  private static determineStallStage(daysSinceLastActivity: number): string {
-    if (daysSinceLastActivity === 0) return 'grace';
+  private static determineStallStage(daysSinceLastActivity: number, daysSinceJoined: number): string {
+    // Grace period: 3 days from joining
+    if (daysSinceJoined <= 3) {
+      return 'grace';
+    }
+
+    // After grace period, use normal stall evaluation
     if (daysSinceLastActivity <= 6) return 'active';
     if (daysSinceLastActivity <= 13) return 'at_risk';
     if (daysSinceLastActivity <= 20) return 'diminishing';

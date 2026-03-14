@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
@@ -154,27 +155,9 @@ router.get('/user/:userId', authMiddleware, async (req: AuthRequest, res: Respon
       orderBy: { createdAt: 'desc' }
     });
 
-    // Calculate last activity date for each participation
-    const participationsWithActivity = await Promise.all(
-      participations.map(async (participation) => {
-        const lastActivity = await prisma.activityEvent.findFirst({
-          where: {
-            userId: participation.userId,
-            cycleId: participation.cycleId
-          },
-          orderBy: { createdAt: 'desc' }
-        });
-
-        return {
-          ...participation,
-          lastActivityDate: lastActivity?.createdAt?.toISOString() || null
-        };
-      })
-    );
-
     res.json({
       success: true,
-      data: participationsWithActivity,
+      data: participations,
       error: null
     });
   } catch (error) {

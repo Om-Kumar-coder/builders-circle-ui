@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Search, Menu, ChevronDown, User as UserIcon, LogOut } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Search, Menu, ChevronDown, User as UserIcon, LogOut, MessageSquare, X } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
 import NotificationBell from '../notifications/NotificationBell';
+import CycleDiscussion from '../messaging/CycleDiscussion';
+import { useCycles } from '@/hooks/useCycles';
 
 interface HeaderProps {
   title?: string;
@@ -23,9 +25,41 @@ function getInitials(name: string): string {
 
 export default function Header({ title = 'Dashboard', onMenuClick }: HeaderProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isMessagingOpen, setIsMessagingOpen] = useState(false);
+  const [selectedCycleId, setSelectedCycleId] = useState<string>('');
+  const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const { cycles } = useCycles();
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!user) return;
+      try {
+        const { count } = await apiClient.getUnreadMessageCount();
+        if (!cancelled) setUnreadCount(count);
+      } catch {
+        // silently fail
+      }
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [user]);
+
+  // Auto-select the first active cycle
+  useEffect(() => {
+    if (cycles.length > 0 && !selectedCycleId) {
+      const active = cycles.find(c => c.state === 'active') || cycles[0];
+      // Use setTimeout to avoid setState during render
+      setTimeout(() => setSelectedCycleId(active.id), 0);
+    }
+  }, [cycles, selectedCycleId]);
+
+  const selectedCycle = cycles.find(c => c.id === selectedCycleId);
+  const participants = (selectedCycle as { participants?: Array<{ user?: unknown } & Record<string, unknown>> })?.participants?.map((p) => p.user ?? p) ?? [];
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -41,8 +75,8 @@ export default function Header({ title = 'Dashboard', onMenuClick }: HeaderProps
   async function handleLogout() {
     try {
       await logout();
-    } catch (error) {
-      console.error('Logout failed:', error);
+    } catch {
+      console.error('Logout failed');
     }
   }
 
@@ -54,6 +88,7 @@ export default function Header({ title = 'Dashboard', onMenuClick }: HeaderProps
     : '?';
 
   return (
+    <>
     <header className="sticky top-0 z-30 bg-gray-950/80 backdrop-blur-sm border-b border-gray-800/50">
       <div className="flex items-center justify-between px-4 lg:px-6 py-4">
         {/* Left: Menu + Title */}
@@ -86,6 +121,23 @@ export default function Header({ title = 'Dashboard', onMenuClick }: HeaderProps
 
         {/* Right: Notifications + User */}
         <div className="flex items-center space-x-3">
+          {/* Messaging */}
+          {user && (
+            <button
+              onClick={() => { setIsMessagingOpen(true); setUnreadCount(0); }}
+              className="p-2 rounded-lg hover:bg-gray-800 transition-colors relative"
+              aria-label="Open messaging"
+            >
+              <MessageSquare className="w-5 h-5 text-gray-400" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-indigo-500 
+                  text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Notifications */}
           {user && <NotificationBell userId={user.id} />}
 
@@ -176,5 +228,55 @@ export default function Header({ title = 'Dashboard', onMenuClick }: HeaderProps
         </div>
       </div>
     </header>
+
+    {/* Messaging Slide-over */}
+    {isMessagingOpen && (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={() => setIsMessagingOpen(false)}
+          aria-hidden="true"
+        />
+        {/* Panel */}
+        <div className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-gray-950 border-l border-gray-800 flex flex-col shadow-2xl">
+          <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
+            <h2 className="text-lg font-semibold text-gray-100">Messaging</h2>
+            <button
+              onClick={() => setIsMessagingOpen(false)}
+              className="p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+              aria-label="Close messaging"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          {/* Cycle selector */}
+          {cycles.length > 1 && (
+            <div className="px-4 py-3 border-b border-gray-800">
+              <label className="text-xs text-gray-500 mb-1 block">Cycle</label>
+              <select
+                value={selectedCycleId}
+                onChange={e => setSelectedCycleId(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {cycles.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.state})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-hidden p-4 flex flex-col">
+            {selectedCycleId ? (
+              <CycleDiscussion cycleId={selectedCycleId} participants={participants} />
+            ) : (
+              <p className="text-gray-400 text-sm text-center mt-8">No cycles available</p>
+            )}
+          </div>
+        </div>
+      </>
+    )}
+    </>
   );
 }

@@ -28,7 +28,7 @@ export default function Home() {
     <div className="min-h-screen bg-gray-900 flex items-center justify-center">
       <div className="text-center">
         <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-        <p className="text-gray-400">Loading Builder's Circle...</p>
+        <p className="text-gray-400">Loading Builder&apos;s Circle...</p>
       </div>
     </div>
   );

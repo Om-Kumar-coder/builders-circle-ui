@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 import type { BuildCycle } from '@/types/cycle';
 
@@ -9,7 +9,7 @@ export function useCycles() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCycles = async () => {
+  const fetchCycles = useCallback(async () => {
     try {
       console.log('📋 Fetching cycles...');
       setLoading(true);
@@ -29,23 +29,23 @@ export function useCycles() {
       });
 
       setCycles(sorted);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Error fetching cycles:', err);
       
       // Handle rate limiting gracefully
-      if (err.status === 429) {
+      if ((err as { status?: number })?.status === 429) {
         setError('Too many requests. Please wait a moment before refreshing.');
       } else {
-        setError(err.message || 'Failed to fetch cycles');
+        setError(err instanceof Error ? err.message : 'Failed to fetch cycles');
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchCycles();
-  }, []);
+  }, [fetchCycles]);
 
   return { cycles, loading, error, refetch: fetchCycles };
 }

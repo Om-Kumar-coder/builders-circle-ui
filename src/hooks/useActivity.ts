@@ -36,14 +36,14 @@ export function useActivity(userId: string, cycleId: string): UseActivityResult 
       
       console.log('✅ Activities fetched:', { count: data.length });
       setActivities(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Error fetching activities:', err);
       
       // Handle rate limiting gracefully
-      if (err.status === 429) {
+      if ((err as { status?: number })?.status === 429) {
         setError('Too many requests. Please wait a moment before refreshing.');
       } else {
-        setError(err.message || 'Failed to fetch activities');
+        setError(err instanceof Error ? err.message : 'Failed to fetch activities');
       }
     } finally {
       setLoading(false);
@@ -86,8 +86,8 @@ export function useLastActivity(userId: string): UseLastActivityResult {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       setLastActivity(sortedActivities[0] || null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch last activity');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch last activity');
     } finally {
       setLoading(false);
     }

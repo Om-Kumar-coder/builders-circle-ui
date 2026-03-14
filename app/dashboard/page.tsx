@@ -4,6 +4,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { useCycle } from '../../src/context/CycleContext';
 import MainLayout from "../../src/components/layout/MainLayout";
 import DashboardGrid from "../../src/components/dashboard/DashboardGrid";
+import StallWarningAlert from "../../src/components/dashboard/StallWarningAlert";
 
 export default function Page() {
   const { user } = useAuth();
@@ -33,7 +34,13 @@ export default function Page() {
 
   return (
     <MainLayout title="Dashboard">
-      <DashboardGrid userId={user?.id || ""} cycleId={activeCycle.id} />
+      <div className="space-y-6">
+        {/* Stall Warning Alerts */}
+        <StallWarningAlert />
+        
+        {/* Main Dashboard */}
+        <DashboardGrid userId={user?.id || ""} cycleId={activeCycle.id} />
+      </div>
     </MainLayout>
   );
 }

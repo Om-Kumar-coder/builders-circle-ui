@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useCycle } from '@/context/CycleContext';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import { TrendingUp, Users, Activity, AlertCircle, BarChart3, PieChart, RefreshCw } from 'lucide-react';
-import { BarChart, Bar, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const COLORS = {
   active: '#10b981',

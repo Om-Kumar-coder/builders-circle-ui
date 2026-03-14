@@ -49,9 +49,9 @@ export default function CreateCycleModal({ isOpen, onClose, onSuccess }: CreateC
       setEndDate('');
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Cycle creation failed:', err);
-      setError(err.message || 'Failed to create cycle');
+      setError(err instanceof Error ? err.message : 'Failed to create cycle');
     } finally {
       setLoading(false);
     }

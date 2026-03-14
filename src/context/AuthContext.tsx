@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bio: userData.bio,
         avatar: userData.avatar
       });
-    } catch (error) {
+    } catch {
       setUser(null);
     } finally {
       setLoading(false);
@@ -58,14 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         router.replace('/dashboard');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw error;
     }
   }
 
   async function signup(name: string, email: string, password: string) {
     try {
-      const response = await apiClient.signup(email, password, name);
+      const response = await apiClient.signup(name, email, password);
       const userData = response.user;
       
       setUser({
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       
       router.replace('/dashboard');
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw error;
     }
   }
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     try {
       await apiClient.logout();
-    } catch (error) {
+    } catch {
       // Ignore logout errors
     } finally {
       setUser(null);

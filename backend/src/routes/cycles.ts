@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
@@ -53,7 +54,7 @@ router.get('/', authMiddleware, async (_req: Request, res: Response) => {
       }
     });
 
-    const cyclesWithCount = cycles.map((cycle: any) => ({
+    const cyclesWithCount = cycles.map((cycle: { _count: { participations: number }; [key: string]: unknown }) => ({
       ...cycle,
       participantCount: cycle._count.participations
     }));
@@ -95,7 +96,7 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
 
     res.json({
       ...cycle,
-      participantCount: (cycle as any)._count.participations
+      participantCount: (cycle as { _count: { participations: number }; [key: string]: unknown })._count.participations
     });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });

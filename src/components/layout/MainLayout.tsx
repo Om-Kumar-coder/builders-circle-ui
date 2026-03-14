@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { useSessionTracking } from '@/hooks/useSessionTracking';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -11,6 +12,9 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children, title }: MainLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // Initialize session tracking
+  useSessionTracking();
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">

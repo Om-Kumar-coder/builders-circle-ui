@@ -6,7 +6,11 @@ export type NotificationType =
   | 'multiplier_changed' 
   | 'cycle_started' 
   | 'participation_paused' 
-  | 'admin_message';
+  | 'admin_message'
+  | 'user_mentioned'
+  | 'stall_recovery'
+  | 'ownership_decay'
+  | 'cycle_finalized';
 
 export interface Notification {
   id: string;
@@ -16,7 +20,7 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   userId: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export async function getNotifications(unreadOnly = false, limit = 50): Promise<Notification[]> {
@@ -79,6 +83,14 @@ export function getNotificationIcon(type: NotificationType): string {
       return '⏸️';
     case 'admin_message':
       return '📢';
+    case 'user_mentioned':
+      return '💬';
+    case 'stall_recovery':
+      return '🔄';
+    case 'ownership_decay':
+      return '📉';
+    case 'cycle_finalized':
+      return '🏁';
     default:
       return '🔔';
   }
@@ -98,6 +110,14 @@ export function getNotificationColor(type: NotificationType): string {
       return 'bg-orange-500/10 border-orange-500/30 text-orange-400';
     case 'admin_message':
       return 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400';
+    case 'user_mentioned':
+      return 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400';
+    case 'stall_recovery':
+      return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400';
+    case 'ownership_decay':
+      return 'bg-red-500/10 border-red-500/30 text-red-400';
+    case 'cycle_finalized':
+      return 'bg-violet-500/10 border-violet-500/30 text-violet-400';
     default:
       return 'bg-gray-500/10 border-gray-500/30 text-gray-400';
   }

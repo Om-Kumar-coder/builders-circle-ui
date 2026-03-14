@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../src/context/AuthContext';
 import { useCycle } from '../../../src/context/CycleContext';
 import MainLayout from '../../../src/components/layout/MainLayout';
 import { apiClient } from '../../../src/lib/api-client';
-import { BarChart3, Users, Activity, AlertCircle, RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertCircle } from 'lucide-react';
 
 interface AnalyticsData {
   totalActivities: number;
@@ -39,7 +39,7 @@ export default function AdminAnalyticsPage() {
     }
   }, [activeCycle, selectedCycleId]);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -51,11 +51,11 @@ export default function AdminAnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCycleId]);
 
   useEffect(() => {
     fetchAnalytics();
-  }, [selectedCycleId]);
+  }, [fetchAnalytics]);
 
   if (!user || !user.role || !['admin', 'founder'].includes(user.role)) {
     return (
@@ -63,7 +63,7 @@ export default function AdminAnalyticsPage() {
         <div className="text-center py-12">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-100 mb-2">Access Denied</h2>
-          <p className="text-gray-400">You don't have permission to view this page.</p>
+          <p className="text-gray-400">You don&apos;t have permission to view this page.</p>
         </div>
       </MainLayout>
     );

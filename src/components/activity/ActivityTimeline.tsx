@@ -24,8 +24,8 @@ export default function ActivityTimeline({ userId, cycleId, refreshTrigger = 0 }
       try {
         const data = await getUserCycleActivity(userId, cycleId);
         setActivities(data);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load activities');
+      } catch (err: unknown) {
+        setError((err as Error).message || 'Failed to load activities');
       } finally {
         setLoading(false);
       }

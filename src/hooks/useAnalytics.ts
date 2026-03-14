@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
 
 interface DashboardAnalytics {
@@ -38,17 +38,17 @@ export function useAnalytics(cycleId?: string, refreshInterval: number = 60000) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setError(null);
       const data = await apiClient.getDashboardAnalytics(cycleId);
       setAnalytics(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch analytics');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch analytics');
     } finally {
       setLoading(false);
     }
-  };
+  }, [cycleId]);
 
   useEffect(() => {
     fetchAnalytics();
@@ -56,7 +56,7 @@ export function useAnalytics(cycleId?: string, refreshInterval: number = 60000) 
     // Set up auto-refresh
     const interval = setInterval(fetchAnalytics, refreshInterval);
     return () => clearInterval(interval);
-  }, [cycleId, refreshInterval]);
+  }, [fetchAnalytics, refreshInterval]);
 
   return {
     analytics,
@@ -71,17 +71,17 @@ export function useCycleAnalytics(cycleId: string, refreshInterval: number = 600
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setError(null);
       const data = await apiClient.getCycleAnalytics(cycleId);
       setAnalytics(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch cycle analytics');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch cycle analytics');
     } finally {
       setLoading(false);
     }
-  };
+  }, [cycleId]);
 
   useEffect(() => {
     if (cycleId) {
@@ -91,7 +91,7 @@ export function useCycleAnalytics(cycleId: string, refreshInterval: number = 600
       const interval = setInterval(fetchAnalytics, refreshInterval);
       return () => clearInterval(interval);
     }
-  }, [cycleId, refreshInterval]);
+  }, [cycleId, fetchAnalytics, refreshInterval]);
 
   return {
     analytics,

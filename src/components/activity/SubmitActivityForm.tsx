@@ -68,14 +68,14 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
       } else {
         setError(result.error || 'Failed to submit activity');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit activity');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to submit activity');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleInputChange = (field: keyof ActivitySubmission, value: any) => {
+  const handleInputChange = (field: keyof ActivitySubmission, value: string | number | undefined) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setError(null);
   };
@@ -105,7 +105,7 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
           </label>
           <select
             value={formData.contributionType}
-            onChange={(e) => handleInputChange('contributionType', e.target.value as any)}
+            onChange={(e) => handleInputChange('contributionType', e.target.value)}
             className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 
               focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             required

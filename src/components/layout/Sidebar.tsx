@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -79,7 +78,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 className="rounded-lg"
               />
               <h1 className="text-lg font-semibold text-gray-100">
-                Builder's Circle
+                Builder&apos;s Circle
               </h1>
             </div>
             <button
@@ -166,7 +165,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-800/50">
-            <p className="text-xs text-gray-500">© 2026 Builder's Circle</p>
+            <p className="text-xs text-gray-500">© 2026 Builder&apos;s Circle</p>
           </div>
         </div>
       </aside>

@@ -23,6 +23,7 @@ model User {
   cycleParticipations  CycleParticipation[]
   activityEvents       ActivityEvent[]
   verifiedActivities   ActivityEvent[]      @relation("ActivityVerifier")
+  feedbackGiven        ActivityEvent[]      @relation("ActivityFeedback")
   ownershipLedger      OwnershipLedger[]
   multipliers          Multiplier[]
   notifications        Notification[]
@@ -31,17 +32,23 @@ model User {
   auditTrailAsTarget   AuditTrail[]         @relation("TargetAuditTrail")
   systemLogs           SystemLog[]
   archivedActivities   ArchivedActivity[]
+  activitySessions     UserActivitySession[]
+  sentMessages         CycleMessage[]       @relation("MessageAuthor")
+  messageReads         MessageRead[]
+  messageMentions      MessageMention[]
+  reputation           ContributorReputation?
 
   @@map("users")
 }
 
 model UserProfile {
-  id     String @id @default(cuid())
-  userId String @unique
-  role   String @default("contributor") // founder, admin, contributor, employee, observer
-  status String @default("active") // active, suspended
-  bio    String?
-  avatar String?
+  id                String @id @default(cuid())
+  userId            String @unique
+  role              String @default("contributor") // founder, admin, contributor, employee, observer
+  status            String @default("active") // active, suspended
+  bio               String?
+  avatar            String?
+  notificationPrefs String @default("{\"stallWarnings\":true,\"activityReminders\":true,\"cycleUpdates\":true}") // JSON
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -65,6 +72,8 @@ model BuildCycle {
   ownershipLedger  OwnershipLedger[]
   multipliers      Multiplier[]
   archivedActivities ArchivedActivity[]
+  messages         CycleMessage[]
+  engagement       CycleEngagement?
 
   @@map("build_cycles")
 }
@@ -100,16 +109,20 @@ model ActivityEvent {
   verifiedBy          String?   // Admin who verified/rejected
   verifiedAt          DateTime? // When verification happened
   rejectionReason     String?   // Reason for rejection/changes requested
+  feedbackComment     String?   // Detailed feedback from admin
+  feedbackAuthor      String?   // Admin who provided feedback
+  feedbackTimestamp   DateTime? // When feedback was provided
   contributionType    String    @default("code") // code, documentation, review, hours_logged, meeting, research, task_completion
   contributionWeight  Float     @default(1.0)
   calculatedOwnership Float     @default(0.0)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cycle      BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  verifier   User?      @relation("ActivityVerifier", fields: [verifiedBy], references: [id])
-  disputes   Dispute[]
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle          BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  verifier       User?      @relation("ActivityVerifier", fields: [verifiedBy], references: [id])
+  feedbackGiver  User?      @relation("ActivityFeedback", fields: [feedbackAuthor], references: [id])
+  disputes       Dispute[]
 
   @@map("activity_events")
 }
@@ -226,4 +239,109 @@ model SystemLog {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("system_logs")
+}
+
+model UserActivitySession {
+  id              String    @id @default(cuid())
+  userId          String
+  sessionStart    DateTime  @default(now())
+  sessionEnd      DateTime?
+  durationMinutes Int       @default(0)
+  pageVisited     String
+  lastHeartbeat   DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_activity_sessions")
+}
+
+model ContributionWeight {
+  id               String   @id @default(cuid())
+  contributionType String   @unique // code, documentation, review, hours_logged, meeting, research, task_completion
+  weight           Float    @default(1.0)
+  description      String?
+  updatedBy        String?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@map("contribution_weights")
+}
+
+model CycleMessage {
+  id        String    @id @default(cuid())
+  cycleId   String
+  authorId  String
+  message   String
+  mentions  String    @default("[]") // kept for legacy compat; use MessageMention relation
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  cycle    BuildCycle       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  author   User             @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  reads    MessageRead[]
+  mentionedUsers MessageMention[]
+
+  @@map("cycle_messages")
+}
+
+model MessageRead {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message CycleMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@map("message_reads")
+}
+
+model MessageMention {
+  id        String @id @default(cuid())
+  messageId String
+  userId    String
+
+  message CycleMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@map("message_mentions")
+}
+
+model ContributorReputation {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  reputationScore       Float    @default(0.0)
+  verifiedActivities    Int      @default(0)
+  rejectedActivities    Int      @default(0)
+  activeCycles          Int      @default(0)
+  consistencyScore      Float    @default(0.0)
+  totalHoursLogged      Float    @default(0.0)
+  lastActivityDate      DateTime?
+  calculatedAt          DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("contributor_reputation")
+}
+
+model CycleEngagement {
+  id                     String   @id @default(cuid())
+  cycleId                String   @unique
+  engagementScore        Float    @default(0.0)
+  activityCount          Int      @default(0)
+  participationRate      Float    @default(0.0)
+  verifiedActivityRatio  Float    @default(0.0)
+  averageHoursPerUser    Float    @default(0.0)
+  messageCount           Int      @default(0)
+  calculatedAt           DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  cycle BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@map("cycle_engagement")
 }

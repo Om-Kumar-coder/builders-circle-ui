@@ -45,11 +45,11 @@ export default function EarningsPage() {
       
       try {
         setLedgerLoading(true);
-        const response = await apiClient.getOwnership(user.id, cycleId);
+        const ownershipData = await apiClient.getOwnership(user.id, cycleId);
         
-        if (response.success && response.entries) {
+        if (ownershipData?.entries) {
           // Transform the entries to match our interface
-          const transformedEvents = response.entries.map((entry: any) => ({
+          const transformedEvents = ownershipData.entries.map((entry: { id: string; createdAt: string; eventType?: string; ownershipAmount: number; multiplierSnapshot?: number; reason?: string }) => ({
             id: entry.id,
             createdAt: entry.createdAt,
             eventType: entry.eventType || 'ownership_change',

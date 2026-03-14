@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useCycle } from '@/context/CycleContext';
 import MainLayout from '@/components/layout/MainLayout';
@@ -38,7 +38,7 @@ export default function TeamPage() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'founder';
 
-  const fetchTeamMembers = async () => {
+  const fetchTeamMembers = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -51,7 +51,7 @@ export default function TeamPage() {
       const participants = await apiClient.getTeamMembers(cycleId);
       
       // Transform the data to match our interface
-      const transformedMembers: TeamMember[] = participants.map((participant: any) => ({
+      const transformedMembers: TeamMember[] = participants.map((participant: { id: string; userId: string; user: { name?: string; email: string; profile?: { role?: string } }; participationStatus: string; calculatedStallStage?: string; stallStage: string; lastActivityDate?: string; optedIn: boolean }) => ({
         id: participant.id,
         userId: participant.userId,
         userName: participant.user.name,
@@ -64,16 +64,16 @@ export default function TeamPage() {
       }));
 
       setTeamMembers(transformedMembers);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load team members');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to load team members');
     } finally {
       setLoading(false);
     }
-  };
+  }, [cycleId, isAdmin]);
 
   useEffect(() => {
     fetchTeamMembers();
-  }, [cycleId]);
+  }, [fetchTeamMembers]);
 
   const getStatusColor = (stallStage: string) => {
     switch (stallStage) {

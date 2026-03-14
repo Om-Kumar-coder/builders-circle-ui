@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { ActivityEvent } from '@/types/activity';
-import { ACTIVITY_TYPE_LABELS, STATUS_CONFIG } from '@/types/activity';
+import { ACTIVITY_TYPE_LABELS } from '@/types/activity';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import { 
   CheckCircle, 
@@ -30,9 +30,9 @@ export default function ActivityReviewPage() {
       setError(null);
       const data = await apiClient.getPendingActivities();
       setActivities(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching pending activities:', err);
-      setError(err.message || 'Failed to fetch pending activities');
+      setError((err as Error).message || 'Failed to fetch pending activities');
     } finally {
       setLoading(false);
     }
@@ -71,9 +71,9 @@ export default function ActivityReviewPage() {
 
       // Remove from pending list
       setActivities(prev => prev.filter(a => a.id !== activityId));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error verifying activity:', err);
-      setError(err.message || 'Failed to verify activity');
+      setError((err as Error).message || 'Failed to verify activity');
     } finally {
       setVerifying(null);
     }

@@ -35,9 +35,9 @@ export default function WorkHoursSummary({ userId, cycleId }: WorkHoursSummaryPr
         setError(null);
         const data = await getWorkHoursSummary(userId, cycleId);
         setSummary(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error fetching work hours summary:', err);
-        setError(err.message || 'Failed to fetch work hours summary');
+        setError((err as Error).message || 'Failed to fetch work hours summary');
       } finally {
         setLoading(false);
       }

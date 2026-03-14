@@ -1,5 +1,4 @@
 import { Router, Response } from 'express';
-import { z } from 'zod';
 import { prisma } from '../config/database';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 
@@ -12,7 +11,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 
     const { unread } = req.query;
 
-    const where: any = { userId: req.user!.id };
+    const where: { userId: string; read?: boolean } = { userId: req.user!.id };
     if (unread === 'true') {
       where.read = false;
     }
@@ -40,41 +39,6 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       success: false,
       data: null,
       error: 'Failed to fetch notifications'
-    });
-  }
-});
-
-// Mark notification as read
-router.patch('/:id/read', authMiddleware, async (req: AuthRequest, res: Response) => {
-  try {
-    console.log('🔔 Marking notification as read:', {
-      notificationId: req.params.id,
-      userId: req.user?.id
-    });
-
-    const notification = await prisma.notification.update({
-      where: {
-        id: Array.isArray(req.params.id) ? req.params.id[0] : req.params.id,
-        userId: req.user!.id // Ensure user can only update their own notifications
-      },
-      data: {
-        read: true
-      }
-    });
-
-    console.log('✅ Notification marked as read');
-
-    res.json({
-      success: true,
-      data: notification,
-      error: null
-    });
-  } catch (error) {
-    console.error('❌ Error marking notification as read:', error);
-    res.status(500).json({
-      success: false,
-      data: null,
-      error: 'Failed to mark notification as read'
     });
   }
 });
@@ -137,6 +101,79 @@ router.get('/unread-count', authMiddleware, async (req: AuthRequest, res) => {
       data: null,
       error: 'Failed to fetch unread count'
     });
+  }
+});
+
+// Mark notification as read
+router.patch('/:id/read', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    console.log('🔔 Marking notification as read:', {
+      notificationId: req.params.id,
+      userId: req.user?.id
+    });
+
+    const notification = await prisma.notification.update({
+      where: {
+        id: Array.isArray(req.params.id) ? req.params.id[0] : req.params.id,
+        userId: req.user!.id // Ensure user can only update their own notifications
+      },
+      data: {
+        read: true
+      }
+    });
+
+    console.log('✅ Notification marked as read');
+
+    res.json({
+      success: true,
+      data: notification,
+      error: null
+    });
+  } catch (error) {
+    console.error('❌ Error marking notification as read:', error);
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: 'Failed to mark notification as read'
+    });
+  }
+});
+
+// Get notification preferences
+router.get('/preferences', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId: req.user!.id },
+      select: { notificationPrefs: true }
+    });
+
+    const prefs = profile?.notificationPrefs
+      ? JSON.parse(profile.notificationPrefs)
+      : { stallWarnings: true, activityReminders: true, cycleUpdates: true };
+
+    res.json({ success: true, data: prefs, error: null });
+  } catch (error) {
+    console.error('❌ Error fetching notification preferences:', error);
+    res.status(500).json({ success: false, data: null, error: 'Failed to fetch preferences' });
+  }
+});
+
+// Update notification preferences
+router.put('/preferences', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { stallWarnings, activityReminders, cycleUpdates } = req.body;
+
+    const prefs = JSON.stringify({ stallWarnings, activityReminders, cycleUpdates });
+
+    await prisma.userProfile.update({
+      where: { userId: req.user!.id },
+      data: { notificationPrefs: prefs }
+    });
+
+    res.json({ success: true, data: { stallWarnings, activityReminders, cycleUpdates }, error: null });
+  } catch (error) {
+    console.error('❌ Error updating notification preferences:', error);
+    res.status(500).json({ success: false, data: null, error: 'Failed to update preferences' });
   }
 });
 

@@ -38,7 +38,7 @@ export default function BuildCyclesPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-semibold text-gray-100">Build Cycles</h1>
-            <p className="text-gray-400 mt-1">Manage and track build cycles for the Builder's Circle</p>
+            <p className="text-gray-400 mt-1">Manage and track build cycles for the Builder&apos;s Circle</p>
           </div>
           {isAdmin && (
             <button

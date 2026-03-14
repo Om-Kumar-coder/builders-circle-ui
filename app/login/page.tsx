@@ -28,8 +28,8 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-    } catch (err: any) {
-      setError(err.message || 'Failed to login. Please check your credentials.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to login. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }
@@ -66,7 +66,7 @@ export default function LoginPage() {
             Welcome Back
           </h1>
           <p className="text-gray-400 text-center mb-8">
-            Sign in to Builder's Circle
+            Sign in to Builder&apos;s Circle
           </p>
 
           {error && (
@@ -126,7 +126,7 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-gray-400">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href="/signup" className="text-blue-500 hover:text-blue-400 font-medium transition">
                 Sign up
               </Link>

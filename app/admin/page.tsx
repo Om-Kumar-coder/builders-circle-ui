@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../src/context/AuthContext';
 import { useCycle } from '../../src/context/CycleContext';
 import MainLayout from '../../src/components/layout/MainLayout';
 import Link from 'next/link';
 import { Shield, Users, Settings, BarChart3, CheckCircle, Clock, RefreshCw, ChevronDown, ChevronUp, ExternalLink, User, Calendar } from 'lucide-react';
 import { apiClient } from '../../src/lib/api-client';
+import JobExecutionPanel from '../../src/components/admin/JobExecutionPanel';
 
 interface QuickStats {
   pendingActivities: number;
@@ -45,7 +46,7 @@ export default function AdminPage() {
   const [pendingActivities, setPendingActivities] = useState<ActivityEvent[]>([]);
   const [verifying, setVerifying] = useState<string | null>(null);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -73,7 +74,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [allCycles]);
 
   const fetchPendingActivities = async () => {
     try {
@@ -111,7 +112,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchStats();
-  }, [allCycles]);
+  }, [allCycles, fetchStats]);
 
   useEffect(() => {
     if (showActivityReview) {
@@ -121,25 +122,32 @@ export default function AdminPage() {
 
   const adminActions = [
     {
-      title: 'User Management',
-      description: 'Manage users and permissions',
+      title: 'Admin Overrides',
+      description: 'Manually correct ownership, multipliers, and stall status',
+      icon: Shield,
+      href: '/admin/overrides',
+      color: 'bg-red-600',
+    },
+    {
+      title: 'Dispute Resolution',
+      description: 'Review and resolve user disputes',
       icon: Users,
-      href: '/admin/users',
+      href: '/admin/disputes',
       color: 'bg-blue-600',
+    },
+    {
+      title: 'Role Management',
+      description: 'Manage user roles and permissions',
+      icon: Users,
+      href: '/admin/roles',
+      color: 'bg-purple-600',
     },
     {
       title: 'Audit Logs',
       description: 'View system audit trail',
       icon: Clock,
       href: '/admin/audit',
-      color: 'bg-purple-600',
-    },
-    {
-      title: 'System Settings',
-      description: 'Configure system parameters',
-      icon: Settings,
-      href: '/admin/settings',
-      color: 'bg-gray-600',
+      color: 'bg-yellow-600',
     },
     {
       title: 'Analytics',
@@ -147,6 +155,13 @@ export default function AdminPage() {
       icon: BarChart3,
       href: '/admin/analytics',
       color: 'bg-indigo-600',
+    },
+    {
+      title: 'Contribution Weights',
+      description: 'Configure activity contribution weights',
+      icon: Settings,
+      href: '/admin/weights',
+      color: 'bg-green-600',
     },
   ];
 
@@ -299,6 +314,11 @@ export default function AdminPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Manual Job Execution Panel */}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <JobExecutionPanel onJobComplete={fetchStats} />
         </div>
 
         {/* Admin Actions Grid */}

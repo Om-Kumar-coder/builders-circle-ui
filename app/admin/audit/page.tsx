@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
@@ -9,16 +9,18 @@ import { Shield, Filter, RefreshCw, AlertCircle, Search } from 'lucide-react';
 
 interface AuditEvent {
   id: string;
-  createdAt: string;
-  userId: string;
-  cycleId: string;
-  eventType: string;
-  ownershipAmount: number;
-  multiplierSnapshot?: number;
-  reason?: string;
+  timestamp: string;
+  adminId: string;
+  admin?: { id: string; email: string; name: string };
+  targetUserId: string;
+  targetUser?: { id: string; email: string; name: string };
+  action: string;
+  previousValue?: string | null;
+  newValue?: string | null;
+  reason?: string | null;
 }
 
-type FilterType = 'all' | 'multiplier_adjustment' | 'activity_submitted' | 'vesting' | 'admin_adjustment';
+type FilterType = 'all' | 'multiplier_restore' | 'ownership_override' | 'role_change' | 'stall_clear' | 'dispute_resolution' | 'manual_job_execution';
 
 export default function AuditPage() {
   const { user, loading: authLoading } = useAuth();
@@ -30,121 +32,71 @@ export default function AuditPage() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'founder';
 
-  const fetchAuditEvents = async () => {
+  const fetchAuditEvents = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
 
-      // Use the API client to get audit logs
       const response = await apiClient.getAuditLogs();
-      
-      // Filter the results based on the current filter and search
-      let filteredEvents: any[] = Array.isArray(response) ? response : [];
-      
+      let filteredEvents: AuditEvent[] = Array.isArray(response) ? response : [];
+
       if (filter !== 'all') {
-        filteredEvents = filteredEvents.filter((event: any) => event.eventType === filter);
+        filteredEvents = filteredEvents.filter((event) => event.action === filter);
       }
-      
+
       if (searchUserId.trim()) {
-        filteredEvents = filteredEvents.filter((event: any) => 
-          event.userId.includes(searchUserId.trim())
+        const search = searchUserId.trim().toLowerCase();
+        filteredEvents = filteredEvents.filter((event) =>
+          event.targetUserId?.toLowerCase().includes(search) ||
+          event.targetUser?.email?.toLowerCase().includes(search) ||
+          event.targetUser?.name?.toLowerCase().includes(search)
         );
       }
 
-      // Transform the events to match our interface
-      const transformedEvents = filteredEvents.map((event: any) => ({
-        id: event.id,
-        createdAt: event.createdAt,
-        userId: event.userId,
-        cycleId: event.cycleId,
-        eventType: event.eventType,
-        ownershipAmount: event.ownershipAmount || 0,
-        multiplierSnapshot: event.multiplierSnapshot,
-        reason: event.reason
-      }));
-
-      setEvents(transformedEvents);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load audit events');
-      // Fallback to mock data if API fails
-      const mockEvents: AuditEvent[] = [
-        {
-          id: '1',
-          createdAt: new Date().toISOString(),
-          userId: 'user123',
-          cycleId: 'cycle456',
-          eventType: 'activity_submitted',
-          ownershipAmount: 0.5,
-          reason: 'Daily contribution submitted'
-        },
-        {
-          id: '2',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          userId: 'user456',
-          cycleId: 'cycle456',
-          eventType: 'multiplier_adjustment',
-          ownershipAmount: 0,
-          multiplierSnapshot: 0.75,
-          reason: 'Reduced activity detected'
-        }
-      ];
-      setEvents(mockEvents);
+      setEvents(filteredEvents);
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to load audit events');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter, searchUserId]);
 
   useEffect(() => {
     if (user && isAdmin) {
       fetchAuditEvents();
     }
-  }, [user, isAdmin, filter]);
+  }, [user, isAdmin, fetchAuditEvents]);
 
-  const getEventIcon = (eventType: string) => {
-    switch (eventType) {
-      case 'activity_submitted':
-      case 'contribution_approved':
-        return '✅';
-      case 'vest_matured':
-      case 'vesting':
-        return '🔒';
-      case 'multiplier_adjustment':
-        return '⚡';
-      case 'admin_adjustment':
-        return '⚙️';
-      default:
-        return '📝';
+  const getEventIcon = (action: string) => {
+    switch (action) {
+      case 'ownership_override': return '💰';
+      case 'multiplier_restore': return '⚡';
+      case 'role_change': return '👤';
+      case 'stall_clear': return '✅';
+      case 'dispute_resolution': return '⚖️';
+      case 'manual_job_execution': return '⚙️';
+      default: return '📝';
     }
   };
 
-  const getEventColor = (eventType: string) => {
-    switch (eventType) {
-      case 'activity_submitted':
-      case 'contribution_approved':
-        return 'text-green-400 bg-green-500/10 border-green-500/20';
-      case 'vest_matured':
-      case 'vesting':
-        return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-      case 'multiplier_adjustment':
-        return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
-      case 'admin_adjustment':
-        return 'text-purple-400 bg-purple-500/10 border-purple-500/20';
-      default:
-        return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
+  const getEventColor = (action: string) => {
+    switch (action) {
+      case 'ownership_override': return 'text-green-400 bg-green-500/10 border-green-500/20';
+      case 'multiplier_restore': return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
+      case 'role_change': return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+      case 'stall_clear': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      case 'dispute_resolution': return 'text-purple-400 bg-purple-500/10 border-purple-500/20';
+      case 'manual_job_execution': return 'text-orange-400 bg-orange-500/10 border-orange-500/20';
+      default: return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
     }
   };
 
-  const formatEventType = (eventType: string | undefined | null) => {
-    if (!eventType) return 'Unknown Event';
-    return eventType
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+  const formatAction = (action: string | undefined | null) => {
+    if (!action) return 'Unknown Action';
+    return action.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
 
-  if (authLoading) {
-    return <LoadingScreen />;
-  }
+  if (authLoading) return <LoadingScreen />;
 
   if (!user) {
     return (
@@ -172,7 +124,7 @@ export default function AuditPage() {
   return (
     <MainLayout title="Audit Log">
       <div className="space-y-6 animate-in fade-in duration-300">
-        {/* Page Header */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-100 flex items-center gap-2">
@@ -194,60 +146,53 @@ export default function AuditPage() {
 
         {/* Filters */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-4">
-          {/* Event Type Filter */}
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2 text-gray-400">
               <Filter className="w-4 h-4" />
-              <span className="text-sm font-medium">Event Type:</span>
+              <span className="text-sm font-medium">Action Type:</span>
             </div>
             <div className="flex gap-2 flex-wrap">
-              {(['all', 'multiplier_adjustment', 'activity_submitted', 'vesting', 'admin_adjustment'] as FilterType[]).map((filterType) => (
+              {(['all', 'ownership_override', 'multiplier_restore', 'role_change', 'stall_clear', 'dispute_resolution', 'manual_job_execution'] as FilterType[]).map((f) => (
                 <button
-                  key={filterType}
-                  onClick={() => setFilter(filterType)}
+                  key={f}
+                  onClick={() => setFilter(f)}
                   className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    filter === filterType
+                    filter === f
                       ? 'bg-indigo-600 text-white'
                       : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
                   }`}
                 >
-                  {filterType === 'all' ? 'All Events' : formatEventType(filterType)}
+                  {f === 'all' ? 'All Actions' : formatAction(f)}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* User Search */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-gray-400">
               <Search className="w-4 h-4" />
-              <span className="text-sm font-medium">User ID:</span>
+              <span className="text-sm font-medium">Target User:</span>
             </div>
             <div className="flex-1 max-w-md flex gap-2">
               <input
                 type="text"
                 value={searchUserId}
                 onChange={(e) => setSearchUserId(e.target.value)}
-                placeholder="Enter user ID to filter..."
+                placeholder="Search by user ID, name, or email..."
                 className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg 
                   text-gray-200 placeholder-gray-500 text-sm
                   focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
               />
               <button
                 onClick={fetchAuditEvents}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg 
-                  text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 Search
               </button>
               {searchUserId && (
                 <button
-                  onClick={() => {
-                    setSearchUserId('');
-                    setTimeout(fetchAuditEvents, 100);
-                  }}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg 
-                    text-sm font-medium transition-colors"
+                  onClick={() => { setSearchUserId(''); setTimeout(fetchAuditEvents, 100); }}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm font-medium transition-colors"
                 >
                   Clear
                 </button>
@@ -256,14 +201,13 @@ export default function AuditPage() {
           </div>
         </div>
 
-        {/* Error State */}
         {error && (
           <div className="bg-red-900/20 border border-red-800/50 text-red-400 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
-        {/* Audit Timeline */}
+        {/* Timeline */}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-gray-100">Audit Timeline</h2>
@@ -291,9 +235,7 @@ export default function AuditPage() {
               <div className="text-5xl mb-4 opacity-50">📋</div>
               <p className="text-gray-400 mb-2">No audit events found</p>
               <p className="text-sm text-gray-500">
-                {filter !== 'all' || searchUserId 
-                  ? 'Try adjusting your filters' 
-                  : 'Audit events will appear here'}
+                {filter !== 'all' || searchUserId ? 'Try adjusting your filters' : 'Audit events will appear here'}
               </p>
             </div>
           ) : (
@@ -304,63 +246,41 @@ export default function AuditPage() {
                   className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-4 hover:bg-gray-800 transition-colors"
                 >
                   <div className="flex items-start gap-3">
-                    {/* Icon */}
-                    <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg border ${getEventColor(event.eventType)}`}>
-                      <span className="text-xl">{getEventIcon(event.eventType)}</span>
+                    <div className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-lg border ${getEventColor(event.action)}`}>
+                      <span className="text-xl">{getEventIcon(event.action)}</span>
                     </div>
-
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <div>
-                          <h3 className="font-medium text-gray-200">
-                            {formatEventType(event.eventType)}
-                          </h3>
+                          <h3 className="font-medium text-gray-200">{formatAction(event.action)}</h3>
                           <p className="text-xs text-gray-500 mt-0.5">
-                            {new Date(event.createdAt).toLocaleString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
+                            {new Date(event.timestamp).toLocaleString('en-US', {
+                              month: 'short', day: 'numeric', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit'
                             })}
                           </p>
                         </div>
                       </div>
-
-                      {/* Details Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                         <div>
-                          <span className="text-gray-500">User ID:</span>
-                          <p className="text-gray-300 font-mono text-xs truncate">
-                            {event.userId}
+                          <span className="text-gray-500">Admin:</span>
+                          <p className="text-gray-300 text-xs truncate">
+                            {event.admin?.name || event.admin?.email || event.adminId}
                           </p>
                         </div>
                         <div>
-                          <span className="text-gray-500">Cycle ID:</span>
-                          <p className="text-gray-300 font-mono text-xs truncate">
-                            {event.cycleId}
+                          <span className="text-gray-500">Target User:</span>
+                          <p className="text-gray-300 text-xs truncate">
+                            {event.targetUser?.name || event.targetUser?.email || event.targetUserId}
                           </p>
                         </div>
-                        {event.ownershipAmount !== 0 && (
+                        {event.newValue && (
                           <div>
-                            <span className="text-gray-500">Ownership:</span>
-                            <p className={`font-medium ${event.ownershipAmount > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {event.ownershipAmount > 0 ? '+' : ''}{event.ownershipAmount.toFixed(2)}%
-                            </p>
-                          </div>
-                        )}
-                        {event.multiplierSnapshot !== undefined && (
-                          <div>
-                            <span className="text-gray-500">Multiplier:</span>
-                            <p className="text-gray-300 font-medium">
-                              {event.multiplierSnapshot.toFixed(2)}×
-                            </p>
+                            <span className="text-gray-500">New Value:</span>
+                            <p className="text-gray-300 font-mono text-xs truncate">{event.newValue}</p>
                           </div>
                         )}
                       </div>
-
-                      {/* Reason */}
                       {event.reason && (
                         <div className="mt-2 p-2 bg-gray-900/50 rounded text-xs text-gray-400">
                           <span className="font-medium text-gray-300">Reason:</span> {event.reason}

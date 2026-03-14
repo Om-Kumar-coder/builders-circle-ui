@@ -1,34 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import { User, Shield, Bell, Save, Key } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+
+type NotificationPrefs = {
+  stallWarnings: boolean;
+  activityReminders: boolean;
+  cycleUpdates: boolean;
+};
+
+const DEFAULT_PREFS: NotificationPrefs = {
+  stallWarnings: true,
+  activityReminders: true,
+  cycleUpdates: true,
+};
 
 export default function SettingsPage() {
   const { user, loading: authLoading } = useAuth();
   
-  // Notification preferences state
-  const [notifications, setNotifications] = useState({
-    stallWarnings: true,
-    activityReminders: true,
-    cycleUpdates: true,
-  });
-
+  const [notifications, setNotifications] = useState<NotificationPrefs>(DEFAULT_PREFS);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    apiClient.getNotificationPreferences()
+      .then(prefs => setNotifications(prefs))
+      .catch(() => {/* keep defaults */});
+  }, [user]);
 
   const handleSaveNotifications = async () => {
     setSaving(true);
     setSaveMessage('');
-    
     try {
-      // TODO: Implement actual save to database
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await apiClient.updateNotificationPreferences(notifications);
       setSaveMessage('Preferences saved successfully!');
       setTimeout(() => setSaveMessage(''), 3000);
-    } catch (error) {
+    } catch {
       setSaveMessage('Failed to save preferences');
     } finally {
       setSaving(false);
@@ -183,12 +195,13 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => setNotifications(prev => ({ ...prev, stallWarnings: !prev.stallWarnings }))}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                style={{ minHeight: '24px', minWidth: '44px', height: '24px', width: '44px', padding: 0 }}
+                className={`relative inline-flex flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
                   notifications.stallWarnings ? 'bg-indigo-600' : 'bg-gray-700'
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  className={`pointer-events-none absolute h-4 w-4 rounded-full bg-white shadow transition-transform ${
                     notifications.stallWarnings ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
@@ -203,12 +216,13 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => setNotifications(prev => ({ ...prev, activityReminders: !prev.activityReminders }))}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                style={{ minHeight: '24px', minWidth: '44px', height: '24px', width: '44px', padding: 0 }}
+                className={`relative inline-flex flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
                   notifications.activityReminders ? 'bg-indigo-600' : 'bg-gray-700'
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  className={`pointer-events-none absolute h-4 w-4 rounded-full bg-white shadow transition-transform ${
                     notifications.activityReminders ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />
@@ -223,12 +237,13 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => setNotifications(prev => ({ ...prev, cycleUpdates: !prev.cycleUpdates }))}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                style={{ minHeight: '24px', minWidth: '44px', height: '24px', width: '44px', padding: 0 }}
+                className={`relative inline-flex flex-shrink-0 items-center rounded-full transition-colors focus:outline-none ${
                   notifications.cycleUpdates ? 'bg-indigo-600' : 'bg-gray-700'
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  className={`pointer-events-none absolute h-4 w-4 rounded-full bg-white shadow transition-transform ${
                     notifications.cycleUpdates ? 'translate-x-6' : 'translate-x-1'
                   }`}
                 />

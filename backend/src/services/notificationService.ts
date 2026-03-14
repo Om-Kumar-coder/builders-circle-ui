@@ -5,7 +5,7 @@ export class NotificationService {
     userId: string,
     type: string,
     message: string,
-    metadata?: any
+    metadata?: Record<string, unknown>
   ) {
     try {
       const notification = await prisma.notification.create({
@@ -43,16 +43,22 @@ export class NotificationService {
     );
   }
 
-  static async createActivityVerification(userId: string, activityId: string, verified: string) {
-    const message = verified === 'verified' 
+  static async createActivityVerification(userId: string, activityId: string, verified: string, feedbackComment?: string) {
+    let message = verified === 'verified' 
       ? 'Your activity has been verified and ownership has been awarded.'
-      : 'Your activity submission was rejected. Please review and resubmit if needed.';
+      : verified === 'rejected'
+      ? 'Your activity submission was rejected.'
+      : 'Changes have been requested for your activity submission.';
+
+    if (feedbackComment) {
+      message += ` Admin feedback: ${feedbackComment}`;
+    }
 
     return this.createNotification(
       userId,
       'activity_verified',
       message,
-      { activityId, verified }
+      { activityId, verified, feedbackComment }
     );
   }
 
@@ -76,5 +82,92 @@ export class NotificationService {
       message,
       { cycleId, cycleName }
     );
+  }
+
+  static async createOwnershipDecay(userId: string, cycleId: string, decayAmount: number, stallStage: string) {
+    const decayPercentage = stallStage === 'paused' ? 10 : 5;
+    const message = `Your provisional ownership has decreased by ${decayPercentage}% due to inactivity (${stallStage} stage).`;
+
+    return this.createNotification(
+      userId,
+      'ownership_decay',
+      message,
+      { cycleId, decayAmount, stallStage }
+    );
+  }
+
+  static async createStallRecovery(userId: string, cycleId: string, previousStage: string) {
+    const message = 'Welcome back! Your participation status has been restored to active.';
+
+    return this.createNotification(
+      userId,
+      'stall_recovery',
+      message,
+      { cycleId, previousStage, recoveredAt: new Date() }
+    );
+  }
+
+  static async createCycleFinalized(userId: string, cycleId: string, cycleName: string, finalOwnership: number) {
+    const message = `Build cycle "${cycleName}" has been finalized. Your final ownership: ${finalOwnership.toFixed(4)} (${(finalOwnership * 100).toFixed(2)}%)`;
+
+    return this.createNotification(
+      userId,
+      'cycle_finalized',
+      message,
+      { cycleId, cycleName, finalOwnership }
+    );
+  }
+
+  static async createUserMention(userId: string, cycleId: string, mentionedBy: string, messageId: string) {
+    const mentioner = await prisma.user.findUnique({
+      where: { id: mentionedBy },
+      select: { name: true, email: true }
+    });
+
+    const message = `${mentioner?.name || mentioner?.email || 'Someone'} mentioned you in a cycle discussion`;
+
+    return this.createNotification(
+      userId,
+      'user_mentioned',
+      message,
+      { cycleId, mentionedBy, messageId }
+    );
+  }
+
+  static async createAdminMessage(userId: string, message: string, metadata?: Record<string, unknown>) {
+    return this.createNotification(
+      userId,
+      'admin_message',
+      message,
+      metadata
+    );
+  }
+
+  // Bulk notification creation for cycle events
+  static async notifyAllCycleParticipants(cycleId: string, type: string, message: string, metadata?: Record<string, unknown>) {
+    try {
+      const participants = await prisma.cycleParticipation.findMany({
+        where: { cycleId, optedIn: true },
+        select: { userId: true }
+      });
+
+      const notifications = participants.map(p => ({
+        userId: p.userId,
+        type,
+        message,
+        metadata: metadata ? JSON.stringify(metadata) : null,
+        sent: true,
+        sentAt: new Date()
+      }));
+
+      await prisma.notification.createMany({
+        data: notifications
+      });
+
+      return notifications.length;
+    } catch (error) {
+      console.error('Error creating bulk notifications:', error);
+      throw error;
+    }
   }
 }

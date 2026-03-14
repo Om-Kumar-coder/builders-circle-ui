@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
-import type { Notification, NotificationType } from '@/lib/notifications';
+import type { Notification } from '@/lib/notifications';
 
 interface UseNotificationsResult {
   notifications: Notification[];
@@ -32,8 +32,8 @@ export function useNotifications(autoRefresh: boolean = true): UseNotificationsR
 
       setNotifications(notifs);
       setUnreadCount(countData.count);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch notifications');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch notifications');
     } finally {
       setLoading(false);
     }
@@ -48,7 +48,7 @@ export function useNotifications(autoRefresh: boolean = true): UseNotificationsR
         prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error marking notification as read:', err);
     }
   }, []);
@@ -60,7 +60,7 @@ export function useNotifications(autoRefresh: boolean = true): UseNotificationsR
       // Update local state
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error marking all as read:', err);
     }
   }, []);

@@ -15,6 +15,9 @@ import ownershipRoutes from './routes/ownership';
 import notificationRoutes from './routes/notifications';
 import adminRoutes from './routes/admin';
 import analyticsRoutes from './routes/analytics';
+import sessionRoutes from './routes/sessions';
+import weightRoutes from './routes/weights';
+import messageRoutes from './routes/messages';
 
 const app = express();
 
@@ -50,7 +53,7 @@ app.use(cors({
 // Rate limiting - more permissive for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs (increased for development)
+  max: 10000, // limit each IP to 10000 requests per windowMs
   message: {
     success: false,
     data: null,
@@ -90,9 +93,12 @@ app.use('/api/ownership', ownershipRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/sessions', sessionRoutes);
+app.use('/api/weights', weightRoutes);
+app.use('/api/messages', messageRoutes);
 
 // Error handling middleware
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   logger.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });

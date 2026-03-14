@@ -2,6 +2,8 @@ import cron from 'node-cron';
 import { StallEvaluatorJob } from './stallEvaluator';
 import { AdjustMultiplierJob } from './adjustMultiplier';
 import { ActivityArchiverJob } from './activityArchiver';
+import { OwnershipDecayJob } from './ownershipDecay';
+import { CycleFinalizerJob } from './cycleFinalizer';
 
 export class JobScheduler {
   static start() {
@@ -27,8 +29,28 @@ export class JobScheduler {
       }
     });
 
-    // Run activity archiver weekly on Sundays at 4 AM
-    cron.schedule('0 4 * * 0', async () => {
+    // Run ownership decay weekly on Sundays at 1 AM
+    cron.schedule('0 1 * * 0', async () => {
+      console.log('Running weekly ownership decay job');
+      try {
+        await OwnershipDecayJob.run();
+      } catch (error) {
+        console.error('Ownership decay job failed:', error);
+      }
+    });
+
+    // Run cycle finalizer daily at 4 AM
+    cron.schedule('0 4 * * *', async () => {
+      console.log('Running daily cycle finalizer job');
+      try {
+        await CycleFinalizerJob.run();
+      } catch (error) {
+        console.error('Cycle finalizer job failed:', error);
+      }
+    });
+
+    // Run activity archiver weekly on Sundays at 5 AM (after finalization)
+    cron.schedule('0 5 * * 0', async () => {
       console.log('Running weekly activity archiver job');
       try {
         await ActivityArchiverJob.run();
@@ -51,5 +73,17 @@ export class JobScheduler {
 
   static async runActivityArchiver() {
     return ActivityArchiverJob.run();
+  }
+
+  static async runOwnershipDecay() {
+    return OwnershipDecayJob.run();
+  }
+
+  static async runCycleFinalizer() {
+    return CycleFinalizerJob.run();
+  }
+
+  static async finalizeCycle(cycleId: string) {
+    return CycleFinalizerJob.finalizeCycleById(cycleId);
   }
 }

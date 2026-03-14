@@ -1,26 +1,27 @@
-import { cookies } from 'next/headers';
+import type { User } from '@/types/auth';
+
+type Role = NonNullable<User['role']>;
 
 /**
- * Server-side helper to check if user has an active session
- * This runs on the server and checks for the JWT token cookie
+ * Resolves the role from a user object, handling both `user.role`
+ * and legacy `user.profile.role` shapes.
  */
-export async function getServerSession() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('auth_token');
-  return token?.value || null;
+export function getUserRole(user: User | null | undefined): Role | undefined {
+  if (!user) return undefined;
+  // Handle legacy shape where role may be nested under profile
+  const legacyRole = (user as { profile?: { role?: Role } })?.profile?.role as Role | undefined;
+  return user.role ?? legacyRole;
 }
 
-/**
- * Check if user is authenticated (has session cookie)
- */
-export async function isAuthenticated(): Promise<boolean> {
-  const session = await getServerSession();
-  return !!session;
+export function hasRole(user: User | null | undefined, ...roles: Role[]): boolean {
+  const role = getUserRole(user);
+  return role !== undefined && roles.includes(role);
 }
 
-/**
- * Get session cookie name for JWT auth
- */
-export function getSessionCookieName(): string {
-  return 'auth_token';
+export function isAdmin(user: User | null | undefined): boolean {
+  return hasRole(user, 'admin', 'founder');
+}
+
+export function isContributor(user: User | null | undefined): boolean {
+  return hasRole(user, 'contributor', 'employee', 'admin', 'founder');
 }

@@ -1,0 +1,127 @@
+/* Touch-friendly button styles */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Ensure all interactive elements meet touch target requirements
+   Using :where() to keep specificity at 0 so Tailwind utilities (like lg:hidden) can override.
+   Note: display is intentionally omitted here to avoid overriding Tailwind's hidden/flex utilities */
+:where(button, .btn, [role="button"], input[type="button"], input[type="submit"], input[type="reset"], a.button) {
+  min-height: 44px;
+  min-width: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+}
+
+/* Small buttons that need special handling */
+.btn-sm {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.5rem;
+}
+
+/* Icon-only buttons */
+.btn-icon {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 768px) {
+  /* Increase touch targets on mobile */
+  :where(button, .btn, [role="button"], input[type="button"], input[type="submit"], input[type="reset"], a.button) {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 0.75rem 1.25rem;
+  }
+
+  /* Increase spacing between interactive elements */
+  .btn + .btn,
+  button + button {
+    margin-left: 0.5rem;
+  }
+
+  /* Larger form inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select {
+    min-height: 48px;
+    padding: 0.75rem;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Larger clickable areas for links */
+  a {
+    padding: 0.25rem;
+    margin: -0.25rem;
+  }
+
+  /* Ensure modals are properly sized */
+  .modal {
+    margin: 1rem;
+    max-height: calc(100vh - 2rem);
+  }
+
+  /* Improve table interactions */
+  table {
+    font-size: 14px;
+  }
+
+  td, th {
+    padding: 0.75rem 0.5rem;
+  }
+
+  /* Better dropdown menus */
+  .dropdown-menu {
+    min-width: 200px;
+  }
+
+  .dropdown-item {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* Landscape mode adjustments */
+@media (max-width: 768px) and (orientation: landscape) {
+  /* Reduce vertical padding in landscape */
+  :where(button, .btn) {
+    min-height: 40px;
+    padding: 0.5rem 1rem;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select {
+    min-height: 40px;
+    padding: 0.5rem;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  :where(button, .btn) {
+    border: 2px solid;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  :where(button, .btn) {
+    transition: none;
+  }
+}

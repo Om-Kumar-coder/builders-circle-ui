@@ -35,8 +35,8 @@ export default function SignupPage() {
 
     try {
       await signup(name, email, password);
-    } catch (err: any) {
-      setError(err.message || 'Failed to create account. Please try again.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create account. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -70,7 +70,7 @@ export default function SignupPage() {
           </div>
 
           <h1 className="text-3xl font-bold text-white text-center mb-2">
-            Join Builder's Circle
+            Join Builder&apos;s Circle
           </h1>
           <p className="text-gray-400 text-center mb-8">
             Create your account to get started

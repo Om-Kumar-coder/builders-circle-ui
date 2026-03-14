@@ -17,7 +17,7 @@ export const authMiddleware = async (
   next: NextFunction
 ) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.header('Authorization')?.replace('Bearer ', '') || (req.query.token as string);
 
     if (!token) {
       return res.status(401).json({
@@ -27,7 +27,7 @@ export const authMiddleware = async (
       });
     }
 
-    const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
     
     // Get user with profile to include role
     const user = await prisma.user.findUnique({
@@ -50,7 +50,7 @@ export const authMiddleware = async (
     };
 
     next();
-  } catch (error) {
+  } catch {
     res.status(401).json({
       success: false,
       data: null,

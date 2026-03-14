@@ -62,11 +62,11 @@ export async function submitActivity(
       success: true,
       activity,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('💥 Activity submission error:', error);
     return {
       success: false,
-      error: error.message || 'Failed to submit activity',
+      error: error instanceof Error ? error.message : 'Failed to submit activity',
     };
   }
 }
@@ -126,9 +126,9 @@ export async function verifyActivity(
       calculatedOwnership,
     });
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error verifying activity:', error);
-    return { success: false, error: error.message || 'Failed to verify activity' };
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to verify activity' };
   }
 }
 

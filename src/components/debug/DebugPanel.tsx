@@ -1,21 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bug, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Bug, X } from 'lucide-react';
 
 interface DebugLog {
   id: string;
   timestamp: string;
   type: 'request' | 'response' | 'error' | 'info';
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 export default function DebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState<DebugLog[]>([]);
-  const [lastApiRequest, setLastApiRequest] = useState<any>(null);
-  const [lastApiResponse, setLastApiResponse] = useState<any>(null);
+  const [lastApiRequest, setLastApiRequest] = useState<unknown>(null);
+  const [lastApiResponse, setLastApiResponse] = useState<unknown>(null);
 
   // Listen for console logs (in development only)
   useEffect(() => {

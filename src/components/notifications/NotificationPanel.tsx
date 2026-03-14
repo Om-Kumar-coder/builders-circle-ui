@@ -10,6 +10,7 @@ interface NotificationPanelProps {
   onMarkAllRead: () => Promise<void>;
   onRefresh: () => Promise<void>;
   onClose: () => void;
+  onViewAll?: () => void;
 }
 
 export default function NotificationPanel({
@@ -19,6 +20,7 @@ export default function NotificationPanel({
   onMarkAllRead,
   onRefresh,
   onClose,
+  onViewAll,
 }: NotificationPanelProps) {
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -95,7 +97,7 @@ export default function NotificationPanel({
           <div className="p-12 text-center">
             <div className="text-5xl mb-3 opacity-50">🔔</div>
             <p className="text-gray-400 mb-1">No notifications</p>
-            <p className="text-sm text-gray-500">You're all caught up!</p>
+            <p className="text-sm text-gray-500">You&apos;re all caught up!</p>
           </div>
         ) : (
           <div className="p-2 space-y-1">
@@ -141,7 +143,10 @@ export default function NotificationPanel({
       {/* Footer */}
       {notifications.length > 0 && (
         <div className="p-3 border-t border-gray-800 text-center">
-          <button className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors">
+          <button
+            onClick={() => { onViewAll?.(); onClose(); }}
+            className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+          >
             View all notifications
           </button>
         </div>

@@ -21,7 +21,7 @@ export default function ActivityPage() {
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   
   // Fetch cycles to allow user selection
-  const { cycles, loading: cyclesLoading } = useCycles();
+  const { cycles } = useCycles();
   
   // Get active cycles (user can submit activities to active cycles)
   const activeCycles = cycles.filter(cycle => cycle.state === 'active');
