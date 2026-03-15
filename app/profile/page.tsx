@@ -391,7 +391,7 @@ export default function ProfilePage() {
                     <div key={e.id as string} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
                       <div>
                         <p className="text-sm text-gray-200 capitalize">{(e.eventType as string)?.replace(/_/g, ' ')}</p>
-                        {e.reason && <p className="text-xs text-gray-500 mt-0.5">{e.reason as string}</p>}
+                        {e.reason != null && <p className="text-xs text-gray-500 mt-0.5">{String(e.reason)}</p>}
                       </div>
                       <div className="text-right">
                         <p className={`text-sm font-medium ${(e.ownershipAmount as number) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
