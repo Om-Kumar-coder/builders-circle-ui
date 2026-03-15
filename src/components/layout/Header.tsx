@@ -59,7 +59,7 @@ export default function Header({ title = 'Dashboard', onMenuClick }: HeaderProps
   }, [cycles, selectedCycleId]);
 
   const selectedCycle = cycles.find(c => c.id === selectedCycleId);
-  const participants = (selectedCycle as { participants?: Array<{ user?: unknown } & Record<string, unknown>> })?.participants?.map((p) => p.user ?? p) ?? [];
+  const participants = ((selectedCycle as { participants?: Array<{ user?: { id: string; name?: string; email: string } } & { id: string; name?: string; email: string }> })?.participants?.map((p) => p.user ?? p) ?? []) as { id: string; name?: string; email: string }[];
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
