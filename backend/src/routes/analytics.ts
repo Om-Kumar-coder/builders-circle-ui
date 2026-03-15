@@ -340,7 +340,7 @@ router.get('/participation-insights', authMiddleware, roleMiddleware(['admin', '
     const whereClause = cycleId ? { cycleId: cycleId as string } : {};
 
     // Get detailed participation breakdown with user data
-    const participations = await (prisma.cycleParticipation.findMany as (args: unknown) => Promise<Record<string, unknown>[]>)({
+    const participations = await prisma.cycleParticipation.findMany({
       where: whereClause,
       include: {
         user: {
@@ -354,7 +354,7 @@ router.get('/participation-insights', authMiddleware, roleMiddleware(['admin', '
           }
         }
       }
-    }) as Record<string, unknown>[];
+    });
 
     const now = new Date();
     const insights = {
@@ -399,7 +399,7 @@ router.get('/participation-insights', authMiddleware, roleMiddleware(['admin', '
           email: participation.user.email,
           reputation: rep.reputationScore,
           lastActivity: lastActivity?.createdAt,
-          stallStage: participation.stallStage
+          stallStage: (participation.stallStage ?? '') as string
         };
 
         // Top performers (reputation > 50 and active)
