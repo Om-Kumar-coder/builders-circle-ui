@@ -90,18 +90,7 @@ server {
         add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
     }
 
-    # API preflight
-    location ~ ^/api.*\$ {
-        if (\$request_method = 'OPTIONS') {
-            add_header 'Access-Control-Allow-Origin' 'https://$DOMAIN';
-            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
-            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization';
-            add_header 'Access-Control-Max-Age' 1728000;
-            add_header 'Content-Type' 'text/plain; charset=utf-8';
-            add_header 'Content-Length' 0;
-            return 204;
-        }
-    }
+
 
     # Frontend
     location / {
