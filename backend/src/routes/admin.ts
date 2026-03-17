@@ -1,52 +1,61 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { authMiddleware, roleMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, roleMiddleware, stepUpMiddleware, AuthRequest } from '../middleware/auth';
 import { JobScheduler } from '../jobs/scheduler';
+import { SecurityService } from '../services/securityService';
+import { NotificationService } from '../services/notificationService';
+import accessControlRoutes from './accessControl';
 
 const router = Router();
 
-// Get audit logs (admin only)
-router.get('/audit', authMiddleware, roleMiddleware(['admin', 'founder']), async (_req: Request, res: Response) => {
+// Get audit logs (admin only) — supports ?action, ?adminId, ?targetUserId, ?startDate, ?endDate, ?page, ?limit
+router.get('/audit', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: Request, res: Response) => {
   try {
-    const auditLogs = await prisma.auditTrail.findMany({
-      orderBy: { timestamp: 'desc' },
-      take: 100,
-      include: {
-        admin: {
-          select: {
-            id: true,
-            email: true,
-            name: true
-          }
+    const { action, adminId, targetUserId, startDate, endDate, page = '1', limit = '50' } = req.query as Record<string, string>;
+
+    const where: Record<string, unknown> = {};
+    if (action) where.action = action;
+    if (adminId) where.adminId = adminId;
+    if (targetUserId) {
+      where.targetUserId = targetUserId;
+    }
+    if (startDate || endDate) {
+      where.timestamp = {
+        ...(startDate ? { gte: new Date(startDate) } : {}),
+        ...(endDate ? { lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) } : {}),
+      };
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+
+    const [total, auditLogs] = await Promise.all([
+      prisma.auditTrail.count({ where }),
+      prisma.auditTrail.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        skip: (pageNum - 1) * limitNum,
+        take: limitNum,
+        include: {
+          admin: { select: { id: true, email: true, name: true } },
+          targetUser: { select: { id: true, email: true, name: true } },
         },
-        targetUser: {
-          select: {
-            id: true,
-            email: true,
-            name: true
-          }
-        }
-      }
-    });
+      }),
+    ]);
 
     res.json({
       success: true,
-      data: auditLogs,
-      error: null
+      data: { logs: auditLogs, total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) },
+      error: null,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      data: null,
-      error: 'Internal server error'
-    });
+    res.status(500).json({ success: false, data: null, error: 'Internal server error' });
   }
 });
 
 // Resolve dispute (admin only)
-router.post('/resolve-dispute', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
+router.post('/resolve-dispute', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
       disputeId: z.string(),
@@ -166,7 +175,7 @@ router.get('/users', authMiddleware, roleMiddleware(['admin', 'founder']), async
 });
 
 // Update user role (admin only)
-router.patch('/users/:id/role', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
+router.patch('/users/:id/role', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
       role: z.enum(['founder', 'admin', 'contributor', 'employee', 'observer'])
@@ -193,6 +202,21 @@ router.patch('/users/:id/role', authMiddleware, roleMiddleware(['admin', 'founde
       }
     });
 
+    // Security alert to the affected user
+    const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    if (targetUser) {
+      await NotificationService.createNotification(
+        userId,
+        'security_alert',
+        `Your account role was changed to "${role}" by an admin.`,
+        { eventType: 'role_change', newRole: role, changedBy: req.user!.id, changedAt: new Date().toISOString() },
+      ).catch(() => {});
+      await SecurityService.recordEvent(userId, 'role_change', {
+        ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req.socket.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      }, { eventType: 'role_change', newRole: role, changedBy: req.user!.id }).catch(() => {});
+    }
+
     res.json({
       success: true,
       data: { message: 'User role updated successfully', profile },
@@ -215,7 +239,7 @@ router.patch('/users/:id/role', authMiddleware, roleMiddleware(['admin', 'founde
 });
 
 // Manual cycle finalization (admin only)
-router.post('/cycles/:id/finalize', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
+router.post('/cycles/:id/finalize', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const cycleId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     
@@ -312,7 +336,7 @@ router.get('/accountability/status', authMiddleware, roleMiddleware(['admin', 'f
 });
 
 // Admin override endpoints
-router.post('/override/ownership', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
+router.post('/override/ownership', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
       userId: z.string(),
@@ -323,35 +347,36 @@ router.post('/override/ownership', authMiddleware, roleMiddleware(['admin', 'fou
 
     const { userId, cycleId, ownershipAmount, reason } = schema.parse(req.body);
 
-    // Get current ownership for audit trail
-    const currentOwnership = await prisma.ownershipLedger.findMany({
-      where: { userId, cycleId }
-    });
+    await prisma.$transaction(async (tx) => {
+      const latestMultiplier = await tx.multiplier.findFirst({
+        where: { userId, cycleId },
+        orderBy: { createdAt: 'desc' },
+      });
+      const multiplierSnapshot = latestMultiplier?.multiplier ?? 1.0;
 
-    // Create ownership adjustment entry
-    await prisma.ownershipLedger.create({
-      data: {
-        userId,
-        cycleId,
-        eventType: 'admin_override',
-        ownershipAmount,
-        multiplierSnapshot: 1.0,
-        sourceReference: 'admin_override',
-        createdBy: req.user!.id
-      }
-    });
+      await tx.ownershipLedger.create({
+        data: {
+          userId,
+          cycleId,
+          eventType: 'admin_override',
+          ownershipAmount,
+          multiplierSnapshot,
+          sourceReference: 'admin_override',
+          createdBy: req.user!.id,
+        },
+      });
 
-    // Create audit trail
-    await prisma.auditTrail.create({
-      data: {
-        adminId: req.user!.id,
-        action: 'ownership_override',
-        targetUserId: userId,
-        previousValue: JSON.stringify({ currentOwnership }),
-        newValue: JSON.stringify({ ownershipAmount }),
-        reason,
-        timestamp: new Date()
-      }
+      await tx.auditTrail.create({
+        data: {
+          adminId: req.user!.id,
+          action: 'ownership_override',
+          targetUserId: userId,
+          previousValue: null,
+          newValue: JSON.stringify({ ownershipAmount }),
+          reason,
+          timestamp: new Date(),
+        },
+      });
     });
 
     res.json({
@@ -367,7 +392,7 @@ router.post('/override/ownership', authMiddleware, roleMiddleware(['admin', 'fou
   }
 });
 
-router.post('/override/multiplier', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
+router.post('/override/multiplier', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
       userId: z.string(),
@@ -378,33 +403,27 @@ router.post('/override/multiplier', authMiddleware, roleMiddleware(['admin', 'fo
 
     const { userId, cycleId, multiplier, reason } = schema.parse(req.body);
 
-    // Get current multiplier for audit trail
-    const currentMultiplier = await prisma.multiplier.findFirst({
-      where: { userId, cycleId },
-      orderBy: { createdAt: 'desc' }
-    });
+    await prisma.$transaction(async (tx) => {
+      const currentMultiplier = await tx.multiplier.findFirst({
+        where: { userId, cycleId },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    // Create new multiplier entry
-    await prisma.multiplier.create({
-      data: {
-        userId,
-        cycleId,
-        multiplier,
-        reason: `Admin override: ${reason}`
-      }
-    });
+      await tx.multiplier.create({
+        data: { userId, cycleId, multiplier, reason: `Admin override: ${reason}` },
+      });
 
-    // Create audit trail
-    await prisma.auditTrail.create({
-      data: {
-        adminId: req.user!.id,
-        action: 'multiplier_restore',
-        targetUserId: userId,
-        previousValue: JSON.stringify({ multiplier: currentMultiplier?.multiplier || 1.0 }),
-        newValue: JSON.stringify({ multiplier }),
-        reason,
-        timestamp: new Date()
-      }
+      await tx.auditTrail.create({
+        data: {
+          adminId: req.user!.id,
+          action: 'multiplier_restore',
+          targetUserId: userId,
+          previousValue: JSON.stringify({ multiplier: currentMultiplier?.multiplier ?? 1.0 }),
+          newValue: JSON.stringify({ multiplier }),
+          reason,
+          timestamp: new Date(),
+        },
+      });
     });
 
     res.json({
@@ -420,7 +439,7 @@ router.post('/override/multiplier', authMiddleware, roleMiddleware(['admin', 'fo
   }
 });
 
-router.post('/override/stall-clear', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
+router.post('/override/stall-clear', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
       userId: z.string(),
@@ -430,52 +449,32 @@ router.post('/override/stall-clear', authMiddleware, roleMiddleware(['admin', 'f
 
     const { userId, cycleId, reason } = schema.parse(req.body);
 
-    // Get current participation for audit trail
-    const participation = await prisma.cycleParticipation.findUnique({
-      where: { userId_cycleId: { userId, cycleId } }
-    });
+    await prisma.$transaction(async (tx) => {
+      const participation = await tx.cycleParticipation.findUnique({
+        where: { userId_cycleId: { userId, cycleId } },
+      });
+      if (!participation) throw Object.assign(new Error('Participation not found'), { code: 'NOT_FOUND' });
 
-    if (!participation) {
-      return res.status(404).json({ success: false, error: 'Participation not found' });
-    }
+      await tx.cycleParticipation.update({
+        where: { userId_cycleId: { userId, cycleId } },
+        data: { stallStage: 'active', participationStatus: 'active', lastActivityDate: new Date() },
+      });
 
-    // Clear stall status
-    await prisma.cycleParticipation.update({
-      where: { userId_cycleId: { userId, cycleId } },
-      data: {
-        stallStage: 'active',
-        participationStatus: 'active',
-        lastActivityDate: new Date()
-      }
-    });
+      await tx.multiplier.create({
+        data: { userId, cycleId, multiplier: 1.0, reason: `Admin stall clear: ${reason}` },
+      });
 
-    // Restore multiplier to 1.0
-    await prisma.multiplier.create({
-      data: {
-        userId,
-        cycleId,
-        multiplier: 1.0,
-        reason: `Admin stall clear: ${reason}`
-      }
-    });
-
-    // Create audit trail
-    await prisma.auditTrail.create({
-      data: {
-        adminId: req.user!.id,
-        action: 'stall_clear',
-        targetUserId: userId,
-        previousValue: JSON.stringify({ 
-          stallStage: participation.stallStage,
-          participationStatus: participation.participationStatus 
-        }),
-        newValue: JSON.stringify({ 
-          stallStage: 'active',
-          participationStatus: 'active' 
-        }),
-        reason,
-        timestamp: new Date()
-      }
+      await tx.auditTrail.create({
+        data: {
+          adminId: req.user!.id,
+          action: 'stall_clear',
+          targetUserId: userId,
+          previousValue: JSON.stringify({ stallStage: participation.stallStage, participationStatus: participation.participationStatus }),
+          newValue: JSON.stringify({ stallStage: 'active', participationStatus: 'active' }),
+          reason,
+          timestamp: new Date(),
+        },
+      });
     });
 
     res.json({
@@ -486,6 +485,9 @@ router.post('/override/stall-clear', authMiddleware, roleMiddleware(['admin', 'f
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ success: false, error: error.issues });
+    }
+    if ((error as { code?: string }).code === 'NOT_FOUND') {
+      return res.status(404).json({ success: false, error: 'Participation not found' });
     }
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -527,7 +529,7 @@ router.get('/disputes', authMiddleware, roleMiddleware(['admin', 'founder']), as
 });
 
 // Generic manual job execution endpoint
-router.post('/jobs/execute', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
+router.post('/jobs/execute', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
       jobId: z.enum(['stall-evaluator', 'multiplier-adjustment', 'ownership-decay', 'cycle-finalizer'])
@@ -597,5 +599,8 @@ router.post('/jobs/execute', authMiddleware, roleMiddleware(['admin', 'founder']
     });
   }
 });
+
+// Mount access control routes under the same admin router
+router.use('/', accessControlRoutes);
 
 export default router;

@@ -83,3 +83,33 @@ body {
 .duration-300 {
   animation-duration: 300ms;
 }
+
+/* Custom scrollbar - themed to match dark UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #030712; /* gray-950 */
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #374151; /* gray-700 */
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563; /* gray-600 */
+}
+
+::-webkit-scrollbar-corner {
+  background: #030712;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #374151 #030712;
+}

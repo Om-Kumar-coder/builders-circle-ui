@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -17,6 +17,26 @@ model User {
   name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Email verification
+  emailVerified     Boolean   @default(false)
+  emailVerifyToken  String?
+  emailVerifyExpiry DateTime?
+
+  // 2FA
+  twoFactorEnabled  Boolean @default(false)
+  twoFactorSecret   String?
+
+  // Onboarding
+  onboardingStep      Int     @default(0)
+  onboardingCompleted Boolean @default(false)
+
+  // Token revocation (force-logout all devices)
+  tokenRevokedAt DateTime?
+
+  // Password reset
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
 
   // Relations
   profile              UserProfile?
@@ -37,6 +57,19 @@ model User {
   messageReads         MessageRead[]
   messageMentions      MessageMention[]
   reputation           ContributorReputation?
+  securityEvents       SecurityEvent[]
+  userAgreements       UserAgreement[]
+  createdTasks         Task[]             @relation("TaskCreator")
+  taskAssignments      TaskAssignment[]
+  participationLeaves  ParticipationLeave[]
+  accessGrants         AccessGrant[]      @relation("AccessGrantUser")
+  grantedAccess        AccessGrant[]      @relation("AccessGrantGranter")
+  adminActionLogs      AdminActionLog[]
+  createdDocuments     Document[]         @relation("DocumentCreator")
+  docAccessGrants      DocumentAccess[]   @relation("DocAccessUser")
+  docAccessGranted     DocumentAccess[]   @relation("DocAccessGranter")
+  docVersionUploads    DocumentVersion[]  @relation("DocVersionUploader")
+  docActivity          DocumentActivity[] @relation("DocActivityUser")
 
   @@map("users")
 }
@@ -74,6 +107,8 @@ model BuildCycle {
   archivedActivities ArchivedActivity[]
   messages         CycleMessage[]
   engagement       CycleEngagement?
+  tasks            Task[]
+  participationLeaves ParticipationLeave[]
 
   @@map("build_cycles")
 }
@@ -249,6 +284,8 @@ model UserActivitySession {
   durationMinutes Int       @default(0)
   pageVisited     String
   lastHeartbeat   DateTime  @default(now())
+  ipAddress       String?
+  userAgent       String?
   createdAt       DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -329,6 +366,20 @@ model ContributorReputation {
   @@map("contributor_reputation")
 }
 
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  eventType   String   // new_login, new_device, password_changed, 2fa_enabled, 2fa_disabled, reauth
+  ipAddress   String?
+  userAgent   String?
+  metadata    String?  // JSON
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("security_events")
+}
+
 model CycleEngagement {
   id                     String   @id @default(cuid())
   cycleId                String   @unique
@@ -344,4 +395,211 @@ model CycleEngagement {
   cycle BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
 
   @@map("cycle_engagement")
+}
+
+model Agreement {
+  id        String   @id @default(cuid())
+  version   String   @unique // e.g. "v1.0", "v1.1"
+  title     String
+  content   String   // Markdown / rich text
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userAgreements UserAgreement[]
+
+  @@map("agreements")
+}
+
+model UserAgreement {
+  id          String   @id @default(cuid())
+  userId      String
+  agreementId String
+  acceptedAt  DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agreement Agreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, agreementId])
+  @@map("user_agreements")
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  cycleId     String
+  createdBy   String
+  dueDate     DateTime?
+  status      String    @default("open") // open, completed, overdue
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  cycle       BuildCycle       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  creator     User             @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  assignments TaskAssignment[]
+
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id          String    @id @default(cuid())
+  taskId      String
+  userId      String
+  status      String    @default("assigned") // assigned, in_progress, completed
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@map("task_assignments")
+}
+
+model ParticipationLeave {
+  id         String    @id @default(cuid())
+  userId     String
+  cycleId    String
+  status     String    @default("active") // active, paused, left
+  leaveStart DateTime?
+  leaveEnd   DateTime?
+  reason     String?
+  grantedBy  String?   // admin who granted leave
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@map("participation_leave")
+}
+
+model AccessGrant {
+  id        String   @id @default(cuid())
+  userId    String
+  grantedBy String
+  type      String   // role, feature, cycle_access
+  value     String?  // e.g. role name or feature key
+  expiresAt DateTime?
+  revokedAt DateTime?
+  revokedBy String?
+  createdAt DateTime @default(now())
+
+  user    User @relation("AccessGrantUser",    fields: [userId],    references: [id], onDelete: Cascade)
+  granter User @relation("AccessGrantGranter", fields: [grantedBy], references: [id], onDelete: Cascade)
+
+  @@map("access_grants")
+}
+
+model AdminActionLog {
+  id            String   @id @default(cuid())
+  adminId       String
+  action        String   // bulk_grant, bulk_revoke, bulk_force_logout, bulk_remove_cycle, bulk_assign_task, grant_access, revoke_access, role_change, override, etc.
+  targetUserIds String   // JSON array
+  metadata      String?  // JSON
+  createdAt     DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@map("admin_action_logs")
+}
+
+// ── Token revocation ─────────────────────────────────────────────────────────
+
+model RevokedToken {
+  id        String   @id @default(cuid())
+  jti       String   @unique // JWT ID or token hash
+  userId    String
+  expiresAt DateTime // mirrors JWT exp so we can prune old rows
+  revokedAt DateTime @default(now())
+
+  @@index([jti])
+  @@index([expiresAt])
+  @@map("revoked_tokens")
+}
+
+// ── Docs Vault ────────────────────────────────────────────────────────────────
+
+model DocFolder {
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  parent    DocFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  DocFolder[] @relation("FolderTree")
+  documents Document[]
+
+  @@map("doc_folders")
+}
+
+model Document {
+  id            String   @id @default(cuid())
+  title         String
+  filePath      String   // absolute server path — NEVER exposed in API responses
+  mimeType      String   @default("application/octet-stream") // e.g. application/pdf, image/png
+  size          Int      @default(0) // bytes
+  securityLabel String   @default("internal") // internal | restricted | confidential
+  folderId      String?
+  createdBy     String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  folder    DocFolder?        @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  creator   User              @relation("DocumentCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  access    DocumentAccess[]
+  versions  DocumentVersion[]
+  activity  DocumentActivity[]
+
+  @@map("documents")
+}
+
+model DocumentAccess {
+  id         String    @id @default(cuid())
+  userId     String
+  documentId String
+  accessType String    @default("view") // view | download
+  expiresAt  DateTime?
+  grantedBy  String
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user      User     @relation("DocAccessUser",    fields: [userId],     references: [id], onDelete: Cascade)
+  granter   User     @relation("DocAccessGranter", fields: [grantedBy],  references: [id], onDelete: Cascade)
+  document  Document @relation(fields: [documentId], references: [id],   onDelete: Cascade)
+
+  @@map("document_access")
+}
+
+model DocumentVersion {
+  id            String   @id @default(cuid())
+  documentId    String
+  filePath      String   // absolute server path — NEVER exposed
+  mimeType      String   @default("application/octet-stream")
+  versionNumber Int
+  uploadedBy    String
+  createdAt     DateTime @default(now())
+
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploader  User     @relation("DocVersionUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@map("document_versions")
+}
+
+model DocumentActivity {
+  id         String   @id @default(cuid())
+  userId     String
+  documentId String
+  action     String   // view | download | request_access | grant_access | revoke_access | upload_version
+  timestamp  DateTime @default(now())
+  metadata   String?  // JSON: ip, userAgent, etc.
+
+  user     User     @relation("DocActivityUser", fields: [userId],     references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_activity")
 }

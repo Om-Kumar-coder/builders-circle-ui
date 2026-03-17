@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { apiClient } from '@/lib/api-client';
 import { Send, AtSign, Trash2, Loader2, Pencil, Check, X } from 'lucide-react';
 
@@ -75,7 +76,7 @@ function Avatar({ name, email }: { name?: string; email: string }) {
 
 export default function CycleDiscussion({ cycleId, participants }: CycleDiscussionProps) {
   const { user } = useAuth();
-  const isFounder = user?.role === 'founder';
+  const { isFounder } = usePermissions();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -94,7 +95,6 @@ export default function CycleDiscussion({ cycleId, participants }: CycleDiscussi
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editInputRef = useRef<HTMLTextAreaElement>(null);
-  const sseRef = useRef<EventSource | null>(null);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -108,43 +108,74 @@ export default function CycleDiscussion({ cycleId, participants }: CycleDiscussi
     }
   }, [cycleId]);
 
-  // SSE connection
+  // SSE connection via fetch (avoids token-in-URL; uses HttpOnly cookie)
   useEffect(() => {
     fetchMessages();
 
     const url = apiClient.getCycleMessagesStreamUrl(cycleId);
-    const es = new EventSource(url);
-    sseRef.current = es;
+    const abortController = new AbortController();
 
-    es.addEventListener('new_message', (e: MessageEvent) => {
-      const msg: Message = JSON.parse(e.data);
-      setMessages(prev => {
-        if (prev.find(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-      // Mark as read if window is focused
-      if (document.hasFocus()) {
-        apiClient.markMessageRead(msg.id).catch(() => {});
+    async function connectSSE() {
+      try {
+        const response = await fetch(url, {
+          mode: 'cors',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          signal: abortController.signal,
+        });
+
+        if (!response.ok || !response.body) return;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          let eventType = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (!data || data === '') continue;
+              try {
+                const parsed = JSON.parse(data);
+                if (eventType === 'new_message') {
+                  setMessages(prev => {
+                    if (prev.find(m => m.id === parsed.id)) return prev;
+                    return [...prev, parsed];
+                  });
+                  if (document.hasFocus()) {
+                    apiClient.markMessageRead(parsed.id).catch(() => {});
+                  }
+                } else if (eventType === 'edit_message') {
+                  setMessages(prev => prev.map(m => m.id === parsed.id ? parsed : m));
+                } else if (eventType === 'delete_message') {
+                  setMessages(prev => prev.filter(m => m.id !== parsed.id));
+                }
+              } catch { /* malformed JSON, skip */ }
+              eventType = '';
+            }
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        // Reconnect after 3s on unexpected disconnect
+        setTimeout(connectSSE, 3000);
       }
-    });
+    }
 
-    es.addEventListener('edit_message', (e: MessageEvent) => {
-      const updated: Message = JSON.parse(e.data);
-      setMessages(prev => prev.map(m => m.id === updated.id ? updated : m));
-    });
-
-    es.addEventListener('delete_message', (e: MessageEvent) => {
-      const { id } = JSON.parse(e.data);
-      setMessages(prev => prev.filter(m => m.id !== id));
-    });
-
-    es.onerror = () => {
-      // SSE will auto-reconnect; no action needed
-    };
+    connectSSE();
 
     return () => {
-      es.close();
-      sseRef.current = null;
+      abortController.abort();
     };
   }, [cycleId, fetchMessages]);
 

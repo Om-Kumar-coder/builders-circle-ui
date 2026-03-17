@@ -4,7 +4,6 @@ import { useAuth } from '../../src/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
-import OnboardingTour from '../../src/components/onboarding/OnboardingTour';
 
 export default function DashboardLayout({
   children,
@@ -17,10 +16,11 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!loading && !user) {
       router.replace('/login');
+    } else if (!loading && user && !user.onboardingCompleted) {
+      router.replace('/onboarding');
     }
   }, [user, loading, router]);
 
-  // Show loading while checking session
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -32,16 +32,9 @@ export default function DashboardLayout({
     );
   }
 
-  // Don't render dashboard if not logged in
-  if (!user) {
+  if (!user || !user.onboardingCompleted) {
     return null;
   }
 
-  // Render children with onboarding tour
-  return (
-    <>
-      {children}
-      <OnboardingTour />
-    </>
-  );
+  return <>{children}</>;
 }

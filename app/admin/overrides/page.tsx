@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { apiClient } from '@/lib/api-client';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
+import StepUpModal from '@/components/auth/StepUpModal';
+import { useStepUp } from '@/hooks/useStepUp';
 import { 
   Shield, 
   Users, 
@@ -45,7 +48,8 @@ interface OverrideAction {
 }
 
 export default function AdminOverridesPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user: _user, loading: authLoading } = useAuth();
+  const { ensureStepUp, stepUpProps } = useStepUp();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,8 +63,7 @@ export default function AdminOverridesPage() {
     reason: ''
   });
   const [submitting, setSubmitting] = useState(false);
-
-  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
+  const { isAdmin } = usePermissions();
 
   const fetchUsers = async () => {
     try {
@@ -91,6 +94,12 @@ export default function AdminOverridesPage() {
     if (!overrideAction.reason.trim()) {
       alert('Please provide a reason for the override');
       return;
+    }
+
+    try {
+      await ensureStepUp('apply admin override');
+    } catch {
+      return; // user cancelled step-up
     }
 
     try {
@@ -325,6 +334,8 @@ export default function AdminOverridesPage() {
           </div>
         )}
       </div>
+
+      {stepUpProps && <StepUpModal {...stepUpProps} />}
 
       {/* Override Modal */}
       {showOverrideModal && (

@@ -12,12 +12,13 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children, title }: MainLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
+
   // Initialize session tracking
   useSessionTracking();
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
+
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 

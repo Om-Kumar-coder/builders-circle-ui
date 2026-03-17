@@ -46,7 +46,7 @@ export function useSessionTracking() {
     if (!user || !sessionActive.current) return;
 
     try {
-      await apiClient.endSession();
+      await apiClient.endCurrentSession();
       sessionActive.current = false;
       console.log('📊 Session ended');
     } catch (error) {

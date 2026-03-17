@@ -26,76 +26,33 @@ router.get('/dashboard', authMiddleware, async (req: AuthRequest, res: Response)
       prisma.activityEvent.count({ where: { ...whereClause, status: 'rejected' } })
     ]);
 
-    // Get participation health (calculate stall stages based on last activity)
-    // OPTIMIZED: Only select needed fields instead of loading full user objects
-    const participations = await prisma.cycleParticipation.findMany({
-      where: cycleId ? { cycleId: cycleId as string } : {},
-      select: { userId: true, cycleId: true, createdAt: true }
-    });
+    // Get participation health — use DB stallStage as single source of truth
+    const [activeCount, atRiskCount, diminishingCount, pausedCount] = await Promise.all([
+      prisma.cycleParticipation.count({ where: { ...(cycleId ? { cycleId: cycleId as string } : {}), stallStage: 'active' } }),
+      prisma.cycleParticipation.count({ where: { ...(cycleId ? { cycleId: cycleId as string } : {}), stallStage: 'at_risk' } }),
+      prisma.cycleParticipation.count({ where: { ...(cycleId ? { cycleId: cycleId as string } : {}), stallStage: 'diminishing' } }),
+      prisma.cycleParticipation.count({ where: { ...(cycleId ? { cycleId: cycleId as string } : {}), stallStage: { in: ['paused', 'grace', 'none'] } } }),
+    ]);
 
-    // OPTIMIZED: Get last activity per user in one query instead of N queries
-    const lastActivities = await prisma.activityEvent.findMany({
-      where: cycleId ? { cycleId: cycleId as string } : {},
-      distinct: ['userId'],
-      orderBy: { createdAt: 'desc' },
-      select: { userId: true, createdAt: true }
-    });
-
-    // OPTIMIZED: Create lookup map for O(1) access instead of nested loops
-    const lastActivityByUser = new Map(
-      lastActivities.map(a => [a.userId, a.createdAt])
-    );
-
-    const now = new Date();
     const participationHealth = {
-      active: 0,
-      atRisk: 0,
-      diminishing: 0,
-      paused: 0
+      active: activeCount,
+      atRisk: atRiskCount,
+      diminishing: diminishingCount,
+      paused: pausedCount,
     };
 
-    participations.forEach(participation => {
-      const lastActivity = lastActivityByUser.get(participation.userId);
-      if (!lastActivity) {
-        participationHealth.paused++;
-        return;
-      }
+    const totalUsers = activeCount + atRiskCount + diminishingCount + pausedCount;
 
-      const daysSinceLastActivity = Math.floor(
-        (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      if (daysSinceLastActivity <= 6) {
-        participationHealth.active++;
-      } else if (daysSinceLastActivity <= 13) {
-        participationHealth.atRisk++;
-      } else if (daysSinceLastActivity <= 20) {
-        participationHealth.diminishing++;
-      } else {
-        participationHealth.paused++;
-      }
-    });
-
-    // Calculate additional metrics
-    // OPTIMIZED: Use lastActivities array instead of separate query
-    const uniqueUsers = lastActivities.length;
-    const avgFrequency = uniqueUsers > 0 ? totalActivities / uniqueUsers : 0;
-
-    // Count inactive users (no activity in last 7 days)
+    // Count active users (had verified activity in last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
     const activeUserIds = await prisma.activityEvent.findMany({
-      where: {
-        ...whereClause,
-        createdAt: { gte: sevenDaysAgo }
-      },
+      where: { ...whereClause, createdAt: { gte: sevenDaysAgo }, status: 'verified' },
       select: { userId: true },
-      distinct: ['userId']
+      distinct: ['userId'],
     });
-
-    const totalUsers = participations.length;
     const inactiveUsers = totalUsers - activeUserIds.length;
+    const avgFrequency = activeUserIds.length > 0 ? totalActivities / activeUserIds.length : 0;
 
     res.json({
       success: true,
@@ -109,9 +66,9 @@ router.get('/dashboard', authMiddleware, async (req: AuthRequest, res: Response)
         avgFrequency: Math.round(avgFrequency * 100) / 100,
         inactiveUsers,
         totalUsers,
-        activeUsers: activeUserIds.length
+        activeUsers: activeUserIds.length,
       },
-      error: null
+      error: null,
     });
 
   } catch (error) {
@@ -356,7 +313,6 @@ router.get('/participation-insights', authMiddleware, roleMiddleware(['admin', '
       }
     });
 
-    const now = new Date();
     const insights = {
       activeParticipants: 0,
       atRiskParticipants: 0,
@@ -372,16 +328,14 @@ router.get('/participation-insights', authMiddleware, roleMiddleware(['admin', '
 
     participations.forEach(participation => {
       const lastActivity = participation.user.activityEvents[0];
-      const daysSinceLastActivity = lastActivity 
-        ? Math.floor((now.getTime() - lastActivity.createdAt.getTime()) / (1000 * 60 * 60 * 24))
-        : 999;
+      const stage = participation.stallStage ?? 'paused';
 
-      // Categorize participants
-      if (daysSinceLastActivity <= 6) {
+      // Use DB stallStage as single source of truth
+      if (stage === 'active') {
         insights.activeParticipants++;
-      } else if (daysSinceLastActivity <= 13) {
+      } else if (stage === 'at_risk') {
         insights.atRiskParticipants++;
-      } else if (daysSinceLastActivity <= 20) {
+      } else if (stage === 'grace') {
         insights.participantsInGrace++;
       } else {
         insights.pausedParticipants++;
@@ -399,16 +353,16 @@ router.get('/participation-insights', authMiddleware, roleMiddleware(['admin', '
           email: participation.user.email,
           reputation: rep.reputationScore,
           lastActivity: lastActivity?.createdAt,
-          stallStage: (participation.stallStage ?? '') as string
+          stallStage: (participation.stallStage ?? '') as string,
         };
 
-        // Top performers (reputation > 50 and active)
-        if (rep.reputationScore > 50 && daysSinceLastActivity <= 6) {
+        // Top performers (reputation > 50 and active per DB stallStage)
+        if (rep.reputationScore > 50 && stage === 'active') {
           insights.topPerformers.push(userInfo);
         }
 
-        // Struggling users (low reputation or inactive)
-        if (rep.reputationScore < 20 || daysSinceLastActivity > 13) {
+        // Struggling users (low reputation or not active)
+        if (rep.reputationScore < 20 || !['active', 'grace'].includes(stage)) {
           insights.strugglingUsers.push(userInfo);
         }
       }

@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { apiClient } from '@/lib/api-client';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
+import StepUpModal from '@/components/auth/StepUpModal';
+import { useStepUp } from '@/hooks/useStepUp';
 import { 
   Scale, 
   RefreshCw, 
@@ -15,6 +18,8 @@ import {
   MessageSquare,
   AlertTriangle
 } from 'lucide-react';
+import FilterBar from '@/components/ui/FilterBar';
+import { useFilters } from '@/hooks/useFilters';
 
 interface Dispute {
   id: string;
@@ -39,7 +44,8 @@ interface Dispute {
 }
 
 export default function AdminDisputesPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user: _user, loading: authLoading } = useAuth();
+  const { ensureStepUp, stepUpProps } = useStepUp();
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +54,8 @@ export default function AdminDisputesPage() {
   const [resolution, setResolution] = useState('');
   const [resolutionStatus, setResolutionStatus] = useState<'approved' | 'denied'>('approved');
   const [submitting, setSubmitting] = useState(false);
-
-  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
+  const { isAdmin } = usePermissions();
+  const { filters, setFilter, resetFilters, hasActiveFilters } = useFilters();
 
   const fetchDisputes = async () => {
     try {
@@ -74,6 +80,12 @@ export default function AdminDisputesPage() {
     if (!selectedDispute || !resolution.trim()) {
       alert('Please provide a resolution');
       return;
+    }
+
+    try {
+      await ensureStepUp('resolve dispute');
+    } catch {
+      return; // user cancelled step-up
     }
 
     try {
@@ -131,6 +143,23 @@ export default function AdminDisputesPage() {
 
   const pendingDisputes = disputes.filter(d => d.status === 'pending');
   const resolvedDisputes = disputes.filter(d => d.status !== 'pending');
+
+  const filteredPending = pendingDisputes.filter(d => {
+    if (filters.search && !d.reason.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !d.user.name?.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !d.user.email.toLowerCase().includes(filters.search.toLowerCase())) return false;
+    if (filters.startDate && new Date(d.createdAt) < new Date(filters.startDate)) return false;
+    if (filters.endDate && new Date(d.createdAt) > new Date(filters.endDate)) return false;
+    return true;
+  });
+
+  const filteredResolved = resolvedDisputes.filter(d => {
+    if (filters.search && !d.reason.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !d.user.name?.toLowerCase().includes(filters.search.toLowerCase()) &&
+        !d.user.email.toLowerCase().includes(filters.search.toLowerCase())) return false;
+    if (filters.status && d.status !== filters.status) return false;
+    return true;
+  });
 
   if (authLoading) {
     return <LoadingScreen />;
@@ -211,14 +240,29 @@ export default function AdminDisputesPage() {
           </div>
         )}
 
+        {/* Filters */}
+        <FilterBar
+          filters={filters}
+          setFilter={setFilter}
+          resetFilters={resetFilters}
+          hasActiveFilters={hasActiveFilters}
+          showSearch
+          showType={false}
+          showStatus
+          statusOptions={[
+            { value: 'approved', label: 'Approved' },
+            { value: 'denied', label: 'Denied' },
+          ]}
+        />
+
         {/* Pending Disputes */}
-        {pendingDisputes.length > 0 && (
+        {filteredPending.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-gray-100 flex items-center gap-2">
               <Clock className="w-5 h-5 text-yellow-400" />
-              Pending Disputes ({pendingDisputes.length})
+              Pending Disputes ({filteredPending.length})
             </h2>
-            {pendingDisputes.map((dispute) => (
+            {filteredPending.map((dispute) => (
               <div key={dispute.id} className="bg-gray-900 border border-yellow-500/30 rounded-lg p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -279,12 +323,12 @@ export default function AdminDisputesPage() {
         )}
 
         {/* Resolved Disputes */}
-        {resolvedDisputes.length > 0 && (
+        {filteredResolved.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-gray-100">
-              Resolved Disputes ({resolvedDisputes.length})
+              Resolved Disputes ({filteredResolved.length})
             </h2>
-            {resolvedDisputes.map((dispute) => (
+            {filteredResolved.map((dispute) => (
               <div key={dispute.id} className="bg-gray-900 border border-gray-800 rounded-lg p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -334,6 +378,8 @@ export default function AdminDisputesPage() {
           </div>
         ) : null}
       </div>
+
+      {stepUpProps && <StepUpModal {...stepUpProps} />}
 
       {/* Resolution Modal */}
       {showResolutionModal && selectedDispute && (

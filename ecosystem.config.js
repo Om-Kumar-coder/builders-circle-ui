@@ -2,7 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'builders-circle-backend',
-      script: './backend/dist/server.js',
+      script: './dist/server.js',
+      cwd: './backend',
       env: {
         NODE_ENV: 'production',
         PORT: 3001
@@ -11,9 +12,9 @@ module.exports = {
       exec_mode: 'fork',
       watch: false,
       max_memory_restart: '1G',
-      error_file: './logs/backend-error.log',
-      out_file: './logs/backend-out.log',
-      log_file: './logs/backend-combined.log',
+      error_file: '../logs/backend-error.log',
+      out_file: '../logs/backend-out.log',
+      log_file: '../logs/backend-combined.log',
       time: true,
       restart_delay: 4000,
       max_restarts: 10,
@@ -21,8 +22,9 @@ module.exports = {
     },
     {
       name: 'builders-circle-frontend',
-      script: 'npm',
+      script: 'node_modules/.bin/next',
       args: 'start',
+      cwd: './',
       env: {
         NODE_ENV: 'production',
         PORT: 3000,

@@ -6,42 +6,27 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Starting database seed...');
 
-  // Test user credentials
   const testUsers = [
-    {
-      email: 'founder@test.com',
-      password: 'founder123',
-      name: 'Test Founder',
-      role: 'founder'
-    },
-    {
-      email: 'admin@test.com',
-      password: 'admin123',
-      name: 'Test Admin',
-      role: 'admin'
-    },
-    {
-      email: 'user@test.com',
-      password: 'user123',
-      name: 'Test User',
-      role: 'contributor'
-    },
-    {
-      email: 'employee@test.com',
-      password: 'employee123',
-      name: 'Test Employee',
-      role: 'employee'
-    }
+    { email: 'founder@test.com', password: 'founder123', name: 'Test Founder', role: 'founder' },
+    { email: 'admin@test.com',   password: 'admin123',   name: 'Test Admin',   role: 'admin' },
+    { email: 'user@test.com',    password: 'user123',    name: 'Test User',    role: 'contributor' },
+    { email: 'employee@test.com',password: 'employee123',name: 'Test Employee',role: 'employee' },
   ];
 
-  // Create test users
   for (const userData of testUsers) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email: userData.email }
-    });
+    const existing = await prisma.user.findUnique({ where: { email: userData.email } });
 
-    if (existingUser) {
-      console.log(`👤 User ${userData.email} already exists, skipping...`);
+    if (existing) {
+      await prisma.user.update({
+        where: { email: userData.email },
+        data: {
+          emailVerified: true,
+          onboardingCompleted: true,
+          onboardingStep: 99,
+          twoFactorEnabled: false,
+        },
+      });
+      console.log(`👤 Updated ${userData.email} (already existed)`);
       continue;
     }
 
@@ -52,50 +37,43 @@ async function main() {
         email: userData.email,
         password: hashedPassword,
         name: userData.name,
+        emailVerified: true,
+        onboardingCompleted: true,
+        onboardingStep: 99,
+        twoFactorEnabled: false,
         profile: {
-          create: {
-            role: userData.role,
-            status: 'active'
-          }
-        }
+          create: { role: userData.role, status: 'active' },
+        },
       },
-      include: {
-        profile: true
-      }
     });
 
-    console.log(`✅ Created ${userData.role}: ${userData.email} (password: ${userData.password})`);
+    console.log(`✅ Created ${userData.role}: ${userData.email} / ${userData.password}`);
   }
 
-  // Create a test build cycle
-  const existingCycle = await prisma.buildCycle.findFirst({
-    where: { name: 'Test Cycle 1' }
-  });
+  const existingCycle = await prisma.buildCycle.findFirst({ where: { name: 'Test Cycle 1' } });
 
   if (!existingCycle) {
-    const testCycle = await prisma.buildCycle.create({
+    await prisma.buildCycle.create({
       data: {
         name: 'Test Cycle 1',
         state: 'active',
         startDate: new Date(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        participantCount: 0
-      }
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        participantCount: 0,
+      },
     });
-
-    console.log(`🔄 Created test build cycle: ${testCycle.name}`);
+    console.log('🔄 Created test build cycle');
   } else {
     console.log('🔄 Test build cycle already exists, skipping...');
   }
 
-  console.log('🎉 Database seeding completed!');
+  console.log('\n🎉 Seeding complete!');
+  console.log('  founder@test.com  / founder123');
+  console.log('  admin@test.com    / admin123');
+  console.log('  user@test.com     / user123');
+  console.log('  employee@test.com / employee123');
 }
 
 main()
-  .catch((e) => {
-    console.error('❌ Error during seeding:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error('❌ Seed error:', e); process.exit(1); })
+  .finally(() => prisma.$disconnect());

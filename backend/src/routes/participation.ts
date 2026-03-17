@@ -2,7 +2,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { authMiddleware, roleMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, roleMiddleware, requireFullAccess, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -11,7 +11,7 @@ const joinCycleSchema = z.object({
 });
 
 // Join a cycle
-router.post('/join', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/join', authMiddleware, requireFullAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { cycleId } = joinCycleSchema.parse(req.body);
 
@@ -36,33 +36,31 @@ router.post('/join', authMiddleware, async (req: AuthRequest, res: Response) => 
       });
     }
 
-    // Check if already participating
+    // Check if already participating — also enforced inside the transaction
     const existingParticipation = await prisma.cycleParticipation.findUnique({
-      where: {
-        userId_cycleId: {
-          userId: req.user!.id,
-          cycleId
-        }
-      }
+      where: { userId_cycleId: { userId: req.user!.id, cycleId } },
     });
-
     if (existingParticipation) {
-      return res.status(400).json({
-        success: false,
-        data: null,
-        error: 'Already participating in this cycle'
-      });
+      return res.status(400).json({ success: false, data: null, error: 'Already participating in this cycle' });
     }
 
-    // Create participation
-    const participation = await prisma.cycleParticipation.create({
-      data: {
-        userId: req.user!.id,
-        cycleId,
-        optedIn: true,
-        participationStatus: 'grace',
-        stallStage: 'grace'
-      }
+    // Create participation atomically
+    const participation = await prisma.$transaction(async (tx) => {
+      // Re-check inside transaction to prevent race conditions
+      const existing = await tx.cycleParticipation.findUnique({
+        where: { userId_cycleId: { userId: req.user!.id, cycleId } },
+      });
+      if (existing) throw Object.assign(new Error('Already participating in this cycle'), { code: 'ALREADY_PARTICIPATING' });
+
+      return tx.cycleParticipation.create({
+        data: {
+          userId: req.user!.id,
+          cycleId,
+          optedIn: true,
+          participationStatus: 'grace',
+          stallStage: 'grace',
+        },
+      });
     });
 
     res.status(201).json({
@@ -75,13 +73,16 @@ router.post('/join', authMiddleware, async (req: AuthRequest, res: Response) => 
       return res.status(400).json({
         success: false,
         data: null,
-        error: `Validation error: ${error.errors.map(e => e.message).join(', ')}`
+        error: `Validation error: ${error.errors.map(e => e.message).join(', ')}`,
       });
+    }
+    if ((error as { code?: string }).code === 'ALREADY_PARTICIPATING') {
+      return res.status(400).json({ success: false, data: null, error: 'Already participating in this cycle' });
     }
     res.status(500).json({
       success: false,
       data: null,
-      error: 'Failed to join cycle'
+      error: 'Failed to join cycle',
     });
   }
 });
@@ -171,7 +172,7 @@ router.get('/user/:userId', authMiddleware, async (req: AuthRequest, res: Respon
 });
 
 // Update participation
-router.patch('/:id', authMiddleware, async (req: AuthRequest, res) => {
+router.patch('/:id', authMiddleware, requireFullAccess, async (req: AuthRequest, res) => {
   try {
     const updateData = z.object({
       optedIn: z.boolean().optional(),
@@ -218,32 +219,13 @@ router.get('/:cycleId/all', authMiddleware, roleMiddleware(['admin', 'founder'])
       orderBy: { createdAt: 'desc' }
     });
 
-    // Calculate stall stages based on last activity
-    const now = new Date();
+    // Use DB stallStage as single source of truth — do not recalculate from lastActivity
     const participantsWithStallStage = participants.map(participation => {
       const lastActivity = participation.user.activityEvents[0];
-      let calculatedStallStage = 'paused';
-      
-      if (lastActivity) {
-        const daysSinceLastActivity = Math.floor(
-          (now.getTime() - lastActivity.createdAt.getTime()) / (1000 * 60 * 60 * 24)
-        );
-
-        if (daysSinceLastActivity <= 6) {
-          calculatedStallStage = 'active';
-        } else if (daysSinceLastActivity <= 13) {
-          calculatedStallStage = 'at_risk';
-        } else if (daysSinceLastActivity <= 20) {
-          calculatedStallStage = 'diminishing';
-        } else {
-          calculatedStallStage = 'paused';
-        }
-      }
-
       return {
         ...participation,
-        calculatedStallStage,
-        lastActivityDate: lastActivity?.createdAt || null
+        calculatedStallStage: participation.stallStage, // authoritative value from DB
+        lastActivityDate: lastActivity?.createdAt || null,
       };
     });
 

@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import StepUpModal from '@/components/auth/StepUpModal';
+import { useStepUp } from '@/hooks/useStepUp';
 import { 
   Play, 
   RefreshCw, 
@@ -61,6 +63,7 @@ const AVAILABLE_JOBS = [
 ];
 
 export default function JobExecutionPanel({ onJobComplete }: JobExecutionPanelProps) {
+  const { ensureStepUp, stepUpProps } = useStepUp();
   const [executingJobs, setExecutingJobs] = useState<Set<string>>(new Set());
   const [jobResults, setJobResults] = useState<Record<string, { success: boolean; message: string; timestamp: Date }>>({});
   const [showConfirmDialog, setShowConfirmDialog] = useState<string | null>(null);
@@ -106,14 +109,23 @@ export default function JobExecutionPanel({ onJobComplete }: JobExecutionPanelPr
     setShowConfirmDialog(jobId);
   };
 
-  const confirmJobExecution = () => {
-    if (showConfirmDialog) {
-      executeJob(showConfirmDialog);
+  const confirmJobExecution = async () => {
+    if (!showConfirmDialog) return;
+    const jobId = showConfirmDialog;
+    setShowConfirmDialog(null);
+
+    try {
+      await ensureStepUp('execute manual job');
+    } catch {
+      return; // user cancelled step-up
     }
+
+    executeJob(jobId);
   };
 
   return (
     <div className="space-y-6">
+      {stepUpProps && <StepUpModal {...stepUpProps} />}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-100">Manual Job Execution</h3>

@@ -17,13 +17,14 @@ export default function AdminLayout({
     if (!loading) {
       if (!user) {
         router.replace('/login');
+      } else if (!user.onboardingCompleted) {
+        router.replace('/onboarding');
       } else if (user.role !== 'admin' && user.role !== 'founder') {
         router.replace('/dashboard');
       }
     }
   }, [user, loading, router]);
 
-  // Show loading while checking session
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -35,8 +36,7 @@ export default function AdminLayout({
     );
   }
 
-  // Don't render admin if not logged in or wrong role
-  if (!user || (user.role !== 'admin' && user.role !== 'founder')) {
+  if (!user || !user.onboardingCompleted || (user.role !== 'admin' && user.role !== 'founder')) {
     return null;
   }
 

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import Image from 'next/image';
 import {
   LayoutDashboard,
@@ -16,6 +17,8 @@ import {
   Shield,
   CheckCircle,
   Clock,
+  FileText,
+  ListTodo,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +31,7 @@ const navigationItems = [
   { name: 'Build Cycles', href: '/build-cycles', icon: Zap },
   { name: 'Activity', href: '/activity', icon: Activity },
   { name: 'Earnings', href: '/earnings', icon: DollarSign },
+  { name: 'Docs Vault', href: '/docs', icon: FileText },
   { name: 'Team', href: '/team', icon: Users },
   { name: 'Insights', href: '/insights', icon: BarChart3 },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -38,13 +42,15 @@ const adminItems = [
   { name: 'Activity Review', href: '/admin/activity-review', icon: CheckCircle },
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { name: 'Audit Logs', href: '/admin/audit', icon: Clock },
+  { name: 'Agreements', href: '/admin/agreements', icon: FileText },
+  { name: 'Tasks', href: '/admin/tasks', icon: ListTodo },
+  { name: 'Docs Vault', href: '/admin/docs', icon: Shield },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { user } = useAuth();
-  
-  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
+  const { user: _user } = useAuth();
+  const { isAdmin } = usePermissions();
 
   return (
     <>

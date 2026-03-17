@@ -228,14 +228,21 @@ PSQL
     # Env files
     info "Writing environment files..."
     DB_PASS_ENCODED=$(node -e "console.log(encodeURIComponent('$DB_PASS'))")
+
+    read -p "Resend API key (blank to skip email): " RESEND_KEY
+
+    mkdir -p uploads
+    UPLOAD_DIR="$APP_DIR/uploads"
+
     cat > backend/.env <<EOF
 DATABASE_URL="postgresql://builders_user:${DB_PASS_ENCODED}@localhost:5432/builders_circle"
 JWT_SECRET="$JWT_SECRET"
-JWT_EXPIRES=7d
+JWT_EXPIRES=2h
 PORT=3001
 NODE_ENV=production
 FRONTEND_URL=https://$DOMAIN
-CORS_ORIGIN=https://$DOMAIN
+RESEND_API_KEY="${RESEND_KEY}"
+UPLOAD_DIR="${UPLOAD_DIR}"
 EOF
     cat > .env.local <<EOF
 NEXT_PUBLIC_API_URL=https://$DOMAIN/api
@@ -248,15 +255,15 @@ EOF
     npm install
     cd backend && npm install && cd ..
 
+    # Uploads directory
+    mkdir -p "$APP_DIR/uploads"
+    chown -R www-data:www-data "$APP_DIR/uploads" 2>/dev/null || true
+
     # Prisma
     info "Running database migrations..."
     cd backend
     npx prisma generate
-    if [ ! -d "prisma/migrations" ]; then
-        npx prisma migrate dev --name init --create-only
-    fi
     npx prisma migrate deploy
-    npx prisma generate
     npm run build
     cd ..
 
@@ -267,25 +274,27 @@ EOF
     # PM2 ecosystem
     info "Writing PM2 ecosystem config..."
     mkdir -p logs
-    cat > ecosystem.config.js <<EOF
+    cat > ecosystem.config.js <<'EOFPM2'
 module.exports = {
   apps: [
     {
       name: 'builders-circle-backend',
-      script: './backend/dist/server.js',
+      script: './dist/server.js',
+      cwd: './backend',
       env: { NODE_ENV: 'production', PORT: 3001 },
       instances: 1,
       exec_mode: 'fork',
       watch: false,
       max_memory_restart: '1G',
-      error_file: './logs/backend-error.log',
-      out_file: './logs/backend-out.log',
+      error_file: '../logs/backend-error.log',
+      out_file: '../logs/backend-out.log',
       time: true
     },
     {
       name: 'builders-circle-frontend',
-      script: 'npm',
+      script: 'node_modules/.bin/next',
       args: 'start',
+      cwd: './',
       env: { NODE_ENV: 'production', PORT: 3000, HOSTNAME: '0.0.0.0' },
       instances: 1,
       exec_mode: 'fork',
@@ -297,7 +306,7 @@ module.exports = {
     }
   ]
 };
-EOF
+EOFPM2
 
     # Nginx (HTTP only first, for certbot)
     info "Configuring Nginx (HTTP) for certbot..."
@@ -366,7 +375,7 @@ cmd_update() {
     info "Running migrations..."
     cd backend
     npx prisma generate
-    npx prisma db push
+    npx prisma migrate deploy
     npm run build
     cd ..
 

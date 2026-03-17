@@ -9,6 +9,7 @@ import JoinBuildButton from '../participation/JoinBuildButton';
 import ParticipationBadge from '../participation/ParticipationBadge';
 import { Calendar, Users, Activity, Play, Pause, Lock, RotateCcw, Clock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface CycleDetailsProps {
   cycle: any;
@@ -17,6 +18,7 @@ interface CycleDetailsProps {
 
 export default function CycleDetails({ cycle, userId }: CycleDetailsProps) {
   const { user } = useAuth();
+  const { isAdmin } = usePermissions();
   const { participation, refetch } = useParticipation(userId, cycle.id);
   const [activities, setActivities] = useState<any[]>([]);
   const [participants, setParticipants] = useState<any[]>([]);
@@ -24,8 +26,6 @@ export default function CycleDetails({ cycle, userId }: CycleDetailsProps) {
   const [cycleState, setCycleState] = useState(cycle.state);
   const [stateLoading, setStateLoading] = useState(false);
   const [stateError, setStateError] = useState<string | null>(null);
-
-  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
 
   useEffect(() => {
     const fetchData = async () => {

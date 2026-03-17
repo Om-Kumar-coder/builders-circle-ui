@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, requireFullAccess, AuthRequest } from '../middleware/auth';
 import { NotificationService } from '../services/notificationService';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,7 +134,7 @@ router.get('/cycle/:cycleId', authMiddleware, async (req: AuthRequest, res: Resp
 });
 
 // ─── POST / — send a message ─────────────────────────────────────────────────
-router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res: Response) => {
   try {
     const data = createMessageSchema.parse(req.body);
 
@@ -264,7 +264,7 @@ router.delete('/:messageId', authMiddleware, async (req: AuthRequest, res: Respo
 });
 
 // ─── POST /:messageId/read — mark a single message read ──────────────────────
-router.post('/:messageId/read', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/:messageId/read', authMiddleware, requireFullAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.params;
     await db.messageRead.upsert({

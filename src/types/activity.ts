@@ -72,16 +72,9 @@ export interface ActivityVerification {
   calculatedOwnership?: number;
 }
 
-// Contribution weights for different activity types
-export const CONTRIBUTION_WEIGHTS: Record<ActivityType, number> = {
-  code: 1.0,
-  documentation: 0.6,
-  review: 0.5,
-  hours_logged: 0.4,
-  research: 0.5,
-  meeting: 0.2,
-  task_completion: 0.8,
-};
+// Contribution weights are managed server-side via /api/weights.
+// Do NOT define them here — always fetch from the API to ensure single source of truth.
+// Use the useWeights() hook or apiClient.getWeights() to retrieve current values.
 
 // Activity type labels for UI
 export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {

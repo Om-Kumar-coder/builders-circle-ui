@@ -8,6 +8,7 @@ import JoinBuildButton from '../participation/JoinBuildButton';
 import ParticipationBadge from '../participation/ParticipationBadge';
 import { useParticipation } from '@/hooks/useParticipation';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { apiClient } from '@/lib/api-client';
 import { Play, Pause, Lock } from 'lucide-react';
 
@@ -17,12 +18,12 @@ interface CycleCardProps {
 }
 
 export default function CycleCard({ cycle, userId }: CycleCardProps) {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
+  const { isAdmin } = usePermissions();
   const { participation, refetch } = useParticipation(userId, cycle.id);
   const [cycleState, setCycleState] = useState(cycle.state);
   const [stateLoading, setStateLoading] = useState(false);
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
   const showButton = cycleState === 'active' && !participation && !!userId;
 
   const formatDate = (dateString: string) => {

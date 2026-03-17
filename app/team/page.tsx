@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useCycle } from '@/context/CycleContext';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
@@ -33,10 +34,8 @@ export default function TeamPage() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  // Get active cycle ID from context - only proceed if we have a real cycle
   const cycleId = activeCycle?.id || '';
-
-  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
+  const { isAdmin } = usePermissions();
 
   const fetchTeamMembers = useCallback(async () => {
     try {

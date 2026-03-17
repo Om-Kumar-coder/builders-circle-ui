@@ -1,6 +1,7 @@
 'use client';
 
-import { CheckCheck, RefreshCw, X } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCheck, RefreshCw, X, Filter } from 'lucide-react';
 import { getNotificationIcon, getNotificationColor, type Notification } from '@/lib/notifications';
 
 interface NotificationPanelProps {
@@ -22,6 +23,8 @@ export default function NotificationPanel({
   onClose,
   onViewAll,
 }: NotificationPanelProps) {
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -38,6 +41,8 @@ export default function NotificationPanel({
   };
 
   const unreadNotifications = notifications.filter(n => !n.read);
+  const types = Array.from(new Set(notifications.map(n => n.type)));
+  const filtered = typeFilter === 'all' ? notifications : notifications.filter(n => n.type === typeFilter);
 
   return (
     <div className="absolute right-0 mt-2 w-96 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -79,8 +84,28 @@ export default function NotificationPanel({
         </div>
       </div>
 
+      {/* Type filter tabs */}
+      {types.length > 1 && (
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-gray-800 overflow-x-auto">
+          <Filter className="w-3 h-3 text-gray-500 flex-shrink-0 mr-1" />
+          {['all', ...types].map(t => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                typeFilter === t
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+              }`}
+            >
+              {t === 'all' ? 'All' : t.replace(/_/g, ' ')}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Notifications List */}
-      <div className="max-h-[32rem] overflow-y-auto">
+      <div className="max-h-[28rem] overflow-y-auto">
         {loading && notifications.length === 0 ? (
           <div className="p-4 space-y-3">
             {[1, 2, 3].map((i) => (
@@ -99,9 +124,13 @@ export default function NotificationPanel({
             <p className="text-gray-400 mb-1">No notifications</p>
             <p className="text-sm text-gray-500">You&apos;re all caught up!</p>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-gray-500 text-sm">No {typeFilter.replace(/_/g, ' ')} notifications</p>
+          </div>
         ) : (
           <div className="p-2 space-y-1">
-            {notifications.map((notification) => (
+            {filtered.map((notification) => (
               <button
                 key={notification.id}
                 onClick={() => !notification.read && onMarkRead(notification.id)}

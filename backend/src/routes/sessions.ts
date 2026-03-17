@@ -243,6 +243,96 @@ router.get('/analytics', authMiddleware, async (req: AuthRequest, res: Response)
   }
 });
 
+// List current user's device sessions
+router.get('/list', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const sessions = await prisma.userActivitySession.findMany({
+      where: { userId: req.user!.id },
+      orderBy: { sessionStart: 'desc' },
+      take: 20,
+    });
+
+    // Mark the most recent active session as current
+    const currentSessionId = sessions.find(s => s.sessionEnd === null)?.id ?? null;
+
+    const formatted = sessions.map(s => ({
+      id: s.id,
+      device: s.pageVisited, // repurposed as device/page context
+      lastActive: s.lastHeartbeat,
+      sessionStart: s.sessionStart,
+      sessionEnd: s.sessionEnd,
+      durationMinutes: s.durationMinutes,
+      isCurrent: s.id === currentSessionId,
+    }));
+
+    res.json({ success: true, data: formatted, error: null });
+  } catch (error) {
+    console.error('Error listing sessions:', error);
+    res.status(500).json({ success: false, data: null, error: 'Failed to list sessions' });
+  }
+});
+
+// End a specific session
+router.post('/end/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const sessionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const session = await prisma.userActivitySession.findUnique({ where: { id: sessionId } });
+
+    if (!session || session.userId !== req.user!.id) {
+      return res.status(404).json({ success: false, error: 'Session not found' });
+    }
+
+    const now = new Date();
+    await prisma.userActivitySession.update({
+      where: { id: sessionId },
+      data: {
+        sessionEnd: now,
+        durationMinutes: Math.floor((now.getTime() - session.sessionStart.getTime()) / 60000),
+      },
+    });
+
+    res.json({ success: true, data: null, error: null });
+  } catch (error) {
+    console.error('Error ending session:', error);
+    res.status(500).json({ success: false, data: null, error: 'Failed to end session' });
+  }
+});
+
+// End all sessions except current
+router.post('/end-all', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    // Find current active session (most recent)
+    const current = await prisma.userActivitySession.findFirst({
+      where: { userId: req.user!.id, sessionEnd: null },
+      orderBy: { sessionStart: 'desc' },
+    });
+
+    const now = new Date();
+    const otherSessions = await prisma.userActivitySession.findMany({
+      where: {
+        userId: req.user!.id,
+        sessionEnd: null,
+        ...(current ? { id: { not: current.id } } : {}),
+      },
+    });
+
+    for (const s of otherSessions) {
+      await prisma.userActivitySession.update({
+        where: { id: s.id },
+        data: {
+          sessionEnd: now,
+          durationMinutes: Math.floor((now.getTime() - s.sessionStart.getTime()) / 60000),
+        },
+      });
+    }
+
+    res.json({ success: true, data: { ended: otherSessions.length }, error: null });
+  } catch (error) {
+    console.error('Error ending all sessions:', error);
+    res.status(500).json({ success: false, data: null, error: 'Failed to end sessions' });
+  }
+});
+
 // Get all user sessions (admin only)
 router.get('/all', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
   try {

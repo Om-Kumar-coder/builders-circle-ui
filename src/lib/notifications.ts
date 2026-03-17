@@ -10,7 +10,8 @@ export type NotificationType =
   | 'user_mentioned'
   | 'stall_recovery'
   | 'ownership_decay'
-  | 'cycle_finalized';
+  | 'cycle_finalized'
+  | 'security_alert';
 
 export interface Notification {
   id: string;
@@ -91,6 +92,8 @@ export function getNotificationIcon(type: NotificationType): string {
       return '📉';
     case 'cycle_finalized':
       return '🏁';
+    case 'security_alert':
+      return '🔐';
     default:
       return '🔔';
   }
@@ -118,6 +121,8 @@ export function getNotificationColor(type: NotificationType): string {
       return 'bg-red-500/10 border-red-500/30 text-red-400';
     case 'cycle_finalized':
       return 'bg-violet-500/10 border-violet-500/30 text-violet-400';
+    case 'security_alert':
+      return 'bg-red-500/10 border-red-500/30 text-red-400';
     default:
       return 'bg-gray-500/10 border-gray-500/30 text-gray-400';
   }

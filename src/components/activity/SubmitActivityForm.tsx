@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { submitActivity } from '@/lib/activity';
-import { ActivitySubmission, ACTIVITY_TYPE_LABELS, CONTRIBUTION_WEIGHTS, ACTIVITY_LIMITS } from '@/types/activity';
+import { ActivitySubmission, ACTIVITY_TYPE_LABELS, ACTIVITY_LIMITS } from '@/types/activity';
 import { Clock, FileText, Link as LinkIcon, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface SubmitActivityFormProps {
@@ -55,7 +55,7 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
         workSummary: formData.workSummary,
         taskReference: formData.taskReference,
         contributionType: formData.contributionType!,
-        contributionWeight: CONTRIBUTION_WEIGHTS[formData.contributionType!],
+        contributionWeight: 1.0,
       };
 
       const result = await submitActivity(userId, submission);
@@ -112,7 +112,7 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
           >
             {Object.entries(ACTIVITY_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
-                {label} (Weight: {CONTRIBUTION_WEIGHTS[value as keyof typeof CONTRIBUTION_WEIGHTS]}x)
+                {label}
               </option>
             ))}
           </select>

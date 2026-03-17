@@ -82,8 +82,14 @@ export default function AccountabilityStatus({ userId, cycleId }: Accountability
           riskLevel
         });
       } catch (err) {
-        console.error('Error fetching accountability data:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load accountability status');
+        // 404 = user hasn't joined this cycle yet — show empty state silently
+        const status = (err as { status?: number }).status;
+        if (status === 404 || (err instanceof Error && err.message.toLowerCase().includes('not found'))) {
+          setData(null);
+        } else {
+          console.error('Error fetching accountability data:', err);
+          setError(err instanceof Error ? err.message : 'Failed to load accountability status');
+        }
       } finally {
         setLoading(false);
       }

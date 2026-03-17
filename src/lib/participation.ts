@@ -117,12 +117,10 @@ export async function getParticipationStatus(userId: string): Promise<{
  * Get all participants for a specific cycle
  */
 export async function getCycleParticipants(
-  _cycleId: string
+  cycleId: string
 ): Promise<ParticipationRecord[]> {
   try {
-    // This would need to be implemented in the backend
-    // For now, return empty array
-    return [];
+    return await apiClient.getCycleParticipants(cycleId);
   } catch (error) {
     console.error('Error fetching cycle participants:', error);
     return [];

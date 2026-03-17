@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useCycles } from '@/hooks/useCycles';
 import MainLayout from '@/components/layout/MainLayout';
 import CycleCard from '@/components/cycles/CycleCard';
@@ -12,10 +13,9 @@ import { Zap } from 'lucide-react';
 
 export default function BuildCyclesPage() {
   const { user, loading: authLoading } = useAuth();
+  const { isAdmin } = usePermissions();
   const { cycles, loading: cyclesLoading, error, refetch } = useCycles();
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
 
   if (authLoading) {
     return <LoadingScreen />;

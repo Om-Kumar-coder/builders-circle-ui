@@ -1,10 +1,15 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { authMiddleware, roleMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, roleMiddleware, requireFullAccess, AuthRequest } from '../middleware/auth';
 import { ReputationService } from '../services/reputationService';
+import { requireAgreement } from '../middleware/requireAgreement';
+import { validateActivitySubmission } from '../services/activityValidationService';
 
 const router = Router();
+
+// All activity routes require an accepted agreement
+router.use(requireAgreement);
 
 const createActivitySchema = z.object({
   cycleId: z.string(),
@@ -29,6 +34,7 @@ const verifyActivitySchema = z.object({
 const ACTIVITY_LIMITS = {
   MAX_ACTIVITIES_PER_DAY: 10,
   MAX_HOURS_PER_DAY: 12,
+  SUBMISSION_COOLDOWN_SECONDS: 60, // minimum gap between submissions per user
 };
 
 // Check daily limits
@@ -176,7 +182,7 @@ router.get('/pending', authMiddleware, roleMiddleware(['admin', 'founder']), asy
 });
 
 // Create activity
-router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res: Response) => {
   try {
     console.log('🚀 Creating activity:', {
       userId: req.user?.id,
@@ -191,7 +197,45 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       return res.status(429).json({
         success: false,
         data: null,
-        error: limitsCheck.error
+        error: limitsCheck.error,
+      });
+    }
+
+    // Per-user submission cooldown (backend-enforced)
+    const lastSubmission = await prisma.activityEvent.findFirst({
+      where: { userId: req.user!.id },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    if (lastSubmission) {
+      const secondsSinceLast = (Date.now() - lastSubmission.createdAt.getTime()) / 1000;
+      if (secondsSinceLast < ACTIVITY_LIMITS.SUBMISSION_COOLDOWN_SECONDS) {
+        const remaining = Math.ceil(ACTIVITY_LIMITS.SUBMISSION_COOLDOWN_SECONDS - secondsSinceLast);
+        return res.status(429).json({
+          success: false,
+          data: null,
+          error: `Please wait ${remaining} seconds before submitting another activity.`,
+        });
+      }
+    }
+
+    // Proof URL, duplicate, and quality validation
+    const validation = await validateActivitySubmission({
+      userId: req.user!.id,
+      cycleId: data.cycleId,
+      contributionType: data.contributionType,
+      proofLink: data.proofLink,
+      description: data.description,
+      workSummary: data.workSummary,
+      hoursLogged: data.hoursLogged,
+    });
+    if (!validation.valid) {
+      return res.status(422).json({
+        success: false,
+        data: null,
+        error: 'Activity validation failed',
+        details: validation.errors,
+        warnings: validation.warnings,
       });
     }
 
@@ -234,6 +278,25 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
         success: false,
         data: null,
         error: 'Must be participating in cycle to submit activities'
+      });
+    }
+
+    // Check if user is on leave
+    const now = new Date();
+    const activeLeave = await prisma.participationLeave.findFirst({
+      where: {
+        userId: req.user!.id,
+        cycleId: data.cycleId,
+        status: 'paused',
+        leaveStart: { lte: now },
+        OR: [{ leaveEnd: null }, { leaveEnd: { gte: now } }],
+      },
+    });
+    if (activeLeave) {
+      return res.status(403).json({
+        success: false,
+        data: null,
+        error: 'Cannot submit activities while on leave',
       });
     }
 
@@ -280,80 +343,13 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // Update participation's lastActivityDate and handle stall recovery
-    const wasInStall = participation && ['at_risk', 'diminishing', 'paused'].includes(participation.stallStage);
-    
-    await prisma.cycleParticipation.update({
-      where: {
-        userId_cycleId: {
-          userId: req.user!.id,
-          cycleId: data.cycleId
-        }
-      },
-      data: {
-        lastActivityDate: new Date(),
-        stallStage: 'active',
-        participationStatus: 'active'
-      }
-    });
+    // Do NOT touch lastActivityDate or stallStage on submission.
+    // The stall clock resets only on verified activity (handled in the verify route).
+    // Resetting on submission would let users game the countdown by spamming pending activities.
 
-    // If user was in stall, create recovery notification and potentially restore multiplier
-    if (wasInStall) {
-      // Create stall recovery notification
-      await prisma.notification.create({
-        data: {
-          userId: req.user!.id,
-          type: 'stall_recovery',
-          message: 'Welcome back! Your participation status has been restored to active.',
-          metadata: JSON.stringify({ 
-            cycleId: data.cycleId, 
-            previousStage: participation.stallStage,
-            recoveredAt: new Date()
-          }),
-        }
-      });
-
-      // Check if multiplier needs to be restored to 1.0
-      const currentMultiplier = await prisma.multiplier.findFirst({
-        where: {
-          userId: req.user!.id,
-          cycleId: data.cycleId
-        },
-        orderBy: { createdAt: 'desc' }
-      });
-
-      if (!currentMultiplier || currentMultiplier.multiplier < 1.0) {
-        // Create new multiplier record for recovery
-        await prisma.multiplier.create({
-          data: {
-            userId: req.user!.id,
-            cycleId: data.cycleId,
-            multiplier: 1.0,
-            reason: `Stall recovery: restored from ${participation.stallStage} to active`
-          }
-        });
-
-        // Create ledger entry for multiplier recovery
-        await prisma.ownershipLedger.create({
-          data: {
-            userId: req.user!.id,
-            cycleId: data.cycleId,
-            eventType: 'multiplier_recovery',
-            ownershipAmount: 0, // No ownership change, just multiplier
-            multiplierSnapshot: 1.0,
-            sourceReference: activity.id,
-            createdBy: 'system'
-          }
-        });
-      }
-
-      console.log('🔄 Stall recovery triggered:', {
-        userId: req.user!.id,
-        cycleId: data.cycleId,
-        previousStage: participation.stallStage,
-        multiplierRestored: !currentMultiplier || currentMultiplier.multiplier < 1.0
-      });
-    }
+    // NOTE: stall recovery (lastActivityDate reset, multiplier restore, notification)
+    // is intentionally handled only in the verify route, not here.
+    // This prevents users from gaming the stall countdown by submitting unverified activities.
 
     console.log('✅ Activity created successfully:', {
       activityId: activity.id,
@@ -365,6 +361,7 @@ router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
     res.status(201).json({
       success: true,
       data: activity,
+      warnings: validation.warnings.length > 0 ? validation.warnings : undefined,
       error: null
     });
   } catch (error) {
@@ -415,6 +412,15 @@ router.patch('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder'])
       });
     }
 
+    // Prevent double-verification
+    if (existingActivity.status !== 'pending') {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: `Activity has already been ${existingActivity.status}. Use PATCH /:id/verify only on pending activities.`,
+      });
+    }
+
     // Calculate ownership if verified and not provided
     let calculatedOwnership = verificationData.calculatedOwnership || 0;
     if (verificationData.status === 'verified' && !verificationData.calculatedOwnership) {
@@ -424,181 +430,143 @@ router.patch('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder'])
       calculatedOwnership = baseReward * existingActivity.contributionWeight * hoursFactor;
     }
 
-    // Update activity
-    const activity = await prisma.activityEvent.update({
-      where: { id: activityId },
-      data: {
-        status: verificationData.status,
-        rejectionReason: verificationData.rejectionReason,
-        feedbackComment: verificationData.feedbackComment,
-        feedbackAuthor: verificationData.feedbackComment ? req.user!.id : null,
-        feedbackTimestamp: verificationData.feedbackComment ? new Date() : null,
-        calculatedOwnership,
-        verifiedBy: req.user!.id,
-        verifiedAt: new Date(),
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true
-          }
-        },
-        cycle: {
-          select: {
-            id: true,
-            name: true,
-            state: true
-          }
-        },
-        verifier: {
-          select: {
-            id: true,
-            email: true,
-            name: true
-          }
-        },
-        feedbackGiver: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
-      }
-    });
-
-    // If activity was verified, create ownership ledger entry and handle stall recovery
-    if (verificationData.status === 'verified' && calculatedOwnership > 0) {
-      await prisma.ownershipLedger.create({
+    // ── Atomic transaction ────────────────────────────────────────────────────
+    const activity = await prisma.$transaction(async (tx) => {
+      // Update activity status
+      const updated = await tx.activityEvent.update({
+        where: { id: activityId },
         data: {
-          userId: activity.userId,
-          cycleId: activity.cycleId,
-          eventType: 'contribution_approved',
-          ownershipAmount: calculatedOwnership,
-          multiplierSnapshot: 1.0, // Will be updated by multiplier system
-          sourceReference: activity.id,
-          createdBy: req.user!.id
-        }
-      });
-
-      // Check if user was in stall and trigger recovery
-      const participation = await prisma.cycleParticipation.findUnique({
-        where: {
-          userId_cycleId: {
-            userId: activity.userId,
-            cycleId: activity.cycleId
-          }
-        }
-      });
-
-      if (participation && ['at_risk', 'diminishing', 'paused'].includes(participation.stallStage)) {
-        // Update participation status to active
-        await prisma.cycleParticipation.update({
-          where: {
-            userId_cycleId: {
-              userId: activity.userId,
-              cycleId: activity.cycleId
-            }
-          },
-          data: {
-            stallStage: 'active',
-            participationStatus: 'active',
-            lastActivityDate: new Date()
-          }
-        });
-
-        // Create recovery notification
-        await prisma.notification.create({
-          data: {
-            userId: activity.userId,
-            type: 'stall_recovery',
-            message: 'Your verified activity has restored your participation status to active!',
-            metadata: JSON.stringify({ 
-              cycleId: activity.cycleId, 
-              previousStage: participation.stallStage,
-              activityId: activity.id,
-              recoveredAt: new Date()
-            }),
-          }
-        });
-
-        // Restore multiplier to 1.0 if needed
-        const currentMultiplier = await prisma.multiplier.findFirst({
-          where: {
-            userId: activity.userId,
-            cycleId: activity.cycleId
-          },
-          orderBy: { createdAt: 'desc' }
-        });
-
-        if (!currentMultiplier || currentMultiplier.multiplier < 1.0) {
-          await prisma.multiplier.create({
-            data: {
-              userId: activity.userId,
-              cycleId: activity.cycleId,
-              multiplier: 1.0,
-              reason: `Activity recovery: verified activity restored multiplier from ${participation.stallStage}`
-            }
-          });
-
-          // Create ledger entry for multiplier recovery
-          await prisma.ownershipLedger.create({
-            data: {
-              userId: activity.userId,
-              cycleId: activity.cycleId,
-              eventType: 'multiplier_recovery',
-              ownershipAmount: 0,
-              multiplierSnapshot: 1.0,
-              sourceReference: activity.id,
-              createdBy: req.user!.id
-            }
-          });
-        }
-
-        console.log('🔄 Stall recovery on verification:', {
-          userId: activity.userId,
-          cycleId: activity.cycleId,
-          previousStage: participation.stallStage,
-          activityId: activity.id
-        });
-      }
-    }
-
-    // Create audit trail
-    await prisma.auditTrail.create({
-      data: {
-        adminId: req.user!.id,
-        action: 'activity_verification',
-        targetUserId: activity.userId,
-        previousValue: JSON.stringify({ status: 'pending' }),
-        newValue: JSON.stringify({ 
           status: verificationData.status,
-          calculatedOwnership,
-          rejectionReason: verificationData.rejectionReason 
-        }),
-        reason: `Activity ${verificationData.status}: ${activity.activityType}`,
-      }
-    });
-
-    // Create notification for user
-    await prisma.notification.create({
-      data: {
-        userId: activity.userId,
-        type: 'activity_verified',
-        message: verificationData.status === 'verified' 
-          ? `Your ${activity.contributionType} activity was verified and earned ${calculatedOwnership.toFixed(3)} ownership${verificationData.feedbackComment ? `. Admin feedback: ${verificationData.feedbackComment}` : ''}`
-          : verificationData.status === 'rejected'
-          ? `Your ${activity.contributionType} activity was rejected${verificationData.rejectionReason ? `: ${verificationData.rejectionReason}` : ''}${verificationData.feedbackComment ? `. Admin feedback: ${verificationData.feedbackComment}` : ''}`
-          : `Changes requested for your ${activity.contributionType} activity${verificationData.rejectionReason ? `: ${verificationData.rejectionReason}` : ''}${verificationData.feedbackComment ? `. Admin feedback: ${verificationData.feedbackComment}` : ''}`,
-        metadata: JSON.stringify({
-          activityId: activity.id,
-          status: verificationData.status,
-          calculatedOwnership,
+          rejectionReason: verificationData.rejectionReason,
           feedbackComment: verificationData.feedbackComment,
-        }),
+          feedbackAuthor: verificationData.feedbackComment ? req.user!.id : null,
+          feedbackTimestamp: verificationData.feedbackComment ? new Date() : null,
+          calculatedOwnership,
+          verifiedBy: req.user!.id,
+          verifiedAt: new Date(),
+        },
+        include: {
+          user: { select: { id: true, email: true, name: true } },
+          cycle: { select: { id: true, name: true, state: true } },
+          verifier: { select: { id: true, email: true, name: true } },
+          feedbackGiver: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      if (verificationData.status === 'verified' && calculatedOwnership > 0) {
+        // Get current multiplier inside transaction
+        const latestMultiplier = await tx.multiplier.findFirst({
+          where: { userId: updated.userId, cycleId: updated.cycleId },
+          orderBy: { createdAt: 'desc' },
+        });
+        const multiplierSnapshot = latestMultiplier?.multiplier ?? 1.0;
+
+        // Write ownership ledger entry
+        await tx.ownershipLedger.create({
+          data: {
+            userId: updated.userId,
+            cycleId: updated.cycleId,
+            eventType: 'contribution_approved',
+            ownershipAmount: calculatedOwnership,
+            multiplierSnapshot,
+            sourceReference: updated.id,
+            createdBy: req.user!.id,
+          },
+        });
+
+        // Stall recovery
+        const participation = await tx.cycleParticipation.findUnique({
+          where: { userId_cycleId: { userId: updated.userId, cycleId: updated.cycleId } },
+        });
+
+        if (participation) {
+          const wasInStall = ['at_risk', 'diminishing', 'paused'].includes(participation.stallStage);
+
+          await tx.cycleParticipation.update({
+            where: { userId_cycleId: { userId: updated.userId, cycleId: updated.cycleId } },
+            data: {
+              lastActivityDate: new Date(),
+              ...(wasInStall && { stallStage: 'active', participationStatus: 'active' }),
+            },
+          });
+
+          if (wasInStall) {
+            await tx.notification.create({
+              data: {
+                userId: updated.userId,
+                type: 'stall_recovery',
+                message: 'Your verified activity has restored your participation status to active!',
+                metadata: JSON.stringify({
+                  cycleId: updated.cycleId,
+                  previousStage: participation.stallStage,
+                  activityId: updated.id,
+                  recoveredAt: new Date(),
+                }),
+              },
+            });
+
+            if (!latestMultiplier || latestMultiplier.multiplier < 1.0) {
+              await tx.multiplier.create({
+                data: {
+                  userId: updated.userId,
+                  cycleId: updated.cycleId,
+                  multiplier: 1.0,
+                  reason: `Stall recovery: verified activity restored multiplier from ${participation.stallStage}`,
+                },
+              });
+              await tx.ownershipLedger.create({
+                data: {
+                  userId: updated.userId,
+                  cycleId: updated.cycleId,
+                  eventType: 'multiplier_recovery',
+                  ownershipAmount: 0,
+                  multiplierSnapshot: 1.0,
+                  sourceReference: updated.id,
+                  createdBy: req.user!.id,
+                },
+              });
+            }
+          }
+        }
       }
+
+      // Audit trail
+      await tx.auditTrail.create({
+        data: {
+          adminId: req.user!.id,
+          action: 'activity_verification',
+          targetUserId: updated.userId,
+          previousValue: JSON.stringify({ status: 'pending' }),
+          newValue: JSON.stringify({
+            status: verificationData.status,
+            calculatedOwnership,
+            rejectionReason: verificationData.rejectionReason,
+          }),
+          reason: `Activity ${verificationData.status}: ${updated.activityType}`,
+        },
+      });
+
+      // Notification
+      await tx.notification.create({
+        data: {
+          userId: updated.userId,
+          type: 'activity_verified',
+          message:
+            verificationData.status === 'verified'
+              ? `Your ${updated.contributionType} activity was verified and earned ${calculatedOwnership.toFixed(3)} ownership${verificationData.feedbackComment ? `. Admin feedback: ${verificationData.feedbackComment}` : ''}`
+              : verificationData.status === 'rejected'
+              ? `Your ${updated.contributionType} activity was rejected${verificationData.rejectionReason ? `: ${verificationData.rejectionReason}` : ''}${verificationData.feedbackComment ? `. Admin feedback: ${verificationData.feedbackComment}` : ''}`
+              : `Changes requested for your ${updated.contributionType} activity${verificationData.rejectionReason ? `: ${verificationData.rejectionReason}` : ''}${verificationData.feedbackComment ? `. Admin feedback: ${verificationData.feedbackComment}` : ''}`,
+          metadata: JSON.stringify({
+            activityId: updated.id,
+            status: verificationData.status,
+            calculatedOwnership,
+            feedbackComment: verificationData.feedbackComment,
+          }),
+        },
+      });
+
+      return updated;
     });
 
     // Recalculate reputation and cycle engagement after verification
@@ -633,159 +601,11 @@ router.patch('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder'])
   }
 });
 
-// POST alias for verify (backward compatibility) - delegates to same logic as PATCH
-router.post('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
-  const activityId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  try {
-    const verificationData = verifyActivitySchema.parse(req.body);
-    const existingActivity = await prisma.activityEvent.findUnique({ where: { id: activityId }, include: { user: true } });
-    if (!existingActivity) return res.status(404).json({ success: false, data: null, error: 'Activity not found' });
-    if (existingActivity.userId === req.user!.id) return res.status(403).json({ success: false, data: null, error: 'Cannot verify your own activities' });
-    let calculatedOwnership = verificationData.calculatedOwnership || 0;
-    if (verificationData.status === 'verified' && !verificationData.calculatedOwnership) {
-      const hoursFactor = Math.min((existingActivity.hoursLogged || 1) / 4, 2);
-      calculatedOwnership = 0.1 * existingActivity.contributionWeight * hoursFactor;
-    }
-    const activity = await prisma.activityEvent.update({
-      where: { id: activityId },
-      data: { status: verificationData.status, rejectionReason: verificationData.rejectionReason, feedbackComment: verificationData.feedbackComment, calculatedOwnership, verifiedBy: req.user!.id, verifiedAt: new Date() }
-    });
-    ReputationService.calculateUserReputation(existingActivity.userId).catch(() => {});
-    res.json({ success: true, data: activity, error: null });
-  } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ success: false, data: null, error: error.errors.map(e => e.message).join(', ') });
-    res.status(500).json({ success: false, data: null, error: 'Failed to verify activity' });
-  }
-});
+// POST alias for verify — REMOVED (use PATCH /:id/verify)
+// Dedicated approve route — REMOVED (use PATCH /:id/verify with status: 'verified')
+// Dedicated reject route — REMOVED (use PATCH /:id/verify with status: 'rejected')
 
-// Dedicated approve route
-router.post('/:id/approve', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
-  req.body = { ...req.body, status: 'verified' };
-  const activityId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  try {
-    const existingActivity = await prisma.activityEvent.findUnique({ where: { id: activityId } });
-    if (!existingActivity) return res.status(404).json({ success: false, error: 'Activity not found' });
-    const hoursLogged = existingActivity.hoursLogged || 1;
-    const hoursFactor = Math.min(hoursLogged / 4, 2);
-    const calculatedOwnership = 0.1 * existingActivity.contributionWeight * hoursFactor;
-    await prisma.activityEvent.update({
-      where: { id: activityId },
-      data: { status: 'verified', calculatedOwnership, verifiedBy: req.user!.id, verifiedAt: new Date() }
-    });
-    ReputationService.calculateUserReputation(existingActivity.userId).catch(() => {});
-    res.json({ success: true, data: { activityId, status: 'verified', calculatedOwnership }, error: null });
-  } catch (_error) {
-    res.status(500).json({ success: false, error: 'Failed to approve activity' });
-  }
-});
-
-// Dedicated reject route
-router.post('/:id/reject', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
-  const activityId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  try {
-    const existingActivity = await prisma.activityEvent.findUnique({ where: { id: activityId } });
-    if (!existingActivity) return res.status(404).json({ success: false, error: 'Activity not found' });
-    await prisma.activityEvent.update({
-      where: { id: activityId },
-      data: { status: 'rejected', rejectionReason: req.body.reason, verifiedBy: req.user!.id, verifiedAt: new Date() }
-    });
-    res.json({ success: true, data: { activityId, status: 'rejected' }, error: null });
-  } catch (_error) {
-    res.status(500).json({ success: false, error: 'Failed to reject activity' });
-  }
-});
-
-// Dedicated request-changes route
-router.post('/:id/request-changes', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
-  const activityId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  try {
-    const existingActivity = await prisma.activityEvent.findUnique({ where: { id: activityId } });
-    if (!existingActivity) return res.status(404).json({ success: false, error: 'Activity not found' });
-    await prisma.activityEvent.update({
-      where: { id: activityId },
-      data: { status: 'changes_requested', rejectionReason: req.body.reason, verifiedBy: req.user!.id, verifiedAt: new Date() }
-    });
-    res.json({ success: true, data: { activityId, status: 'changes_requested' }, error: null });
-  } catch (_error) {
-    res.status(500).json({ success: false, error: 'Failed to request changes' });
-  }
-});
-
-// Update activity (admin only for verification)
-router.patch('/:id', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
-  try {
-    const activityId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const updateData = verifyActivitySchema.parse(req.body);
-
-    const activity = await prisma.activityEvent.update({
-      where: { id: activityId },
-      data: {
-        status: updateData.status,
-        rejectionReason: updateData.rejectionReason,
-        calculatedOwnership: updateData.calculatedOwnership || 0,
-        verifiedBy: req.user!.id,
-        verifiedAt: new Date(),
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true
-          }
-        },
-        cycle: {
-          select: {
-            id: true,
-            name: true,
-            state: true
-          }
-        },
-        verifier: {
-          select: {
-            id: true,
-            email: true,
-            name: true
-          }
-        }
-      }
-    });
-
-    // If activity was verified, create ownership ledger entry
-    if (updateData.status === 'verified' && updateData.calculatedOwnership) {
-      await prisma.ownershipLedger.create({
-        data: {
-          userId: activity.userId,
-          cycleId: activity.cycleId,
-          eventType: 'contribution_approved',
-          ownershipAmount: updateData.calculatedOwnership,
-          multiplierSnapshot: 1.0, // Will be updated by multiplier system
-          sourceReference: activity.id,
-          createdBy: req.user!.id
-        }
-      });
-    }
-
-    res.json({
-      success: true,
-      data: activity,
-      error: null
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        success: false,
-        data: null,
-        error: error.issues.map(i => i.message).join(', ')
-      });
-    }
-    res.status(500).json({ 
-      success: false,
-      data: null,
-      error: 'Internal server error' 
-    });
-  }
-});
+// Generic PATCH /:id — REMOVED. Use PATCH /:id/verify for all verification actions.
 
 // Delete activity (admin only)
 router.delete('/:id', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
@@ -803,7 +623,7 @@ router.delete('/:id', authMiddleware, roleMiddleware(['admin', 'founder']), asyn
 });
 
 // Create dispute for activity
-router.post('/:id/dispute', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/:id/dispute', authMiddleware, requireFullAccess, async (req: AuthRequest, res: Response) => {
   try {
     const activityId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const schema = z.object({

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { apiClient } from '@/lib/api-client';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
@@ -28,6 +29,7 @@ const CONTRIBUTION_TYPE_LABELS: Record<string, string> = {
 
 export default function WeightsManagementPage() {
   const { user, loading: authLoading } = useAuth();
+  const { isAdmin } = usePermissions();
   const [weights, setWeights] = useState<ContributionWeight[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -50,10 +52,10 @@ export default function WeightsManagementPage() {
   };
 
   useEffect(() => {
-    if (user?.role === 'admin' || user?.role === 'founder') {
+    if (isAdmin) {
       fetchWeights();
     }
-  }, [user]);
+  }, [isAdmin]);
 
   const handleWeightChange = (contributionType: string, value: string) => {
     const numValue = parseFloat(value);

@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import { JobScheduler } from './jobs/scheduler';
 import logger from './utils/logger';
@@ -18,55 +19,78 @@ import analyticsRoutes from './routes/analytics';
 import sessionRoutes from './routes/sessions';
 import weightRoutes from './routes/weights';
 import messageRoutes from './routes/messages';
+import securityRoutes from './routes/security';
+import agreementRoutes from './routes/agreements';
+import taskRoutes from './routes/tasks';
+import leaveRoutes from './routes/leave';
+import logsRoutes from './routes/logs';
+import onboardingRoutes from './routes/onboarding';
+import docsRoutes from './routes/docs';
+import { authMiddleware } from './middleware/auth';
+import { requireEmailVerified } from './middleware/requireEmailVerified';
+import { requireOnboarding } from './middleware/requireOnboarding';
+import { require2FA } from './middleware/require2FA';
+import { requireAgreement } from './middleware/requireAgreement';
 
 const app = express();
 
-// Security middleware
+// Security middleware — strict CSP
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
-  contentSecurityPolicy: false
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'", env.FRONTEND_URL],
+      imgSrc: ["'self'", 'data:'],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  },
 }));
 
-// Handle preflight requests explicitly
-app.options('*', (req: Request, res: Response) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.sendStatus(200);
-});
-
-// More permissive CORS for development
+// CORS — only allow the configured frontend origin
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    return callback(null, true);
-  },
+  origin: env.FRONTEND_URL,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Step-Up-Token'],
   preflightContinue: false,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
 }));
 
-// Rate limiting - more permissive for development
+// Global rate limiter — 10000 req / 15 min per IP
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10000, // limit each IP to 10000 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 10000,
   message: {
     success: false,
     data: null,
-    error: 'Too many requests from this IP, please try again later.'
+    error: 'Too many requests from this IP, please try again later.',
   },
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use(limiter);
 
+// Stricter limiter for auth routes — 20 req / 15 min per IP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: {
+    success: false,
+    data: null,
+    error: 'Too many authentication attempts, please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -85,22 +109,42 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/cycles', cycleRoutes);
-app.use('/api/participation', participationRoutes);
-app.use('/api/activities', activityRoutes);
-app.use('/api/ownership', ownershipRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/sessions', sessionRoutes);
-app.use('/api/weights', weightRoutes);
-app.use('/api/messages', messageRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/agreements', agreementRoutes);
 
-// Error handling middleware
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+// Protected routes — require auth + 2FA enabled + completed onboarding
+const onboardingGuard = [authMiddleware, requireEmailVerified, require2FA, requireOnboarding];
+
+// Routes that additionally require the active agreement to be accepted.
+// Admins/founders are exempt so they can manage agreements without being locked out.
+const agreementGuard = [authMiddleware, requireEmailVerified, require2FA, requireOnboarding, requireAgreement];
+
+app.use('/api/cycles', onboardingGuard, cycleRoutes);
+app.use('/api/participation', agreementGuard, participationRoutes);
+app.use('/api/activities', agreementGuard, activityRoutes);
+app.use('/api/ownership', agreementGuard, ownershipRoutes);
+app.use('/api/analytics', agreementGuard, analyticsRoutes);
+app.use('/api/docs', agreementGuard, docsRoutes);
+app.use('/api/tasks', agreementGuard, taskRoutes);
+app.use('/api/leave', agreementGuard, leaveRoutes);
+app.use('/api/messages', agreementGuard, messageRoutes);
+app.use('/api/notifications', onboardingGuard, notificationRoutes);
+app.use('/api/admin', onboardingGuard, adminRoutes);
+app.use('/api/sessions', onboardingGuard, sessionRoutes);
+app.use('/api/weights', onboardingGuard, weightRoutes);
+app.use('/api/security', onboardingGuard, securityRoutes);
+app.use('/api/logs', onboardingGuard, logsRoutes);
+
+// Central error handling middleware — standard API error format
+app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+  const status = err.status ?? err.statusCode ?? 500;
+  logger.error('Unhandled error:', { message: err.message, stack: err.stack, status });
+  res.status(status).json({
+    success: false,
+    data: null,
+    error: status < 500 ? err.message : 'Internal server error',
+  });
 });
 
 // 404 handler

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { apiClient } from '@/lib/api-client';
 import { ActivityEvent } from '@/types/activity';
 import { ACTIVITY_TYPE_LABELS } from '@/types/activity';
@@ -19,10 +20,13 @@ import {
 
 export default function ActivityReviewPage() {
   const { user, loading: authLoading } = useAuth();
+  const { isAdmin } = usePermissions();
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const fetchPendingActivities = async () => {
     try {
@@ -39,10 +43,10 @@ export default function ActivityReviewPage() {
   };
 
   useEffect(() => {
-    if (user?.role === 'admin' || user?.role === 'founder') {
+    if (isAdmin) {
       fetchPendingActivities();
     }
-  }, [user]);
+  }, [isAdmin]);
 
   const handleVerification = async (
     activityId: string,
@@ -71,11 +75,35 @@ export default function ActivityReviewPage() {
 
       // Remove from pending list
       setActivities(prev => prev.filter(a => a.id !== activityId));
+      setSelected(prev => { const s = new Set(prev); s.delete(activityId); return s; });
     } catch (err: unknown) {
       console.error('Error verifying activity:', err);
       setError((err as Error).message || 'Failed to verify activity');
     } finally {
       setVerifying(null);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const s = new Set(prev);
+      if (s.has(id)) { s.delete(id); } else { s.add(id); }
+      return s;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelected(prev => prev.size === activities.length ? new Set() : new Set(activities.map(a => a.id)));
+  };
+
+  const handleBulkApprove = async () => {
+    if (selected.size === 0) return;
+    setBulkProcessing(true);
+    try {
+      await Promise.all(Array.from(selected).map(id => handleVerification(id, 'verified')));
+      setSelected(new Set());
+    } finally {
+      setBulkProcessing(false);
     }
   };
 
@@ -160,7 +188,32 @@ export default function ActivityReviewPage() {
 
         {/* Activities List */}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-          <h2 className="text-xl font-semibold text-gray-100 mb-6">Pending Activities</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-100">Pending Activities</h2>
+            {activities.length > 0 && !loading && (
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={selected.size === activities.length && activities.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-600 bg-gray-800 accent-indigo-500"
+                  />
+                  Select all
+                </label>
+                {selected.size > 0 && (
+                  <button
+                    onClick={handleBulkApprove}
+                    disabled={bulkProcessing}
+                    className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve {selected.size} selected
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {loading ? (
             <div className="space-y-4">
@@ -191,6 +244,8 @@ export default function ActivityReviewPage() {
                   activity={activity}
                   onVerify={handleVerification}
                   isVerifying={verifying === activity.id}
+                  selected={selected.has(activity.id)}
+                  onToggleSelect={toggleSelect}
                 />
               ))}
             </div>
@@ -205,9 +260,11 @@ interface ActivityReviewCardProps {
   activity: ActivityEvent;
   onVerify: (id: string, status: 'verified' | 'rejected' | 'changes_requested', reason?: string) => void;
   isVerifying: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-function ActivityReviewCard({ activity, onVerify, isVerifying }: ActivityReviewCardProps) {
+function ActivityReviewCard({ activity, onVerify, isVerifying, selected, onToggleSelect }: ActivityReviewCardProps) {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
 
@@ -238,8 +295,17 @@ function ActivityReviewCard({ activity, onVerify, isVerifying }: ActivityReviewC
   const potentialOwnership = baseReward * activity.contributionWeight * hoursFactor;
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 hover:bg-gray-800/70 transition-colors">
+    <div className={`bg-gray-800/50 border rounded-lg p-6 hover:bg-gray-800/70 transition-colors ${selected ? 'border-indigo-500/60' : 'border-gray-700/50'}`}>
       <div className="flex items-start gap-4">
+        {/* Select checkbox */}
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={() => onToggleSelect(activity.id)}
+            className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 accent-indigo-500 flex-shrink-0"
+          />
+        )}
         {/* User Avatar */}
         <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
           {activity.user?.name?.charAt(0) || activity.user?.email?.charAt(0) || '?'}

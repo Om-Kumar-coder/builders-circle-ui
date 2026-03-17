@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { prisma } from '../config/database';
-import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { authMiddleware, requireFullAccess, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -44,7 +44,7 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 });
 
 // Mark all notifications as read
-router.patch('/read-all', authMiddleware, async (req: AuthRequest, res) => {
+router.patch('/read-all', authMiddleware, requireFullAccess, async (req: AuthRequest, res) => {
   try {
     console.log('🔔 Marking all notifications as read for user:', req.user?.id);
 
@@ -105,7 +105,7 @@ router.get('/unread-count', authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // Mark notification as read
-router.patch('/:id/read', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.patch('/:id/read', authMiddleware, requireFullAccess, async (req: AuthRequest, res: Response) => {
   try {
     console.log('🔔 Marking notification as read:', {
       notificationId: req.params.id,
@@ -159,7 +159,7 @@ router.get('/preferences', authMiddleware, async (req: AuthRequest, res: Respons
 });
 
 // Update notification preferences
-router.put('/preferences', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.put('/preferences', authMiddleware, requireFullAccess, async (req: AuthRequest, res: Response) => {
   try {
     const { stallWarnings, activityReminders, cycleUpdates } = req.body;
 

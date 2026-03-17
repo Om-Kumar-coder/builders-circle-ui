@@ -9,7 +9,10 @@ const envSchema = z.object({
   PORT: z.string().default('3001'),
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string(),
-  JWT_EXPIRES: z.string().default('7d'),
+  JWT_EXPIRES: z.string().default('2h'),
+  RESEND_API_KEY: z.string().optional(),
+  FRONTEND_URL: z.string().default('http://localhost:3000'),
+  UPLOAD_DIR: z.string().default('./uploads'),
 });
 
 export const env = envSchema.parse(process.env);

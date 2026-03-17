@@ -55,8 +55,7 @@ export function useParticipation(
       const participationData = await apiClient.getParticipation(cycleId);
       setParticipation(participationData);
     } catch (err) {
-      if (err instanceof Error && err.message.includes('404')) {
-        // User is not participating in this cycle
+      if (err instanceof Error && (err.message.includes('404') || err.message.includes('not found'))) {
         setParticipation(null);
         setError(null);
       } else {

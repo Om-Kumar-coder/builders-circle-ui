@@ -13,51 +13,46 @@ export class AdjustMultiplierJob {
       });
 
       for (const cycle of activeCycles) {
-        // Get all participants for this cycle
+        // Batch fetch participants and their latest multipliers in two queries
         const participants = await prisma.cycleParticipation.findMany({
+          where: { cycleId: cycle.id, optedIn: true },
+        });
+
+        const latestMultipliers = await prisma.multiplier.findMany({
           where: {
             cycleId: cycle.id,
-            optedIn: true
-          }
+            userId: { in: participants.map(p => p.userId) },
+          },
+          orderBy: { createdAt: 'desc' },
+          distinct: ['userId'],
         });
+
+        const multiplierMap = new Map(latestMultipliers.map(m => [m.userId, m.multiplier]));
 
         for (const participant of participants) {
           const targetMultiplier = this.getMultiplierForStallStage(participant.stallStage);
-
-          // Get current multiplier
-          const currentMultiplier = await prisma.multiplier.findFirst({
-            where: {
-              userId: participant.userId,
-              cycleId: cycle.id
-            },
-            orderBy: { createdAt: 'desc' }
-          });
-
-          const currentMultiplierValue = currentMultiplier?.multiplier || 1.0;
+          const currentMultiplierValue = multiplierMap.get(participant.userId) ?? 1.0;
 
           // Only update if multiplier has changed
           if (Math.abs(targetMultiplier - currentMultiplierValue) > 0.001) {
-            // Create new multiplier record
             await prisma.multiplier.create({
               data: {
                 userId: participant.userId,
                 cycleId: cycle.id,
                 multiplier: targetMultiplier,
-                reason: `Stall stage adjustment: ${participant.stallStage}`
-              }
+                reason: `Stall stage adjustment: ${participant.stallStage}`,
+              },
             });
 
-            // Create audit entry in ownership ledger
             await OwnershipService.createOwnershipEntry(
               participant.userId,
               cycle.id,
               'multiplier_adjustment',
-              0, // No ownership change, just multiplier
+              0,
               undefined,
               'system'
             );
 
-            // Send notification
             await NotificationService.createMultiplierChange(
               participant.userId,
               cycle.id,

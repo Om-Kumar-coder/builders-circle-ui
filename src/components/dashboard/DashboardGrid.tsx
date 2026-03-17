@@ -2,6 +2,7 @@
 
 import { useOwnershipData } from '../../hooks/useOwnershipData';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useParticipation } from '../../hooks/useParticipation';
 import OwnershipCards from './OwnershipCards';
 import OwnershipCardsSkeleton from './OwnershipCardsSkeleton';
@@ -13,6 +14,11 @@ import NotificationWidget from './NotificationWidget';
 import TopContributors from './TopContributors';
 import ContributorProgressTracker from './ContributorProgressTracker';
 import ErrorState from './ErrorState';
+import AssignedTasksWidget from './AssignedTasksWidget';
+import AccessExpiryWidget from './AccessExpiryWidget';
+import SecurityNoticesWidget from './SecurityNoticesWidget';
+import RulesBanner from './RulesBanner';
+import TierBadge, { deriveTier } from './TierBadge';
 import { RefreshCw } from 'lucide-react';
 
 interface DashboardGridProps {
@@ -23,9 +29,8 @@ interface DashboardGridProps {
 export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
   const { data, loading, error, refetch } = useOwnershipData(userId, cycleId);
   const { user } = useAuth();
+  const { isAdmin } = usePermissions();
   const { participation } = useParticipation(userId, cycleId);
-  
-  const isAdmin = user?.role === 'admin' || user?.role === 'founder';
 
   // Map backend participation fields to ParticipationCard's expected shape
   const participationCardData = participation ? (() => {
@@ -72,13 +77,15 @@ export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
 
   return (
     <div className="space-y-6">
-      {/* Refresh Button */}
-      <div className="flex justify-between items-center">
-        <div>
+      {/* Header */}
+      <div className="flex justify-between items-start">
+        <div className="space-y-1.5">
           <h2 className="text-2xl font-bold text-gray-100">Dashboard</h2>
-          <p className="text-sm text-gray-400 mt-1">
-            Auto-refreshes every 60 seconds
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <TierBadge tier={deriveTier(user?.role, data?.effective)} size="sm" />
+            <span className="text-xs text-gray-500">·</span>
+            <p className="text-xs text-gray-500">Auto-refreshes every 60s</p>
+          </div>
         </div>
         <button
           onClick={refetch}
@@ -89,6 +96,15 @@ export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
         </button>
+      </div>
+
+      {/* Rules Banner */}
+      <RulesBanner />
+
+      {/* Security & Access Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SecurityNoticesWidget />
+        <AccessExpiryWidget />
       </div>
 
       {/* Top Row - Notifications and Progress */}
@@ -118,6 +134,9 @@ export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
           <TopContributors limit={5} />
         </div>
       </div>
+
+      {/* Assigned Tasks Widget */}
+      <AssignedTasksWidget cycleId={cycleId} />
 
       {/* Participation Status and Accountability */}
       {data && (

@@ -1,4 +1,5 @@
 import { prisma } from '../config/database';
+import { triggerEmail } from '../services/emailService';
 
 export class StallEvaluatorJob {
   static async run() {
@@ -88,6 +89,33 @@ export class StallEvaluatorJob {
         if (notificationsToCreate.length > 0) {
           await prisma.notification.createMany({ data: notificationsToCreate });
           console.log(`Created ${notificationsToCreate.length} stall warning notifications for cycle ${cycle.id}`);
+
+          // Send stall warning emails — batch user lookup to avoid N+1
+          const usersToEmail = updates.filter(u => u.shouldNotify);
+          const userIds = usersToEmail.map(u => u.userId);
+          const users = await prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, email: true, name: true, profile: { select: { notificationPrefs: true } } },
+          });
+          const userMap = new Map(users.map(u => [u.id, u]));
+
+          for (const u of usersToEmail) {
+            const user = userMap.get(u.userId);
+            if (!user) continue;
+            const prefs = user.profile?.notificationPrefs
+              ? JSON.parse(user.profile.notificationPrefs)
+              : { stallWarnings: true };
+            if (!prefs.stallWarnings) continue;
+
+            triggerEmail('STALL_WARNING', {
+              email: user.email,
+              name: user.name,
+              stallStage: u.newStallStage,
+              cycleId: cycle.id,
+              daysSinceLastActivity: u.daysSinceLastActivity,
+              timestamp: new Date().toISOString(),
+            } as Parameters<typeof triggerEmail>[1] & { stallStage: string; cycleId: string; daysSinceLastActivity: number }).catch(() => {});
+          }
         }
 
         console.log(`Processed ${cycle.participations.length} participants in cycle ${cycle.id}, updated ${participantsToUpdate.length}`);

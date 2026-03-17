@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useCycles } from '@/hooks/useCycles';
 import { useActivity } from '@/hooks/useActivity';
 import { useOwnershipData } from '@/hooks/useOwnershipData';
@@ -9,6 +10,7 @@ import { useCycle } from '@/context/CycleContext';
 import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import { apiClient } from '@/lib/api-client';
+import ParticipationStatusCard from '@/components/participation/ParticipationStatusCard';
 import { ACTIVITY_TYPE_LABELS, STATUS_CONFIG } from '@/types/activity';
 import type { ActivityEvent } from '@/types/activity';
 import {
@@ -63,6 +65,7 @@ function StatCard({ icon: Icon, label, value, sub, color = 'text-indigo-400' }: 
 // ── main page ─────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
+  const { isAdmin } = usePermissions();
   const { activeCycle } = useCycle();
   const { cycles: _cycles } = useCycles();
   const cycleId = activeCycle?.id ?? '';
@@ -112,8 +115,6 @@ export default function ProfilePage() {
   const joinDate  = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : '—';
-
-  const isAdmin = user.role === 'admin' || user.role === 'founder';
 
   // derived stats
   const verified   = activities.filter(a => a.status === 'verified').length;
@@ -310,6 +311,10 @@ export default function ProfilePage() {
 
         {/* ── Participation Tab ──────────────────────────────────────────── */}
         {tab === 'Participation' && (
+          <div className="space-y-6">
+            {/* Leave / Status Card */}
+            {activeCycle && <ParticipationStatusCard cycleId={activeCycle.id} />}
+
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
             <h2 className="text-base font-semibold text-gray-100 mb-5 flex items-center gap-2">
               <Users className="w-4 h-4 text-gray-400" />Participation History
@@ -360,6 +365,7 @@ export default function ProfilePage() {
                 </table>
               </div>
             )}
+          </div>
           </div>
         )}
 

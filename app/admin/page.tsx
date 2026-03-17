@@ -5,7 +5,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { useCycle } from '../../src/context/CycleContext';
 import MainLayout from '../../src/components/layout/MainLayout';
 import Link from 'next/link';
-import { Shield, Users, Settings, BarChart3, CheckCircle, Clock, RefreshCw, ChevronDown, ChevronUp, ExternalLink, User, Calendar } from 'lucide-react';
+import { Shield, Users, Settings, BarChart3, CheckCircle, Clock, RefreshCw, ChevronDown, ChevronUp, ExternalLink, User, Calendar, PauseCircle, ListTodo, Scale, FileText } from 'lucide-react';
 import { apiClient } from '../../src/lib/api-client';
 import JobExecutionPanel from '../../src/components/admin/JobExecutionPanel';
 
@@ -131,7 +131,7 @@ export default function AdminPage() {
     {
       title: 'Dispute Resolution',
       description: 'Review and resolve user disputes',
-      icon: Users,
+      icon: Scale,
       href: '/admin/disputes',
       color: 'bg-blue-600',
     },
@@ -162,6 +162,41 @@ export default function AdminPage() {
       icon: Settings,
       href: '/admin/weights',
       color: 'bg-green-600',
+    },
+    {
+      title: 'Access Management',
+      description: 'Grant and revoke temporary or permanent access',
+      icon: Shield,
+      href: '/admin/access',
+      color: 'bg-teal-600',
+    },
+    {
+      title: 'Task Management',
+      description: 'Create and assign tasks to contributors',
+      icon: ListTodo,
+      href: '/admin/tasks',
+      color: 'bg-cyan-600',
+    },
+    {
+      title: 'Leave Management',
+      description: 'Grant and manage participation leave',
+      icon: PauseCircle,
+      href: '/admin/leave',
+      color: 'bg-orange-600',
+    },
+    {
+      title: 'Accountability',
+      description: 'Monitor contributor accountability and stall status',
+      icon: CheckCircle,
+      href: '/admin/accountability',
+      color: 'bg-pink-600',
+    },
+    {
+      title: 'Agreements',
+      description: 'Manage contributor agreements and sign-offs',
+      icon: FileText,
+      href: '/admin/agreements',
+      color: 'bg-violet-600',
     },
   ];
 
