@@ -71,6 +71,12 @@ server {
 
     # Backend API
     location /api/ {
+        # Allow file uploads up to 25 MB (backend enforces 20 MB; this gives headroom)
+        client_max_body_size 25M;
+
+        # Do not buffer request body to disk — stream directly to backend
+        proxy_request_buffering off;
+
         proxy_pass http://localhost:3001/api/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -81,13 +87,11 @@ server {
         proxy_set_header X-Forwarded-Proto https;
         proxy_cache_bypass \$http_upgrade;
         proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
 
-        add_header 'Access-Control-Allow-Origin' 'https://$DOMAIN' always;
-        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
-        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
-        add_header 'Access-Control-Expose-Headers' 'Content-Length,Content-Range' always;
+        # CORS is handled entirely by Express — do NOT duplicate headers here.
+        # Duplicate Access-Control-* headers cause browsers to reject the response.
     }
 
 

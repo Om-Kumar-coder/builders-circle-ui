@@ -44,6 +44,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# uploaded files
+/backend/uploads/
+
 # database
 /backend/dev.db
 /backend/prisma/dev.db
