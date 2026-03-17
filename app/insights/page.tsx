@@ -99,8 +99,8 @@ export default function InsightsPage() {
       <div key={i} className="flex items-start justify-between p-3 bg-gray-800/50 rounded-lg text-sm">
         <div className="space-y-0.5">
           <p className="text-gray-200 font-medium capitalize">{String(label).replace(/_/g, ' ')}</p>
-          {log.reason && <p className="text-xs text-gray-400">{String(log.reason)}</p>}
-          {log.message && <p className="text-xs text-gray-400">{String(log.message)}</p>}
+          {log.reason != null && <p className="text-xs text-gray-400">{String(log.reason)}</p>}
+          {log.message != null && <p className="text-xs text-gray-400">{String(log.message)}</p>}
         </div>
         <span className="text-xs text-gray-500 whitespace-nowrap ml-4">
           {date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
