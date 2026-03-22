@@ -114,7 +114,7 @@ router.get('/admin', authMiddleware, roleMiddleware(['admin', 'founder']), async
 // POST /api/admin/triage/sync-sheet — must be before /:id routes to avoid param collision
 router.post('/admin/sync-sheet', authMiddleware, roleMiddleware(['admin', 'founder']), async (_req: AuthRequest, res: Response) => {
   try {
-    const sheetId = env.GOOGLE_SHEET_ID;
+    const sheetId = env.GOOGLE_SHEET_ID ?? process.env.GOOGLE_SHEET_ID;
     if (!sheetId) {
       return res.status(503).json({ success: false, data: null, error: 'GOOGLE_SHEET_ID not configured' });
     }
