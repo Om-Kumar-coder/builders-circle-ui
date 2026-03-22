@@ -38,6 +38,9 @@ import { requireAgreement } from './middleware/requireAgreement';
 
 const app = express();
 
+// Trust Nginx reverse proxy — required for express-rate-limit and req.ip to work correctly
+app.set('trust proxy', 1);
+
 // Security middleware — strict CSP
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
