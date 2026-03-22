@@ -108,7 +108,7 @@ export default function BackupStatusPanel() {
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-100">Backup &amp; Recovery</h2>
-            <p className="text-xs text-gray-500">SQLite snapshot · daily at 1 AM · last 7 retained</p>
+            <p className="text-xs text-gray-500">PostgreSQL dump · daily at 1 AM · last 7 retained</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
