@@ -1,9 +1,19 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../config/database';
 import { authMiddleware, roleMiddleware, AuthRequest } from '../middleware/auth';
 import { assignStarterTasks } from '../services/starterTaskService';
 import { initializeCycleMetrics, auditLog } from '../services/integrityService';
+
+const submitLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  message: { success: false, data: null, error: 'Too many submissions. Please wait before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip ?? 'unknown',
+});
 
 const router = Router();
 
@@ -14,7 +24,7 @@ const submitIdeaSchema = z.object({
 });
 
 // POST /api/ideas — submit idea (agreementGuard applied in server.ts)
-router.post('/', authMiddleware, async (req: AuthRequest, res: Response) => {
+router.post('/', submitLimiter, authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const data = submitIdeaSchema.parse(req.body);
     const idea = await prisma.idea.create({

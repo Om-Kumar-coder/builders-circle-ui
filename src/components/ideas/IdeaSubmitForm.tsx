@@ -38,7 +38,7 @@ export default function IdeaSubmitForm({ onSuccess }: IdeaSubmitFormProps) {
       const links = attachments.filter(a => a.trim());
       await apiClient.submitIdea({ title: title.trim(), description: description.trim(), attachments: links.length ? links : undefined });
       setSuccess(true);
-      onSuccess?.();
+      setTimeout(() => onSuccess?.(), 2000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to submit idea');
     } finally {
@@ -125,6 +125,13 @@ export default function IdeaSubmitForm({ onSuccess }: IdeaSubmitFormProps) {
       >
         {submitting ? 'Submitting...' : 'Submit Idea'}
       </button>
+      {!submitting && (title.trim().length < 5 || descLen < 100) && (
+        <p className="text-xs text-gray-500 text-center">
+          {title.trim().length < 5
+            ? 'Title must be at least 5 characters.'
+            : `Description needs ${100 - descLen} more character${100 - descLen === 1 ? '' : 's'}.`}
+        </p>
+      )}
     </form>
   );
 }

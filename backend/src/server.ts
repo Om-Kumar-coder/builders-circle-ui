@@ -94,20 +94,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// ISSUE 9: tight rate limit for public spam-prone endpoints
-// 5 submissions per IP per 10 minutes (triage submit is already 3/hour in its own router)
-const publicSubmitLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 5,
-  message: {
-    success: false,
-    data: null,
-    error: 'Too many submissions. Please wait before trying again.',
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => req.ip ?? 'unknown',
-});
+// ISSUE 9: tight rate limit for public spam-prone endpoints is applied in the ideas router directly
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -164,8 +151,6 @@ app.use('/api/triage', triageRoutes);
 // Groups — user read + admin manage
 app.use('/api/groups', agreementGuard, groupRoutes);
 // Ideas — user submit (rate-limited) + admin review
-// ISSUE 9: apply publicSubmitLimiter to POST /api/ideas only
-app.post('/api/ideas', publicSubmitLimiter);
 app.use('/api/ideas', agreementGuard, ideaRoutes);
 
 // Central error handling middleware — standard API error format
