@@ -1,17 +1,18 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { apiClient } from '../lib/api-client';
 import { useRouter } from 'next/navigation';
 import type { User, AuthContextType } from '../types/auth';
 import { startSessionTimers, clearSessionTimers, attachActivityListeners } from '../lib/session-timer';
-import { setCachedEmail } from '../lib/auth-expiry-handler';
+import { setCachedEmail, resetReAuthState } from '../lib/auth-expiry-handler';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const sessionConfirmedRef = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -36,15 +37,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function checkSession() {
+    console.log('[AuthContext] checkSession started');
     try {
       const userData = await apiClient.getCurrentUser();
       const mapped = mapUser(userData);
+      console.log('[AuthContext] checkSession success — user:', mapped.email, 'onboardingCompleted:', mapped.onboardingCompleted);
+      sessionConfirmedRef.current = true;
       setUser(mapped);
       setCachedEmail(mapped.email);
       startSessionTimers();
       attachActivityListeners();
-    } catch {
-      setUser(null);
+    } catch (e) {
+      console.log('[AuthContext] checkSession failed:', e);
+      // Only clear user if we haven't confirmed a session yet (initial load).
+      // A transient error after a successful login should not log the user out.
+      if (!sessionConfirmedRef.current) {
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -71,27 +80,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const mapped = mapUser(userData);
     setUser(mapped);
     setCachedEmail(mapped.email);
+    sessionConfirmedRef.current = true;
 
-    // Store token in a client-accessible cookie on the frontend domain
-    // so the Next.js proxy can verify it for route protection
+    // Clear any stale re-auth state from unauthenticated requests made before login
+    resetReAuthState();
+
+    // Store token in localStorage for cross-origin API requests
     if (response.token) {
+      localStorage.setItem('auth_token', response.token);
       document.cookie = `auth_token=${response.token}; path=/; max-age=604800; SameSite=Lax`;
     }
 
     startSessionTimers();
     attachActivityListeners();
 
-    // Enforce onboarding before accessing the app
-    if (!mapped.onboardingCompleted) {
-      router.replace('/onboarding');
-      return;
-    }
-
-    if (userData.role === 'founder' || userData.role === 'admin') {
-      router.replace('/admin');
-    } else {
-      router.replace('/dashboard');
-    }
+    // Redirect is handled by the login page's useEffect watching user state
   }
 
   async function signup(name: string, email: string, password: string) {
@@ -101,12 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (response.token) {
       document.cookie = `auth_token=${response.token}; path=/; max-age=604800; SameSite=Lax`;
     }
-    router.replace('/onboarding');
+    router.replace('/submit-to-triage');
   }
 
   async function logout() {
     clearSessionTimers();
-    // Clear the frontend cookie
+    localStorage.removeItem('auth_token');
     document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Lax';
     try {
       await apiClient.logout();

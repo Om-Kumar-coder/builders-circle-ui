@@ -1,0 +1,1 @@
+-- This migration was intended for PostgreSQL and is a no-op for SQLite

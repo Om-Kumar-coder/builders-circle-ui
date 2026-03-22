@@ -32,8 +32,11 @@ class ApiClient {
   }
 
   private getAuthHeaders(): HeadersInit {
-    // Token is stored in an HttpOnly cookie — browser sends it automatically via credentials: 'include'.
-    return { 'Content-Type': 'application/json' };
+    // Try localStorage token first (cross-origin safe), fall back to cookie via credentials: 'include'
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    return token
+      ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      : { 'Content-Type': 'application/json' };
   }
 
   private async request<T>(
@@ -42,12 +45,6 @@ class ApiClient {
     retries = 2
   ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    
-    console.log('🌐 API Request:', {
-      method: options.method || 'GET',
-      url,
-      hasBody: !!options.body
-    });
     
     try {
       const response = await fetch(url, {
@@ -66,11 +63,6 @@ class ApiClient {
       } catch {
         responseData = {};
       }      
-      console.log('📥 API Response:', {
-        status: response.status,
-        ok: response.ok,
-        data: responseData
-      });
 
       if (!response.ok) {
         let errorMessage = 'Request failed';
@@ -95,7 +87,10 @@ class ApiClient {
         } else if (response.status === 429) {
           errorMessage = 'Too many requests. Please wait a moment and try again.';
         } else if (responseData.error) {
-          errorMessage = responseData.error;
+          // Append validation details if present (e.g. activity validation failures)
+          errorMessage = responseData.details?.length
+            ? `${responseData.error}: ${(responseData.details as string[]).join('; ')}`
+            : responseData.error;
         } else if (responseData.message) {
           errorMessage = responseData.message;
         } else if (response.status === 403) {
@@ -139,7 +134,6 @@ class ApiClient {
         throw error;
       }
       
-      console.error('🚨 API Request failed:', error);
       if (retries > 0) {
         await new Promise(resolve => setTimeout(resolve, 500));
         return this.request<T>(endpoint, options, retries - 1);
@@ -205,7 +199,7 @@ class ApiClient {
   }
 
   // Activity methods
-  async getActivities(params?: { cycleId?: string; userId?: string } | string): Promise<any[]> {
+  async getActivities(params?: { cycleId?: string; userId?: string; linkedTaskId?: string } | string): Promise<any[]> {
     // Support both legacy string cycleId and new object params
     if (typeof params === 'string') {
       return this.request<any[]>(`/activities?cycleId=${params}`);
@@ -216,6 +210,7 @@ class ApiClient {
     const query = new URLSearchParams();
     if (params.cycleId) query.set('cycleId', params.cycleId);
     if (params.userId) query.set('userId', params.userId);
+    if (params.linkedTaskId) query.set('linkedTaskId', params.linkedTaskId);
     const qs = query.toString();
     return this.request<any[]>(qs ? `/activities?${qs}` : '/activities');
   }
@@ -296,6 +291,10 @@ class ApiClient {
     return this.request<any>('/ownership/summary');
   }
 
+  async getNormalizedOwnership(userId: string, cycleId: string): Promise<any> {
+    return this.request<any>(`/ownership/normalized/${userId}/${cycleId}`);
+  }
+
   // Analytics methods
   async getDashboardAnalytics(cycleId?: string): Promise<any> {
     const endpoint = cycleId ? `/analytics/dashboard?cycleId=${cycleId}` : '/analytics/dashboard';
@@ -322,6 +321,10 @@ class ApiClient {
   // Notification methods
   async getNotifications(): Promise<any[]> {
     return this.request<any[]>('/notifications');
+  }
+
+  async dismissThreatAlert(notificationId: string): Promise<void> {
+    return this.request<void>(`/notifications/${notificationId}/dismiss-threat`, { method: 'POST' });
   }
 
   async markNotificationRead(notificationId: string): Promise<any> {
@@ -394,21 +397,21 @@ class ApiClient {
   // Admin methods
   async getAuditLogs(params?: {
     action?: string;
-    adminId?: string;
-    targetUserId?: string;
+    adminSearch?: string;
+    targetSearch?: string;
     startDate?: string;
     endDate?: string;
     page?: number;
     limit?: number;
   }): Promise<{ logs: any[]; total: number; page: number; limit: number; totalPages: number }> {
     const q = new URLSearchParams();
-    if (params?.action) q.set('action', params.action);
-    if (params?.adminId) q.set('adminId', params.adminId);
-    if (params?.targetUserId) q.set('targetUserId', params.targetUserId);
-    if (params?.startDate) q.set('startDate', params.startDate);
-    if (params?.endDate) q.set('endDate', params.endDate);
-    if (params?.page) q.set('page', String(params.page));
-    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.action)       q.set('action',       params.action);
+    if (params?.adminSearch)  q.set('adminSearch',  params.adminSearch);
+    if (params?.targetSearch) q.set('targetSearch', params.targetSearch);
+    if (params?.startDate)    q.set('startDate',    params.startDate);
+    if (params?.endDate)      q.set('endDate',      params.endDate);
+    if (params?.page)         q.set('page',         String(params.page));
+    if (params?.limit)        q.set('limit',        String(params.limit));
     const qs = q.toString();
     return this.request(`/admin/audit${qs ? `?${qs}` : ''}`);
   }
@@ -575,11 +578,22 @@ class ApiClient {
   }
 
   // Email verification methods
-  async verifyEmail(token: string): Promise<{ success: boolean; message?: string }> {
-    return this.request<{ success: boolean; message?: string }>('/auth/verify-email', {
+  async verifyEmail(token: string): Promise<{ success: boolean; message?: string; needsPassword?: boolean }> {
+    return this.request<{ success: boolean; message?: string; needsPassword?: boolean }>('/auth/verify-email', {
       method: 'POST',
       body: JSON.stringify({ token }),
     });
+  }
+
+  async setPassword(token: string, newPassword: string): Promise<{ success: boolean; message?: string }> {
+    return this.request<{ success: boolean; message?: string }>('/auth/set-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    });
+  }
+
+  async completeTour(): Promise<void> {
+    return this.request<void>('/onboarding/tour-complete', { method: 'POST' });
   }
 
   async resendVerificationEmail(email: string): Promise<{ success: boolean; message?: string }> {
@@ -685,11 +699,25 @@ class ApiClient {
     return this.request<any[]>(`/tasks${qs}`);
   }
 
+  async getTask(taskId: string): Promise<any> {
+    return this.request<any>(`/tasks/${taskId}`);
+  }
+
   async getMyTasks(): Promise<any[]> {
     return this.request<any[]>('/tasks/my');
   }
 
-  async createTask(data: { title: string; description?: string; cycleId: string; dueDate?: string }): Promise<any> {
+  async createTask(data: {
+    title: string;
+    description?: string;
+    acceptanceCriteria?: string;
+    proofLink?: string;
+    securityNote?: string;
+    restricted?: boolean;
+    isStarter?: boolean;
+    cycleId: string;
+    dueDate?: string;
+  }): Promise<any> {
     return this.request<any>('/tasks', { method: 'POST', body: JSON.stringify(data) });
   }
 
@@ -697,12 +725,16 @@ class ApiClient {
     return this.request<any>('/tasks/assign', { method: 'POST', body: JSON.stringify({ taskId, userIds }) });
   }
 
+  async updateTaskStatus(taskId: string, status: string): Promise<any> {
+    return this.request<any>(`/tasks/${taskId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  }
+
   async completeTask(taskId: string): Promise<any> {
     return this.request<any>(`/tasks/${taskId}/complete`, { method: 'PATCH' });
   }
 
   async startTask(taskId: string): Promise<any> {
-    return this.request<any>(`/tasks/${taskId}/progress`, { method: 'PATCH' });
+    return this.request<any>(`/tasks/${taskId}/claim`, { method: 'PATCH' });
   }
 
   // Leave methods
@@ -860,11 +892,12 @@ class ApiClient {
     });
   }
 
-  async getDocs(params?: { folderId?: string; label?: string; search?: string }): Promise<any[]> {
+  async getDocs(params?: { folderId?: string; label?: string; search?: string; cycleId?: string }): Promise<any[]> {
     const q = new URLSearchParams();
     if (params?.folderId) q.set('folderId', params.folderId);
     if (params?.label) q.set('label', params.label);
     if (params?.search) q.set('search', params.search);
+    if (params?.cycleId) q.set('cycleId', params.cycleId);
     const qs = q.toString();
     return this.request<any[]>(qs ? `/docs?${qs}` : '/docs');
   }
@@ -883,6 +916,23 @@ class ApiClient {
     if (!response.ok) throw new ApiError(response.status, 'Access denied');
     const blob = await response.blob();
     return URL.createObjectURL(blob);
+  }
+
+  /** Fetches the doc via the download endpoint and triggers a browser download. */
+  async downloadDoc(id: string, filename: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/docs/download/${id}`, {
+      mode: 'cors',
+      credentials: 'include',
+      headers: this.getAuthHeaders(),
+    });
+    if (!response.ok) throw new ApiError(response.status, 'Download access denied');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async requestDocAccess(documentId: string, reason: string, requestedDays?: number): Promise<any> {
@@ -975,6 +1025,117 @@ class ApiClient {
 
   async getDocAccessGrants(documentId: string): Promise<any[]> {
     return this.request<any[]>(`/docs/${documentId}/access`);
+  }
+
+  // Groups
+  async getGroups(): Promise<any[]> {
+    return this.request<any[]>('/groups/admin');
+  }
+
+  async createGroup(data: { name: string; description?: string; isDefault?: boolean }): Promise<any> {
+    return this.request<any>('/groups/admin', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateGroup(id: string, data: { name?: string; description?: string; isDefault?: boolean }): Promise<any> {
+    return this.request<any>(`/groups/admin/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
+  async deleteGroup(id: string): Promise<any> {
+    return this.request<any>(`/groups/admin/${id}`, { method: 'DELETE' });
+  }
+
+  async assignUserGroup(userId: string, groupId: string | null): Promise<any> {
+    return this.request<any>(`/groups/admin/users/${userId}/group`, { method: 'PATCH', body: JSON.stringify({ groupId }) });
+  }
+
+  async getMyGroup(): Promise<any> {
+    return this.request<any>('/groups/my');
+  }
+
+  // Triage
+  async submitTriage(data: object): Promise<any> {
+    return this.request<any>('/triage/submit', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getTriageList(status?: string): Promise<any[]> {
+    const qs = status ? `?status=${status}` : '';
+    return this.request<any[]>(`/triage/admin${qs}`);
+  }
+
+  async getTriageDetail(id: string): Promise<any> {
+    return this.request<any>(`/triage/admin/${id}`);
+  }
+
+  async approveTriageSubmission(id: string, role?: string): Promise<any> {
+    return this.request<any>(`/triage/admin/${id}/approve`, { method: 'POST', body: JSON.stringify({ role }) });
+  }
+
+  async rejectTriageSubmission(id: string, note?: string): Promise<any> {
+    return this.request<any>(`/triage/admin/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) });
+  }
+
+  async syncSheet(): Promise<{ imported: number; skipped: number }> {
+    return this.request('/triage/admin/sync-sheet', { method: 'POST' });
+  }
+
+  // Ideas
+  async submitIdea(data: { title: string; description: string; attachments?: string[] }): Promise<any> {
+    return this.request<any>('/ideas', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async getMyIdeas(): Promise<any[]> {
+    return this.request<any[]>('/ideas/my');
+  }
+
+  async getIdeaDetail(id: string): Promise<any> {
+    return this.request<any>(`/ideas/${id}`);
+  }
+
+  async getAdminIdeas(status?: string): Promise<any[]> {
+    const qs = status ? `?status=${status}` : '';
+    return this.request<any[]>(`/ideas/admin/list${qs}`);
+  }
+
+  async approveIdea(id: string, options: { cycleName?: string; startDate: string; endDate: string }): Promise<any> {
+    return this.request<any>(`/ideas/admin/${id}/approve`, { method: 'POST', body: JSON.stringify(options) });
+  }
+
+  async rejectIdea(id: string, note?: string): Promise<any> {
+    return this.request<any>(`/ideas/admin/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) });
+  }
+
+  // Backup & Recovery
+  async getBackupStatus(): Promise<{
+    lastBackupTime: string | null;
+    lastBackupStatus: 'success' | 'failed' | 'unknown';
+    recoveryReady: boolean;
+    uptimeSince: string | null;
+    backupFiles: { fileName: string; sizeBytes: number; createdAt: string }[];
+    totalBackups: number;
+    driveConfigured: boolean;
+    driveLastUploaded: string | null;
+    dbHealth: {
+      connected: boolean;
+      userCount: number;
+      activityCount: number;
+      cycleCount: number;
+      systemLogCount: number;
+    };
+    recentErrors: { message: string; timestamp: string }[];
+    criticalErrorsLast24h: number;
+    checkedAt: string;
+  }> {
+    return this.request('/admin/backup/status');
+  }
+
+  async triggerBackup(): Promise<{
+    success: boolean;
+    fileName?: string;
+    sizeBytes?: number;
+    timestamp: string;
+    error?: string;
+  }> {
+    return this.request('/admin/backup/trigger', { method: 'POST' });
   }
 }
 

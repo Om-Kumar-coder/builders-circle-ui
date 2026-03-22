@@ -5,6 +5,7 @@ import { authMiddleware, roleMiddleware, requireFullAccess, AuthRequest } from '
 import { ReputationService } from '../services/reputationService';
 import { requireAgreement } from '../middleware/requireAgreement';
 import { validateActivitySubmission } from '../services/activityValidationService';
+import { isActiveParticipant, completeTaskViaActivity, getEffectiveContributionWeight, auditLog } from '../services/integrityService';
 
 const router = Router();
 
@@ -19,6 +20,7 @@ const createActivitySchema = z.object({
   hoursLogged: z.number().min(0.1).max(12).optional(),
   workSummary: z.string().optional(),
   taskReference: z.string().optional(),
+  linkedTaskId: z.string().optional(),
   contributionType: z.enum(['code', 'documentation', 'review', 'hours_logged', 'meeting', 'research', 'task_completion']).default('code'),
   contributionWeight: z.number().min(0).max(10).default(1.0),
 });
@@ -84,13 +86,14 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 
     const { cycleId, userId } = req.query;
 
-    const where: { cycleId?: string; userId?: string } = {};
+    const where: { cycleId?: string; userId?: string; linkedTaskId?: string } = {};
     
     if (cycleId) where.cycleId = cycleId as string;
     if (userId) where.userId = userId as string;
+    if (req.query.linkedTaskId) where.linkedTaskId = req.query.linkedTaskId as string;
     
     // If no specific user requested, show only current user's activities
-    if (!userId) where.userId = req.user!.id;
+    if (!userId && !req.query.linkedTaskId) where.userId = req.user!.id;
 
     const activities = await prisma.activityEvent.findMany({
       where,
@@ -262,26 +265,18 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
       });
     }
 
-    // Check if user is participating in the cycle
-    const participation = await prisma.cycleParticipation.findUnique({
-      where: {
-        userId_cycleId: {
-          userId: req.user!.id,
-          cycleId: data.cycleId
-        }
-      }
-    });
-
-    if (!participation || !participation.optedIn) {
-      console.log('❌ User not participating:', { userId: req.user!.id, cycleId: data.cycleId });
-      return res.status(400).json({
+    // ISSUE 5: validate active participation (checks optedIn + not on leave + not closed)
+    const active = await isActiveParticipant(req.user!.id, data.cycleId);
+    if (!active) {
+      return res.status(403).json({
         success: false,
         data: null,
-        error: 'Must be participating in cycle to submit activities'
+        error: 'Must be an active participant in this cycle to submit activities',
       });
     }
 
-    // Check if user is on leave
+    // Check if user is on leave (redundant safety check — isActiveParticipant covers this,
+    // but kept for the specific error message)
     const now = new Date();
     const activeLeave = await prisma.participationLeave.findFirst({
       where: {
@@ -300,15 +295,39 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
       });
     }
 
+    // Task link validation
+    if (data.linkedTaskId) {
+      const isAdmin = ['admin', 'founder'].includes(req.user!.role);
+      const linkedTask = await prisma.task.findUnique({
+        where: { id: data.linkedTaskId },
+        include: { assignments: { where: { userId: req.user!.id } } },
+      });
+
+      if (!linkedTask) {
+        return res.status(404).json({ success: false, data: null, error: 'Task not found' });
+      }
+      if (linkedTask.cycleId !== data.cycleId) {
+        return res.status(400).json({ success: false, data: null, error: 'Task does not belong to the selected cycle' });
+      }
+      if (!isAdmin && linkedTask.assignments.length === 0) {
+        return res.status(403).json({ success: false, data: null, error: 'You are not assigned to this task' });
+      }
+      if (linkedTask.status === 'completed') {
+        return res.status(400).json({ success: false, data: null, error: 'Task is already completed' });
+      }
+    }
+
     // Get contribution weight from database
     let contributionWeight = data.contributionWeight || 1.0;
     const weightConfig = await prisma.contributionWeight.findUnique({
       where: { contributionType: data.contributionType }
     });
-    
     if (weightConfig) {
       contributionWeight = weightConfig.weight;
     }
+
+    // ISSUE 7: apply reduced weight if this activity is linked to a starter task
+    contributionWeight = await getEffectiveContributionWeight(contributionWeight, data.linkedTaskId);
 
     // Create activity
     const activity = await prisma.activityEvent.create({
@@ -321,6 +340,7 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
         hoursLogged: data.hoursLogged,
         workSummary: data.workSummary,
         taskReference: data.taskReference,
+        linkedTaskId: data.linkedTaskId,
         contributionType: data.contributionType,
         contributionWeight,
         status: 'pending',
@@ -474,6 +494,9 @@ router.patch('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder'])
           },
         });
 
+        // ISSUE 2: if activity is linked to a task, mark that task assignment approved
+        await completeTaskViaActivity(tx, updated.id, updated.userId);
+
         // Stall recovery
         const participation = await tx.cycleParticipation.findUnique({
           where: { userId_cycleId: { userId: updated.userId, cycleId: updated.cycleId } },
@@ -530,7 +553,7 @@ router.patch('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder'])
         }
       }
 
-      // Audit trail
+      // Audit trail (existing AuditTrail model)
       await tx.auditTrail.create({
         data: {
           adminId: req.user!.id,
@@ -543,6 +566,23 @@ router.patch('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder'])
             rejectionReason: verificationData.rejectionReason,
           }),
           reason: `Activity ${verificationData.status}: ${updated.activityType}`,
+        },
+      });
+
+      // ISSUE 10: structured admin action log for activity verification
+      await tx.adminActionLog.create({
+        data: {
+          adminId: req.user!.id,
+          action: `activity_${verificationData.status}`,
+          entityType: 'activity',
+          entityId: updated.id,
+          targetUserIds: JSON.stringify([updated.userId]),
+          metadata: JSON.stringify({
+            cycleId: updated.cycleId,
+            activityType: updated.activityType,
+            calculatedOwnership,
+            linkedTaskId: updated.linkedTaskId,
+          }),
         },
       });
 

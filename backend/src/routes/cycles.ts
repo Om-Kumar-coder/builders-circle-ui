@@ -3,6 +3,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
 import { authMiddleware, roleMiddleware, AuthRequest } from '../middleware/auth';
+import { initializeCycleMetrics, auditLog } from '../services/integrityService';
 
 const router = Router();
 
@@ -147,6 +148,16 @@ router.post('/', authMiddleware, roleMiddleware(['admin', 'founder']), async (re
         startDate: start,
         endDate: end,
       }
+    });
+
+    // ISSUE 8: initialize baseline metrics immediately on creation
+    await initializeCycleMetrics(cycle.id);
+
+    // ISSUE 10: audit log cycle creation
+    await auditLog((req as AuthRequest).user!.id, 'cycle_created', 'cycle', cycle.id, [], {
+      name: cycle.name,
+      startDate: cycle.startDate,
+      endDate: cycle.endDate,
     });
 
     console.log('✅ Cycle created successfully:', {

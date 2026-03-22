@@ -24,9 +24,9 @@ export function useMyTasks() {
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  const completeTask = async (taskId: string) => {
-    await apiClient.completeTask(taskId);
-    await fetch();
+  // Tasks complete via activity submission — redirect to /activity?taskId=...
+  const completeTask = (taskId: string) => {
+    window.location.href = `/activity?taskId=${taskId}`;
   };
 
   const startTask = async (taskId: string) => {

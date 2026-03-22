@@ -68,6 +68,24 @@ router.get('/:userId/:cycleId', authMiddleware, async (req: AuthRequest, res: Re
   }
 });
 
+// GET /ownership/normalized/:userId/:cycleId — normalized ownership % (NEW, non-breaking)
+router.get('/normalized/:userId/:cycleId', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.params.userId as string;
+    const cycleId = req.params.cycleId as string;
+
+    if (userId !== req.user!.id && !['admin', 'founder'].includes(req.user!.role)) {
+      return res.status(403).json({ success: false, data: null, error: 'Access denied' });
+    }
+
+    const data = await OwnershipService.computeNormalizedOwnership(userId, cycleId);
+    res.json({ success: true, data, error: null });
+  } catch (error) {
+    console.error('Normalized ownership error:', error);
+    res.status(500).json({ success: false, data: null, error: 'Failed to compute normalized ownership' });
+  }
+});
+
 // GET /ownership/export — CSV/JSON export
 router.get('/export', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {

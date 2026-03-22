@@ -63,6 +63,12 @@ export function onReAuthSuccess(_newToken: string) {
   onResumedCallback?.();
 }
 
+/** Called after a successful login to clear any stale re-auth state */
+export function resetReAuthState() {
+  isRefreshing = false;
+  queue.splice(0).forEach(({ resolve }) => resolve(null));
+}
+
 /** Called when the user dismisses the re-auth modal without completing */
 export function onReAuthDismissed() {
   isRefreshing = false;

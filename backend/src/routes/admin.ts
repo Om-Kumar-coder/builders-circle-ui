@@ -9,26 +9,82 @@ import accessControlRoutes from './accessControl';
 
 const router = Router();
 
-// Get audit logs (admin only) — supports ?action, ?adminId, ?targetUserId, ?startDate, ?endDate, ?page, ?limit
+// Get audit logs (admin only)
+// Query params: action, adminSearch (name/email), targetSearch (name/email/id), startDate, endDate, page, limit
 router.get('/audit', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: Request, res: Response) => {
   try {
-    const { action, adminId, targetUserId, startDate, endDate, page = '1', limit = '50' } = req.query as Record<string, string>;
+    const {
+      action,
+      adminSearch,
+      targetSearch,
+      startDate,
+      endDate,
+      page = '1',
+      limit = '25',
+    } = req.query as Record<string, string>;
 
-    const where: Record<string, unknown> = {};
-    if (action) where.action = action;
-    if (adminId) where.adminId = adminId;
-    if (targetUserId) {
-      where.targetUserId = targetUserId;
+    const pageNum  = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 25));
+
+    // Resolve adminSearch → matching user IDs (name or email, case-insensitive)
+    let adminIds: string[] | undefined;
+    if (adminSearch?.trim()) {
+      const s = adminSearch.trim();
+      const matched = await prisma.user.findMany({
+        where: {
+          OR: [
+            { name:  { contains: s } },
+            { email: { contains: s } },
+          ],
+        },
+        select: { id: true },
+      });
+      adminIds = matched.map(u => u.id);
+      // No matching users → guaranteed empty result set
+      if (adminIds.length === 0) {
+        return res.json({
+          success: true,
+          data: { logs: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 },
+          error: null,
+        });
+      }
     }
+
+    // Resolve targetSearch → matching user IDs (name, email, or exact id)
+    let targetIds: string[] | undefined;
+    if (targetSearch?.trim()) {
+      const s = targetSearch.trim();
+      const matched = await prisma.user.findMany({
+        where: {
+          OR: [
+            { id:    s },
+            { name:  { contains: s } },
+            { email: { contains: s } },
+          ],
+        },
+        select: { id: true },
+      });
+      targetIds = matched.map(u => u.id);
+      if (targetIds.length === 0) {
+        return res.json({
+          success: true,
+          data: { logs: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 },
+          error: null,
+        });
+      }
+    }
+
+    // Build Prisma where clause
+    const where: Record<string, unknown> = {};
+    if (action)    where.action   = action;
+    if (adminIds)  where.adminId  = { in: adminIds };
+    if (targetIds) where.targetUserId = { in: targetIds };
     if (startDate || endDate) {
       where.timestamp = {
         ...(startDate ? { gte: new Date(startDate) } : {}),
-        ...(endDate ? { lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) } : {}),
+        ...(endDate   ? { lte: new Date(new Date(endDate).setHours(23, 59, 59, 999)) } : {}),
       };
     }
-
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
 
     const [total, auditLogs] = await Promise.all([
       prisma.auditTrail.count({ where }),
@@ -38,7 +94,7 @@ router.get('/audit', authMiddleware, roleMiddleware(['admin', 'founder']), async
         skip: (pageNum - 1) * limitNum,
         take: limitNum,
         include: {
-          admin: { select: { id: true, email: true, name: true } },
+          admin:      { select: { id: true, email: true, name: true } },
           targetUser: { select: { id: true, email: true, name: true } },
         },
       }),
@@ -532,7 +588,7 @@ router.get('/disputes', authMiddleware, roleMiddleware(['admin', 'founder']), as
 router.post('/jobs/execute', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
-      jobId: z.enum(['stall-evaluator', 'multiplier-adjustment', 'ownership-decay', 'cycle-finalizer'])
+      jobId: z.enum(['stall-evaluator', 'multiplier-adjustment', 'ownership-decay', 'cycle-finalizer', 'score-computation', 'aggregation', 'normalization'])
     });
 
     let parsed;
@@ -540,7 +596,7 @@ router.post('/jobs/execute', authMiddleware, roleMiddleware(['admin', 'founder']
       parsed = schema.parse(req.body);
     } catch (zodErr) {
       if (zodErr instanceof z.ZodError) {
-        return res.status(400).json({ success: false, message: null, error: `Invalid jobId. Must be one of: stall-evaluator, multiplier-adjustment, ownership-decay, cycle-finalizer` });
+        return res.status(400).json({ success: false, message: null, error: `Invalid jobId. Must be one of: stall-evaluator, multiplier-adjustment, ownership-decay, cycle-finalizer, score-computation, aggregation, normalization` });
       }
       throw zodErr;
     }
@@ -565,6 +621,18 @@ router.post('/jobs/execute', authMiddleware, roleMiddleware(['admin', 'founder']
       case 'cycle-finalizer':
         await JobScheduler.runCycleFinalizer();
         jobResult = 'Cycle finalizer job completed successfully';
+        break;
+      case 'score-computation':
+        await JobScheduler.runScoreComputation();
+        jobResult = 'Score computation job completed successfully';
+        break;
+      case 'aggregation':
+        await JobScheduler.runAggregation();
+        jobResult = 'Aggregation job completed successfully';
+        break;
+      case 'normalization':
+        await JobScheduler.runNormalization();
+        jobResult = 'Normalization job completed successfully';
         break;
       default:
         throw new Error(`Unknown job: ${jobId}`);

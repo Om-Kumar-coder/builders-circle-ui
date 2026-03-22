@@ -152,6 +152,8 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   if (folderId) where.folderId = folderId;
   if (label) where.securityLabel = label;
   if (search) where.title = { contains: search };
+  // Note: cycleId param is accepted but docs are scoped by per-user access grants (DocumentAccess),
+  // not by cycle. Future: add cycleTag field to Document model for explicit cycle scoping.
 
   const docs = await prisma.document.findMany({
     where,
@@ -186,35 +188,9 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   return ok(res, docs.map(sanitizeDoc));
 });
 
-router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const doc = await prisma.document.findUnique({
-    where: { id, isActive: true },
-    include: {
-      folder: true,
-      creator: { select: { id: true, email: true, name: true } },
-      versions: {
-        orderBy: { versionNumber: 'desc' },
-        select: { id: true, versionNumber: true, uploadedBy: true, createdAt: true },
-      },
-    },
-  });
-  if (!doc) return fail(res, 404, 'Document not found');
-
-  const isAdmin = ADMIN_ROLES.includes(req.user!.role);
-  if (!isAdmin) {
-    const access = await getActiveAccess(req.user!.id, doc.id);
-    if (!access) return fail(res, 403, 'Access denied');
-    return ok(res, {
-      ...sanitizeDoc(doc),
-      access: { type: access.accessType, expiresAt: access.expiresAt },
-    });
-  }
-
-  return ok(res, sanitizeDoc(doc));
-});
-
 // ── Secure file streaming ─────────────────────────────────────────────────────
+// IMPORTANT: these must be registered BEFORE the generic /:id route or Express
+// will match /view/xxx and /download/xxx as /:id with id="view"/"download".
 
 router.get('/view/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
@@ -289,6 +265,34 @@ router.get('/download/:id', authMiddleware, async (req: AuthRequest, res: Respon
     logger.error('Doc download error', err);
     return fail(res, 500, 'Failed to download document');
   }
+});
+
+router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const doc = await prisma.document.findUnique({
+    where: { id, isActive: true },
+    include: {
+      folder: true,
+      creator: { select: { id: true, email: true, name: true } },
+      versions: {
+        orderBy: { versionNumber: 'desc' },
+        select: { id: true, versionNumber: true, uploadedBy: true, createdAt: true },
+      },
+    },
+  });
+  if (!doc) return fail(res, 404, 'Document not found');
+
+  const isAdmin = ADMIN_ROLES.includes(req.user!.role);
+  if (!isAdmin) {
+    const access = await getActiveAccess(req.user!.id, doc.id);
+    if (!access) return fail(res, 403, 'Access denied');
+    return ok(res, {
+      ...sanitizeDoc(doc),
+      access: { type: access.accessType, expiresAt: access.expiresAt },
+    });
+  }
+
+  return ok(res, sanitizeDoc(doc));
 });
 
 // ── File upload (admin) ───────────────────────────────────────────────────────
@@ -492,14 +496,17 @@ router.post(
       ? new Date(Date.now() + expiresInDays * 86_400_000)
       : null;
 
-    await prisma.documentAccess.updateMany({
-      where: { userId, documentId, revokedAt: null },
-      data: { revokedAt: new Date() },
+    const grant = await prisma.$transaction(async (tx) => {
+      await tx.documentAccess.updateMany({
+        where: { userId, documentId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return tx.documentAccess.create({
+        data: { userId, documentId, accessType, expiresAt, grantedBy: req.user!.id },
+      });
     });
 
-    const grant = await prisma.documentAccess.create({
-      data: { userId, documentId, accessType, expiresAt, grantedBy: req.user!.id },
-    });
+    logger.info(`Doc access granted: doc=${documentId} user=${userId} type=${accessType}`);
 
     await logActivity(req.user!.id, documentId, 'grant_access', req);
 

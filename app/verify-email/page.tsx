@@ -15,14 +15,20 @@ function VerifyEmailContent() {
 
   const verifyEmail = useCallback(async (token: string) => {
     try {
-      await apiClient.verifyEmail(token);
+      const result = await apiClient.verifyEmail(token);
       setStatus('success');
-      setMessage('Your email has been verified successfully! You can now sign in.');
-      
-      // Redirect to login after 3 seconds
-      setTimeout(() => {
-        router.push('/login?verified=true');
-      }, 3000);
+
+      if ((result as any)?.needsPassword) {
+        setMessage('Email verified! Please set your password to continue.');
+        setTimeout(() => {
+          router.push(`/set-password?token=${token}`);
+        }, 2000);
+      } else {
+        setMessage('Your email has been verified successfully! You can now sign in.');
+        setTimeout(() => {
+          router.push('/login?verified=true');
+        }, 3000);
+      }
     } catch {
       setStatus('error');
       setMessage('Email verification failed. Please try again or request a new verification link.');

@@ -9,8 +9,9 @@ import RequestAccessModal from '@/components/docs/RequestAccessModal';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Shield, Clock, AlertTriangle, ChevronLeft, FileText } from 'lucide-react';
+import { Shield, Clock, AlertTriangle, ChevronLeft, FileText, Download } from 'lucide-react';
 import type { DocumentMeta } from '@/types/docs';
+import PdfCanvasViewer from '@/components/docs/PdfCanvasViewer';
 
 function daysUntil(dateStr: string | null): number | null {
   if (!dateStr) return null;
@@ -42,6 +43,7 @@ export default function DocViewerPage() {
   const [blobError, setBlobError] = useState(false);
 
   const hasAccess = isAdmin || !!doc?.access;
+  const canDownload = isAdmin || doc?.access?.type === 'download';
   const days = daysUntil(doc?.access?.expiresAt ?? null);
   const expiringSoon = days !== null && days <= 3;
   const isPdf = doc?.mimeType === 'application/pdf';
@@ -131,7 +133,23 @@ export default function DocViewerPage() {
 
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-indigo-400" />
-              <span className="text-xs text-gray-400">View-only · Watermarked</span>
+              <span className="text-xs text-gray-400">
+                {canDownload ? 'Download access · Watermarked' : 'View-only · Watermarked'}
+              </span>
+              {canDownload && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await apiClient.downloadDoc(doc.id, doc.title);
+                    } catch {
+                      alert('Download failed. Please try again.');
+                    }
+                  }}
+                  className="ml-2 flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download
+                </button>
+              )}
             </div>
           </div>
 
@@ -157,14 +175,20 @@ export default function DocViewerPage() {
             style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
           >
             {isPdf && (
-              <iframe
-                src={blobUrl ?? undefined}
-                title={doc.title}
-                className="w-full"
-                style={{ height: '80vh', border: 'none' }}
-                // Disable download toolbar in PDF viewer
-                sandbox="allow-scripts allow-same-origin"
-              />
+              canDownload ? (
+                <iframe
+                  src={blobUrl ?? undefined}
+                  title={doc.title}
+                  className="w-full"
+                  style={{ height: '80vh', border: 'none' }}
+                />
+              ) : blobUrl ? (
+                <PdfCanvasViewer blobUrl={blobUrl} />
+              ) : (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
+                </div>
+              )
             )}
             {isImage && (
               // eslint-disable-next-line @next/next/no-img-element

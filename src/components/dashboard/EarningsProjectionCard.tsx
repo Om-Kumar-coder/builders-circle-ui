@@ -9,6 +9,11 @@ interface EarningsProjectionProps {
   multiplier: number;
   effectiveOwnership: number;
   totalCycleValue?: number;
+  // Economy engine additions — optional, fallback gracefully
+  normalizedOwnershipPct?: number;
+  contributionScore?: number;
+  totalSystemScore?: number;
+  contributorPoolPct?: number;
 }
 
 export default function EarningsProjectionCard({
@@ -17,9 +22,14 @@ export default function EarningsProjectionCard({
   multiplier,
   effectiveOwnership,
   totalCycleValue = 0,
+  normalizedOwnershipPct,
+  contributionScore,
+  totalSystemScore,
+  contributorPoolPct,
 }: EarningsProjectionProps) {
   const estimatedEarnings = effectiveOwnership * totalCycleValue;
   const provisionalContribution = provisionalOwnership * multiplier;
+  const hasNormalized = normalizedOwnershipPct !== undefined;
 
   const chartData = [
     { name: 'Vested', value: vestedOwnership, color: '#3b82f6' },
@@ -103,6 +113,33 @@ export default function EarningsProjectionCard({
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Normalized ownership — shown only when economy engine data is available */}
+      {hasNormalized && (
+        <div className="pt-3 border-t border-gray-800">
+          <p className="text-xs text-gray-500 mb-2">
+            Economy engine · contributor pool ({((contributorPoolPct ?? 0.4) * 100).toFixed(0)}%)
+          </p>
+          <div className="grid grid-cols-3 gap-2 text-sm">
+            <div className="flex flex-col p-2.5 bg-indigo-900/20 border border-indigo-800/30 rounded-lg">
+              <span className="text-xs text-gray-400">Normalized %</span>
+              <span className="text-indigo-400 font-bold">{fmt(normalizedOwnershipPct ?? 0)}%</span>
+            </div>
+            {contributionScore !== undefined && (
+              <div className="flex flex-col p-2.5 bg-gray-800/50 rounded-lg">
+                <span className="text-xs text-gray-400">Your score</span>
+                <span className="text-purple-400 font-medium">{contributionScore.toFixed(2)}</span>
+              </div>
+            )}
+            {totalSystemScore !== undefined && totalSystemScore > 0 && (
+              <div className="flex flex-col p-2.5 bg-gray-800/50 rounded-lg">
+                <span className="text-xs text-gray-400">System total</span>
+                <span className="text-gray-300 font-medium">{totalSystemScore.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

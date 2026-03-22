@@ -17,6 +17,8 @@ const assignmentStatusConfig: Record<AssignmentStatus, { label: string; color: s
 
 const taskStatusBadge: Record<TaskStatus, { label: string; color: string }> = {
   open: { label: 'Open', color: 'bg-blue-900 text-blue-300' },
+  in_progress: { label: 'In Progress', color: 'bg-yellow-900 text-yellow-300' },
+  review: { label: 'In Review', color: 'bg-purple-900 text-purple-300' },
   completed: { label: 'Completed', color: 'bg-green-900 text-green-300' },
   overdue: { label: 'Overdue', color: 'bg-red-900 text-red-300' },
 };
@@ -32,7 +34,7 @@ function formatDue(date?: string) {
 }
 
 export default function AssignedTasksWidget({ cycleId }: Props) {
-  const { tasks, loading, error, completeTask, startTask } = useMyTasks();
+  const { tasks, loading, error, startTask } = useMyTasks();
   const { onLeave } = useLeaveStatus(cycleId);
 
   // Filter to tasks in this cycle
@@ -92,6 +94,9 @@ export default function AssignedTasksWidget({ cycleId }: Props) {
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium truncate ${isCompleted ? 'line-through text-gray-500' : 'text-gray-100'}`}>
                       {task.title}
+                      {(task as { isStarter?: boolean }).isStarter && (
+                        <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-teal-900/40 text-teal-400 font-normal">Starter</span>
+                      )}
                     </p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusBadge.color}`}>
@@ -120,13 +125,15 @@ export default function AssignedTasksWidget({ cycleId }: Props) {
                           <PlayCircle size={15} />
                         </button>
                       )}
-                      <button
-                        onClick={() => completeTask(task.id)}
-                        title="Mark complete"
-                        className="p-1.5 rounded-lg bg-green-900/50 text-green-400 hover:bg-green-900 transition-colors"
-                      >
-                        <CheckCircle size={15} />
-                      </button>
+                      {assignStatus === 'in_progress' && (
+                        <button
+                          onClick={() => window.location.href = `/activity?taskId=${task.id}`}
+                          title="Submit activity to complete"
+                          className="p-1.5 rounded-lg bg-green-900/50 text-green-400 hover:bg-green-900 transition-colors"
+                        >
+                          <CheckCircle size={15} />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

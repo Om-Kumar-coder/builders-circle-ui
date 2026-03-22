@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useActivity } from '@/hooks/useActivity';
 import { useCycles } from '@/hooks/useCycles';
@@ -14,11 +15,15 @@ import { Filter, RefreshCw, Plus, ChevronDown } from 'lucide-react';
 
 type FilterType = 'all' | ActivityStatus;
 
-export default function ActivityPage() {
+function ActivityPageInner() {
   const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const initialTaskId = searchParams.get('taskId') ?? undefined;
+
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedCycleId, setSelectedCycleId] = useState<string>('');
-  const [showSubmitForm, setShowSubmitForm] = useState(false);
+  // Auto-open form if redirected from a task
+  const [showSubmitForm, setShowSubmitForm] = useState(!!initialTaskId);
   
   // Fetch cycles to allow user selection
   const { cycles } = useCycles();
@@ -146,6 +151,7 @@ export default function ActivityPage() {
           <SubmitActivityForm
             userId={user!.id}
             cycleId={cycleId}
+            initialTaskId={initialTaskId}
             onSuccess={() => {
               setShowSubmitForm(false);
               refetch();
@@ -263,5 +269,13 @@ export default function ActivityPage() {
         </div>
       </div>
     </MainLayout>
+  );
+}
+
+export default function ActivityPage() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <ActivityPageInner />
+    </Suspense>
   );
 }

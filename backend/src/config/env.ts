@@ -13,6 +13,12 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   FRONTEND_URL: z.string().default('http://localhost:3000'),
   UPLOAD_DIR: z.string().default('./uploads'),
+  GOOGLE_SERVICE_ACCOUNT_KEY_PATH: z.string().optional(),
+  GOOGLE_DRIVE_FOLDER_ID: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REFRESH_TOKEN: z.string().optional(),
+  GOOGLE_SHEET_ID: z.string().optional(), // Interest form spreadsheet ID
 });
 
 export const env = envSchema.parse(process.env);

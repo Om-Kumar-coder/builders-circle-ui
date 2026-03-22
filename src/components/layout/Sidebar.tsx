@@ -19,38 +19,53 @@ import {
   Clock,
   FileText,
   ListTodo,
+  Lock,
+  Lightbulb,
 } from 'lucide-react';
+import type { Permission } from '@/lib/permissions';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const navigationItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+  /** Permission required to access this route. Omit = always accessible. */
+  permission?: Permission;
+}
+
+const navigationItems: NavItem[] = [
+  { name: 'Dashboard',    href: '/dashboard',    icon: LayoutDashboard },
   { name: 'Build Cycles', href: '/build-cycles', icon: Zap },
-  { name: 'Activity', href: '/activity', icon: Activity },
-  { name: 'Earnings', href: '/earnings', icon: DollarSign },
-  { name: 'Docs Vault', href: '/docs', icon: FileText },
-  { name: 'Team', href: '/team', icon: Users },
-  { name: 'Insights', href: '/insights', icon: BarChart3 },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Activity',     href: '/activity',     icon: Activity },
+  { name: 'Earnings',     href: '/earnings',     icon: DollarSign,  permission: 'ownership:view_own' },
+  { name: 'Docs Vault',   href: '/docs',         icon: FileText,    permission: 'docs:view' },
+  { name: 'Ideas',        href: '/ideas',        icon: Lightbulb,   permission: 'ideas:submit' },
+  { name: 'Team',         href: '/team',         icon: Users },
+  { name: 'Insights',     href: '/insights',     icon: BarChart3,   permission: 'activity:submit' },
+  { name: 'Settings',     href: '/settings',     icon: Settings },
 ];
 
-const adminItems = [
-  { name: 'Admin Dashboard', href: '/admin', icon: Shield },
-  { name: 'Activity Review', href: '/admin/activity-review', icon: CheckCircle },
-  { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-  { name: 'Audit Logs', href: '/admin/audit', icon: Clock },
-  { name: 'Agreements', href: '/admin/agreements', icon: FileText },
-  { name: 'Tasks', href: '/admin/tasks', icon: ListTodo },
-  { name: 'Docs Vault', href: '/admin/docs', icon: Shield },
+const adminItems: NavItem[] = [
+  { name: 'Admin Dashboard', href: '/admin',                icon: Shield },
+  { name: 'Activity Review', href: '/admin/activity-review',icon: CheckCircle },
+  { name: 'Analytics',       href: '/admin/analytics',      icon: BarChart3 },
+  { name: 'Audit Logs',      href: '/admin/audit',          icon: Clock },
+  { name: 'Agreements',      href: '/admin/agreements',     icon: FileText },
+  { name: 'Tasks',           href: '/admin/tasks',          icon: ListTodo },
+  { name: 'Groups',          href: '/admin/groups',         icon: Users },
+  { name: 'Triage',          href: '/admin/triage',         icon: CheckCircle },
+  { name: 'Ideas',           href: '/admin/ideas',          icon: Lightbulb },
+  { name: 'Docs Vault',      href: '/admin/docs',           icon: Shield },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user: _user } = useAuth();
-  const { isAdmin } = usePermissions();
+  const { isAdmin, can } = usePermissions();
 
   return (
     <>
@@ -101,6 +116,22 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             {navigationItems.map((item) => {
               const isActive = pathname === item.href;
               const Icon = item.icon;
+              const locked = !!item.permission && !can(item.permission);
+
+              if (locked) {
+                return (
+                  <div
+                    key={item.name}
+                    title="You do not have access"
+                    aria-disabled="true"
+                    className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-600 cursor-not-allowed select-none"
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="font-medium flex-1">{item.name}</span>
+                    <Lock className="w-3.5 h-3.5 shrink-0" aria-label="Locked" />
+                  </div>
+                );
+              }
 
               return (
                 <Link

@@ -8,6 +8,11 @@ interface OwnershipData {
   provisional: number;
   multiplier: number;
   effective: number;
+  // Economy engine additions (optional — fallback to undefined when not yet computed)
+  normalizedOwnershipPct?: number;
+  contributionScore?: number;
+  totalSystemScore?: number;
+  contributorPoolPct?: number;
 }
 
 interface UseOwnershipDataResult {
@@ -44,22 +49,32 @@ export function useOwnershipData(
       setLoading(true);
       setError(null);
 
-      const result = await apiClient.getOwnership(userId, cycleId);
+      // Fetch both existing and normalized data in parallel; normalized is best-effort
+      const [result, normalizedResult] = await Promise.allSettled([
+        apiClient.getOwnership(userId, cycleId),
+        apiClient.getNormalizedOwnership(userId, cycleId),
+      ]);
 
       console.log('✅ Ownership data received:', result);
 
-      // The API client now returns the data directly (after extracting from standardized response)
+      const base = result.status === 'fulfilled' ? result.value : null;
+      const normalized = normalizedResult.status === 'fulfilled' ? normalizedResult.value : null;
+
       setData({
-        vested: result.vestedOwnership || 0,
-        provisional: result.provisionalOwnership || 0,
-        multiplier: result.multiplier || 1,
-        effective: result.effectiveOwnership || 0,
+        vested: base?.vestedOwnership ?? 0,
+        provisional: base?.provisionalOwnership ?? 0,
+        multiplier: base?.multiplier ?? 1,
+        effective: base?.effectiveOwnership ?? 0,
+        // Economy engine fields — undefined when not yet available (safe fallback)
+        normalizedOwnershipPct: normalized?.normalizedOwnershipPct,
+        contributionScore: normalized?.contributionScore,
+        totalSystemScore: normalized?.totalSystemScore,
+        contributorPoolPct: normalized?.contributorPoolPct,
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       console.error('❌ Error fetching ownership data:', err);
       setError(errorMessage);
-      // Set default values on error
       setData({
         vested: 0,
         provisional: 0,
@@ -73,10 +88,7 @@ export function useOwnershipData(
 
   useEffect(() => {
     fetchOwnership();
-
-    // Set up auto-refresh
     const interval = setInterval(fetchOwnership, refreshInterval);
-
     return () => clearInterval(interval);
   }, [fetchOwnership, refreshInterval]);
 

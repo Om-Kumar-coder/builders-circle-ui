@@ -22,7 +22,7 @@ module.exports = {
     },
     {
       name: 'builders-circle-frontend',
-      script: 'node_modules/.bin/next',
+      script: 'node_modules/next/dist/bin/next',
       args: 'start',
       cwd: './',
       env: {

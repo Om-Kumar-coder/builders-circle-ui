@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../src/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -16,9 +16,19 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login, user, loading, refreshUser } = useAuth();
   const router = useRouter();
+  const redirectingRef = useRef(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace('/dashboard');
+    if (!loading && user && !redirectingRef.current) {
+      redirectingRef.current = true;
+      if (!user.onboardingCompleted) {
+        router.replace('/onboarding');
+      } else if (user.role === 'founder' || user.role === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/dashboard');
+      }
+    }
   }, [user, loading, router]);
 
   async function handleCredentials(e: React.FormEvent) {
@@ -128,10 +138,14 @@ export default function LoginPage() {
                 </button>
               </form>
 
-              <div className="mt-6 text-center">
+              <div className="mt-6 text-center space-y-3">
                 <p className="text-gray-400">
                   Don&apos;t have an account?{' '}
                   <Link href="/signup" className="text-blue-500 hover:text-blue-400 font-medium transition">Sign up</Link>
+                </p>
+                <p className="text-gray-500 text-sm">
+                  Want to join?{' '}
+                  <a href="https://docs.google.com/forms/d/e/1FAIpQLSf5j4p877uErugDzliFP7A5ZqyoT2sq6-W_Jdxm9C2hmuKe5w/viewform" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 font-medium transition">Apply to Builder&apos;s Circle</a>
                 </p>
               </div>
             </>

@@ -135,6 +135,7 @@ export async function validateActivitySubmission(params: {
   description?: string;
   workSummary?: string;
   hoursLogged?: number;
+  linkedTaskId?: string;
 }): Promise<ValidationResult> {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -188,6 +189,13 @@ export async function validateActivitySubmission(params: {
   // 6. Warn if no description AND no work summary (not a hard block, just advisory)
   if (!params.description?.trim() && !params.workSummary?.trim()) {
     warnings.push('No description or work summary provided. Adding context helps reviewers approve your activity faster.');
+  }
+
+  // 7. Nudge toward linkedTaskId for task_completion type
+  if (params.contributionType === 'task_completion' && !params.linkedTaskId) {
+    warnings.push(
+      'task_completion activities should be linked to a task. Use linkedTaskId to connect this to an assigned task.'
+    );
   }
 
   return { valid: errors.length === 0, errors, warnings };

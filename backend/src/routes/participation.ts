@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
 import { authMiddleware, roleMiddleware, requireFullAccess, AuthRequest } from '../middleware/auth';
+import { assignStarterTasks } from '../services/starterTaskService';
 
 const router = Router();
 
@@ -68,6 +68,15 @@ router.post('/join', authMiddleware, requireFullAccess, async (req: AuthRequest,
       data: participation,
       error: null
     });
+
+    // Assign starter tasks after responding (non-blocking)
+    prisma.user.findUnique({ where: { id: req.user!.id }, select: { groupId: true } })
+      .then(u => {
+        if (u?.groupId) {
+          return assignStarterTasks(req.user!.id, u.groupId, cycleId);
+        }
+      })
+      .catch(err => console.error('Failed to assign starter tasks on join:', err));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({

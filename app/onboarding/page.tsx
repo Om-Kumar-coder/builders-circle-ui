@@ -107,11 +107,11 @@ export default function OnboardingPage() {
     }
   }
 
-  async function advanceStep(step: number) {
+  async function advanceStep(step: number, data?: Record<string, unknown>) {
     setAdvancing(true);
     setError('');
     try {
-      const result = await apiClient.advanceOnboardingStep(step);
+      const result = await apiClient.advanceOnboardingStep(step, data);
       setCurrentStep(result.onboardingStep);
       if (result.onboardingCompleted) {
         await refreshUser();
@@ -175,7 +175,7 @@ export default function OnboardingPage() {
         return <StepPasswordManager
           confirmed={passwordConfirmed}
           onConfirm={() => setPasswordConfirmed(true)}
-          onNext={() => advanceStep(3)}
+          onNext={() => advanceStep(3, { passwordManagerAcknowledged: true })}
           advancing={advancing}
           error={error}
         />;

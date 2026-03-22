@@ -14,9 +14,12 @@ export default function DashboardLayout({
   const router = useRouter();
 
   useEffect(() => {
+    console.log('[DashboardLayout] useEffect fired — loading:', loading, 'user:', user?.email ?? null, 'onboardingCompleted:', user?.onboardingCompleted);
     if (!loading && !user) {
+      console.log('[DashboardLayout] → redirecting to /login');
       router.replace('/login');
     } else if (!loading && user && !user.onboardingCompleted) {
+      console.log('[DashboardLayout] → redirecting to /onboarding');
       router.replace('/onboarding');
     }
   }, [user, loading, router]);

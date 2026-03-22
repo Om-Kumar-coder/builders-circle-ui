@@ -43,7 +43,13 @@ export type Permission =
   | 'admin:jobs'
   // Founder-only
   | 'founder:manage_founders'
-  | 'founder:system_config';
+  | 'founder:system_config'
+  // Groups
+  | 'groups:view'
+  | 'groups:manage'
+  // Ideas
+  | 'ideas:submit'
+  | 'ideas:manage';
 
 // ── Matrix ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +59,7 @@ const MATRIX: Record<Role, Set<Permission>> = {
   observer: new Set([
     'ownership:view_own',
     'docs:view',
+    'groups:view',
   ]),
 
   contributor: new Set([
@@ -60,6 +67,8 @@ const MATRIX: Record<Role, Set<Permission>> = {
     'cycle:join',
     'ownership:view_own',
     'docs:view',
+    'groups:view',
+    'ideas:submit',
   ]),
 
   employee: new Set([
@@ -67,6 +76,8 @@ const MATRIX: Record<Role, Set<Permission>> = {
     'cycle:join',
     'ownership:view_own',
     'docs:view',
+    'groups:view',
+    'ideas:submit',
   ]),
 
   admin: new Set([
@@ -94,6 +105,11 @@ const MATRIX: Record<Role, Set<Permission>> = {
     'admin:weights',
     'admin:analytics',
     'admin:jobs',
+    // groups + ideas
+    'groups:view',
+    'groups:manage',
+    'ideas:submit',
+    'ideas:manage',
   ]),
 
   founder: new Set([
@@ -125,6 +141,11 @@ const MATRIX: Record<Role, Set<Permission>> = {
     // founder-only
     'founder:manage_founders',
     'founder:system_config',
+    // groups + ideas
+    'groups:view',
+    'groups:manage',
+    'ideas:submit',
+    'ideas:manage',
   ]),
 };
 

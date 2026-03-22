@@ -1,20 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { submitActivity } from '@/lib/activity';
 import { ActivitySubmission, ACTIVITY_TYPE_LABELS, ACTIVITY_LIMITS } from '@/types/activity';
 import { Clock, FileText, Link as LinkIcon, CheckCircle, AlertCircle } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 
 interface SubmitActivityFormProps {
   userId: string;
   cycleId: string;
   onSuccess: () => void;
+  /** Pre-select a task (e.g. when redirected from "Submit Activity to Complete") */
+  initialTaskId?: string;
 }
 
-export default function SubmitActivityForm({ userId, cycleId, onSuccess }: SubmitActivityFormProps) {
+export default function SubmitActivityForm({ userId, cycleId, onSuccess, initialTaskId }: SubmitActivityFormProps) {
   const [formData, setFormData] = useState<Partial<ActivitySubmission>>({
     cycleId,
-    contributionType: 'code',
+    contributionType: initialTaskId ? 'task_completion' : 'code',
     activityType: '',
     proofLink: '',
     description: '',
@@ -22,9 +25,25 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
     workSummary: '',
     taskReference: '',
   });
+  const [linkedTaskId, setLinkedTaskId] = useState<string>(initialTaskId ?? '');
+  const [assignedTasks, setAssignedTasks] = useState<{ id: string; title: string; acceptanceCriteria?: string }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // Fetch assigned tasks for this cycle when contributionType is task_completion
+  useEffect(() => {
+    if (formData.contributionType === 'task_completion') {
+      apiClient.getMyTasks()
+        .then((assignments: { task?: { id: string; title: string; acceptanceCriteria?: string; cycleId?: string; status?: string } }[]) => {
+          const tasks = assignments
+            .filter(a => a.task?.cycleId === cycleId && a.task?.status !== 'completed')
+            .map(a => ({ id: a.task!.id, title: a.task!.title, acceptanceCriteria: a.task!.acceptanceCriteria }));
+          setAssignedTasks(tasks);
+        })
+        .catch(() => setAssignedTasks([]));
+    }
+  }, [formData.contributionType, cycleId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,10 +73,10 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
         hoursLogged: formData.hoursLogged,
         workSummary: formData.workSummary,
         taskReference: formData.taskReference,
+        linkedTaskId: linkedTaskId || undefined,
         contributionType: formData.contributionType!,
         contributionWeight: 1.0,
       };
-
       const result = await submitActivity(userId, submission);
       
       if (result.success) {
@@ -118,12 +137,38 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
           </select>
         </div>
 
+        {/* Link to Task (task_completion only) */}
+        {formData.contributionType === 'task_completion' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Link to Task</label>
+            {assignedTasks.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">You have no assigned tasks in this cycle. You can still submit without linking.</p>
+            ) : (
+              <select
+                value={linkedTaskId}
+                onChange={e => setLinkedTaskId(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="">No task linked</option>
+                {assignedTasks.map(t => (
+                  <option key={t.id} value={t.id}>{t.title}</option>
+                ))}
+              </select>
+            )}
+            {linkedTaskId && assignedTasks.find(t => t.id === linkedTaskId)?.acceptanceCriteria && (
+              <div className="mt-2 p-3 bg-gray-800/60 rounded-lg text-xs text-gray-400">
+                <p className="font-medium text-gray-300 mb-1">Acceptance Criteria</p>
+                <p className="whitespace-pre-wrap">{assignedTasks.find(t => t.id === linkedTaskId)?.acceptanceCriteria}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Activity Type */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
             Activity Type *
-          </label>
-          <input
+          </label>          <input
             type="text"
             value={formData.activityType}
             onChange={(e) => handleInputChange('activityType', e.target.value)}
@@ -202,7 +247,11 @@ export default function SubmitActivityForm({ userId, cycleId, onSuccess }: Submi
             required
           />
           <p className="text-xs text-gray-500 mt-1">
-            Link to PR, commit, document, or other proof of work
+            {formData.contributionType === 'code' && 'GitHub/GitLab/Bitbucket commit, PR, or issue URL required.'}
+            {formData.contributionType === 'documentation' && 'GitHub PR/commit, Notion, Confluence, or Google Docs URL required.'}
+            {formData.contributionType === 'review' && 'GitHub PR or GitLab merge request URL required.'}
+            {formData.contributionType === 'task_completion' && 'GitHub issue/PR, Jira, Linear, or Notion task URL required.'}
+            {['hours_logged', 'meeting', 'research'].includes(formData.contributionType ?? '') && 'Any verifiable HTTPS URL accepted.'}
           </p>
         </div>
 

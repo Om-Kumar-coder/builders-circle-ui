@@ -19,6 +19,7 @@ import AccessExpiryWidget from './AccessExpiryWidget';
 import SecurityNoticesWidget from './SecurityNoticesWidget';
 import RulesBanner from './RulesBanner';
 import TierBadge, { deriveTier } from './TierBadge';
+import GroupBadge from './GroupBadge';
 import { RefreshCw } from 'lucide-react';
 
 interface DashboardGridProps {
@@ -83,6 +84,7 @@ export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
           <h2 className="text-2xl font-bold text-gray-100">Dashboard</h2>
           <div className="flex items-center gap-2 flex-wrap">
             <TierBadge tier={deriveTier(user?.role, data?.effective)} size="sm" />
+            <GroupBadge />
             <span className="text-xs text-gray-500">·</span>
             <p className="text-xs text-gray-500">Auto-refreshes every 60s</p>
           </div>
@@ -175,6 +177,14 @@ export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
                 className="text-left px-4 py-2 bg-indigo-800 hover:bg-indigo-700 rounded-lg text-sm text-indigo-200 transition-colors"
               >
                 Analytics
+              </button>
+            )}
+            {!isAdmin && (
+              <button
+                onClick={() => window.location.href = '/ideas/submit'}
+                className="text-left px-4 py-2 bg-yellow-800/50 hover:bg-yellow-800 rounded-lg text-sm text-yellow-200 transition-colors"
+              >
+                Submit an Idea
               </button>
             )}
           </div>

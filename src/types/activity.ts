@@ -61,6 +61,7 @@ export interface ActivitySubmission {
   hoursLogged?: number;
   workSummary?: string;
   taskReference?: string;
+  linkedTaskId?: string;
   contributionType: ActivityType;
   contributionWeight?: number;
 }

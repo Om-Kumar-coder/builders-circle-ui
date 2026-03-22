@@ -1,4 +1,6 @@
 import { prisma } from '../config/database';
+import { getTotalCycleScore, getSystemPool } from './aggregationService';
+import { assertOwnershipWriteIsAudited } from './integrityService';
 
 export class OwnershipService {
   /**
@@ -57,9 +59,14 @@ export class OwnershipService {
     eventType: string,
     ownershipAmount: number,
     sourceReference?: string,
-    createdBy?: string
+    createdBy?: string,
+    auditReason?: string
   ) {
     try {
+      // ISSUE 1: guard against unsanctioned manual ownership writes
+      // Only system-approved event types are allowed without an explicit audit reason
+      assertOwnershipWriteIsAudited(eventType, createdBy ?? 'system', auditReason);
+
       // Get current multiplier
       const latestMultiplier = await prisma.multiplier.findFirst({
         where: { userId, cycleId },
@@ -85,5 +92,100 @@ export class OwnershipService {
       console.error('Error creating ownership entry:', error);
       throw error;
     }
+  }
+
+  // ── NEW: Normalized Ownership Economy Engine ────────────────────────────────
+
+  /**
+   * Compute normalized ownership % for a user in a cycle.
+   * Formula: (userScore / totalScore) × contributorPoolPct
+   *
+   * Stores result in the latest OwnershipLedger entry's normalizedOwnershipPct.
+   * Falls back to 0 safely when totalScore = 0 or data is missing.
+   * DOES NOT modify ownershipAmount, multiplier, or vesting logic.
+   */
+  static async computeNormalizedOwnership(
+    userId: string,
+    cycleId: string
+  ): Promise<{
+    userId: string;
+    normalizedOwnershipPct: number;
+    contributionScore: number;
+    totalSystemScore: number;
+    contributorPoolPct: number;
+  }> {
+    try {
+      const [scoreRow, totalScore, pool] = await Promise.all([
+        prisma.contributionScore.findUnique({
+          where: { userId_cycleId: { userId, cycleId } },
+        }),
+        getTotalCycleScore(cycleId),
+        getSystemPool(),
+      ]);
+
+      const userScore = scoreRow?.score ?? 0;
+      const contributorPoolPct = pool.contributorPoolPct;
+
+      // Safety: never divide by zero, never exceed pool
+      const normalizedOwnershipPct =
+        totalScore > 0
+          ? Math.min((userScore / totalScore) * contributorPoolPct, contributorPoolPct)
+          : 0;
+
+      // Persist to the most recent ledger entry for this user/cycle (if one exists)
+      const latestEntry = await prisma.ownershipLedger.findFirst({
+        where: { userId, cycleId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (latestEntry) {
+        await prisma.ownershipLedger.update({
+          where: { id: latestEntry.id },
+          data: { normalizedOwnershipPct },
+        });
+      }
+
+      return {
+        userId,
+        normalizedOwnershipPct,
+        contributionScore: userScore,
+        totalSystemScore: totalScore,
+        contributorPoolPct,
+      };
+    } catch (error) {
+      console.error('Error computing normalized ownership:', error);
+      // Fallback — never crash
+      return {
+        userId,
+        normalizedOwnershipPct: 0,
+        contributionScore: 0,
+        totalSystemScore: 0,
+        contributorPoolPct: 0.4,
+      };
+    }
+  }
+
+  /**
+   * Run normalization for all active participants across all active cycles.
+   * Called by the normalization cron job.
+   */
+  static async normalizeAllOwnership(): Promise<{ updated: number }> {
+    const activeCycles = await prisma.buildCycle.findMany({
+      where: { state: 'active' },
+      select: { id: true },
+    });
+
+    let updated = 0;
+    for (const cycle of activeCycles) {
+      const participants = await prisma.cycleParticipation.findMany({
+        where: { cycleId: cycle.id, optedIn: true },
+        select: { userId: true },
+      });
+      for (const p of participants) {
+        await OwnershipService.computeNormalizedOwnership(p.userId, cycle.id);
+        updated++;
+      }
+    }
+    return { updated };
   }
 }

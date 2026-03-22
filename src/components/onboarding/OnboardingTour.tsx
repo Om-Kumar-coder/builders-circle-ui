@@ -41,6 +41,12 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     highlight: 'earnings',
   },
   {
+    title: 'Your Starter Tasks',
+    description: 'Check your Assigned Tasks widget — you may have starter tasks waiting. These are curated entry points designed for your role. Complete them to make your first verified contributions.',
+    icon: '✅',
+    highlight: 'dashboard',
+  },
+  {
     title: 'Help Us Improve',
     description: 'Please take a moment to fill out our feedback form. Your input helps us make Builder\'s Circle better for everyone.',
     icon: '📝',

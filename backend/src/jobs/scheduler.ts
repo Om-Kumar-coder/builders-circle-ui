@@ -4,11 +4,26 @@ import { AdjustMultiplierJob } from './adjustMultiplier';
 import { ActivityArchiverJob } from './activityArchiver';
 import { OwnershipDecayJob } from './ownershipDecay';
 import { CycleFinalizerJob } from './cycleFinalizer';
+import { ScoreComputationJob } from './scoreComputationJob';
+import { AggregationJob } from './aggregationJob';
+import { NormalizationJob } from './normalizationJob';
+import { BackupJob } from './backupJob';
 import { prisma } from '../config/database';
 
 export class JobScheduler {
   static start() {
     console.log('Starting job scheduler...');
+
+    // Database backup — daily at 1 AM
+    cron.schedule('0 1 * * *', async () => {
+      console.log('Running daily database backup');
+      try {
+        const result = await BackupJob.run();
+        if (!result.success) console.error('Backup failed:', result.error);
+      } catch (error) {
+        console.error('Backup job threw:', error);
+      }
+    });
 
     // Run stall evaluator daily at 2 AM
     cron.schedule('0 2 * * *', async () => {
@@ -171,7 +186,37 @@ export class JobScheduler {
       }
     });
 
-    console.log('Job scheduler started successfully');  }
+    console.log('Job scheduler started successfully');
+
+    // ── Ownership Economy Engine jobs ─────────────────────────────────────────
+
+    // Score computation: every 30 min — picks up newly verified activities
+    cron.schedule('*/30 * * * *', async () => {
+      try {
+        await ScoreComputationJob.run();
+      } catch (error) {
+        console.error('Score computation job failed:', error);
+      }
+    });
+
+    // Aggregation: every hour at :15 — recomputes per-user totals
+    cron.schedule('15 * * * *', async () => {
+      try {
+        await AggregationJob.run();
+      } catch (error) {
+        console.error('Aggregation job failed:', error);
+      }
+    });
+
+    // Normalization: every hour at :20 (after aggregation) — computes normalized %
+    cron.schedule('20 * * * *', async () => {
+      try {
+        await NormalizationJob.run();
+      } catch (error) {
+        console.error('Normalization job failed:', error);
+      }
+    });
+  }
 
   // Manual job execution for testing/admin purposes
   static async runStallEvaluator() {
@@ -196,5 +241,22 @@ export class JobScheduler {
 
   static async finalizeCycle(cycleId: string) {
     return CycleFinalizerJob.finalizeCycleById(cycleId);
+  }
+
+  // ── Economy engine manual triggers ─────────────────────────────────────────
+  static async runScoreComputation() {
+    return ScoreComputationJob.run();
+  }
+
+  static async runAggregation() {
+    return AggregationJob.run();
+  }
+
+  static async runNormalization() {
+    return NormalizationJob.run();
+  }
+
+  static async runBackup() {
+    return BackupJob.run();
   }
 }

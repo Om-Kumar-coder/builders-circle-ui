@@ -8,6 +8,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import LoadingScreen from '@/components/auth/LoadingScreen';
 import StepUpModal from '@/components/auth/StepUpModal';
 import GrantAccessModal from '@/components/admin/GrantAccessModal';
+import AssignGroupModal from '@/components/groups/AssignGroupModal';
 import { useStepUpAuth } from '@/hooks/useStepUpAuth';
 import {
   ShieldCheck, ShieldOff, Search, RefreshCw, Clock,
@@ -73,6 +74,7 @@ export default function AccessManagementPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [grantTarget, setGrantTarget] = useState<UserWithGrants | null>(null);
+  const [groupTarget, setGroupTarget] = useState<UserWithGrants | null>(null);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
@@ -168,6 +170,21 @@ export default function AccessManagementPage() {
             onClose={() => setGrantTarget(null)}
           />
         )}
+        {groupTarget && (
+          <AssignGroupModal
+            userId={groupTarget.id}
+            userName={groupTarget.name || groupTarget.email}
+            currentGroupId={(groupTarget as { groupId?: string }).groupId}
+            onSave={async (groupId) => {
+              const { apiClient } = await import('@/lib/api-client');
+              await apiClient.assignUserGroup(groupTarget.id, groupId);
+              setSuccessMsg('Group assigned.');
+              setTimeout(() => setSuccessMsg(''), 3000);
+              await fetchData();
+            }}
+            onClose={() => setGroupTarget(null)}
+          />
+        )}
 
         <div className="flex items-center justify-between">
           <div>
@@ -243,6 +260,12 @@ export default function AccessManagementPage() {
                       >
                         <ShieldCheck className="w-4 h-4" />
                         Grant
+                      </button>
+                      <button
+                        onClick={() => setGroupTarget(u)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600/20 hover:bg-teal-600/40 text-teal-400 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Group
                       </button>
                       {u.grants.length > 0 && (
                         <button

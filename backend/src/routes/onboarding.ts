@@ -55,7 +55,7 @@ const stepSchema = z.object({
 
 router.post('/step', async (req: AuthRequest, res: Response) => {
   try {
-    const { step, data: _data } = stepSchema.parse(req.body);
+    const { step, data: stepData } = stepSchema.parse(req.body);
 
     const user = await db.user.findUnique({
       where: { id: req.user!.id },
@@ -100,7 +100,11 @@ router.post('/step', async (req: AuthRequest, res: Response) => {
         break;
       }
       case 3: {
-        // Password manager confirmation — client-side only, just advance
+        // Password manager confirmation — require explicit acknowledgment
+        const acknowledged = (stepData as Record<string, unknown>)?.passwordManagerAcknowledged;
+        if (!acknowledged) {
+          return res.status(400).json({ success: false, error: 'You must acknowledge the password manager step to proceed.' });
+        }
         break;
       }
       case 4: {
@@ -145,6 +149,19 @@ router.post('/step', async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /onboarding/tour-complete — persist tour completion
+router.post('/tour-complete', async (req: AuthRequest, res: Response) => {
+  try {
+    await db.user.update({
+      where: { id: req.user!.id },
+      data: { onboardingTourCompleted: true },
+    });
+    res.json({ success: true });
+  } catch {
     res.status(500).json({ error: 'Internal server error' });
   }
 });

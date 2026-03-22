@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../lib/api-client';
+import { useAuth } from './AuthContext';
 
 interface Cycle {
   id: string;
@@ -27,6 +28,7 @@ interface CycleContextType {
 const CycleContext = createContext<CycleContextType | undefined>(undefined);
 
 export function CycleProvider({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [activeCycle, setActiveCycle] = useState<Cycle | null>(null);
   const [allCycles, setAllCycles] = useState<Cycle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,15 +43,14 @@ export function CycleProvider({ children }: { children: React.ReactNode }) {
       setAllCycles(cycles);
       
       // Auto-select the first active cycle, or the most recent cycle if none are active
-      const activeCycles = cycles.filter(c => c.state === 'active');
+      const activeCycles = cycles.filter((c: Cycle) => c.state === 'active');
       const selectedCycle = activeCycles.length > 0 
         ? activeCycles[0] 
         : cycles.length > 0 
         ? cycles[0] 
         : null;
       
-      // Always set the active cycle if we found one and don't have one set
-      if (selectedCycle && (!activeCycle || activeCycle.id !== selectedCycle.id)) {
+      if (selectedCycle) {
         setActiveCycle(selectedCycle);
       }
       
@@ -57,22 +58,25 @@ export function CycleProvider({ children }: { children: React.ReactNode }) {
         total: cycles.length, 
         active: activeCycles.length, 
         selected: selectedCycle?.name,
-        selectedId: selectedCycle?.id
       });
     } catch (err) {
       console.error('Error fetching cycles:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch cycles');
-      
-      // Don't create fallback - let the components handle the no-cycle case gracefully
-      console.log('⚠️ No cycles available, components will handle gracefully');
     } finally {
       setLoading(false);
     }
-  }, [activeCycle]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    refreshCycles();
-  }, [refreshCycles]);
+    if (!authLoading && user) {
+      refreshCycles();
+    } else if (!authLoading && !user) {
+      // Reset cycle state when user logs out
+      setActiveCycle(null);
+      setAllCycles([]);
+      setLoading(false);
+    }
+  }, [user, authLoading, refreshCycles]);
 
   return (
     <CycleContext.Provider

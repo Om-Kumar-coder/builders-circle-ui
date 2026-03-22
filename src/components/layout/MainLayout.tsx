@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+// import ThreatBanner from '@/components/security/ThreatBanner';
 import { useSessionTracking } from '@/hooks/useSessionTracking';
 
 interface MainLayoutProps {
@@ -18,6 +19,9 @@ export default function MainLayout({ children, title }: MainLayoutProps) {
 
   return (
     <div className="flex h-screen bg-gray-950 overflow-hidden">
+
+      {/* Threat banners — fixed top, visible across all pages */}
+      {/* <ThreatBanner /> */}
 
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />

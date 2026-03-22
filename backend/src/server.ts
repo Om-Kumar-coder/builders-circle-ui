@@ -26,6 +26,10 @@ import leaveRoutes from './routes/leave';
 import logsRoutes from './routes/logs';
 import onboardingRoutes from './routes/onboarding';
 import docsRoutes from './routes/docs';
+import backupRoutes from './routes/backup';
+import triageRoutes from './routes/triage';
+import groupRoutes from './routes/groups';
+import ideaRoutes from './routes/ideas';
 import { authMiddleware } from './middleware/auth';
 import { requireEmailVerified } from './middleware/requireEmailVerified';
 import { requireOnboarding } from './middleware/requireOnboarding';
@@ -60,10 +64,10 @@ app.use(cors({
   optionsSuccessStatus: 200,
 }));
 
-// Global rate limiter — 10000 req / 15 min per IP
+// Global rate limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10000,
+  max: 100000,
   message: {
     success: false,
     data: null,
@@ -74,10 +78,10 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Stricter limiter for auth routes — 20 req / 15 min per IP
+// Stricter limiter for auth routes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 100000,
   message: {
     success: false,
     data: null,
@@ -85,6 +89,21 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+// ISSUE 9: tight rate limit for public spam-prone endpoints
+// 5 submissions per IP per 10 minutes (triage submit is already 3/hour in its own router)
+const publicSubmitLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  message: {
+    success: false,
+    data: null,
+    error: 'Too many submissions. Please wait before trying again.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip ?? 'unknown',
 });
 
 // Body parsing middleware
@@ -135,6 +154,16 @@ app.use('/api/sessions', onboardingGuard, sessionRoutes);
 app.use('/api/weights', onboardingGuard, weightRoutes);
 app.use('/api/security', onboardingGuard, securityRoutes);
 app.use('/api/logs', onboardingGuard, logsRoutes);
+app.use('/api/admin/backup', onboardingGuard, backupRoutes);
+
+// Triage — public submit + admin review (submit has its own 3/hour limiter in the router)
+app.use('/api/triage', triageRoutes);
+// Groups — user read + admin manage
+app.use('/api/groups', agreementGuard, groupRoutes);
+// Ideas — user submit (rate-limited) + admin review
+// ISSUE 9: apply publicSubmitLimiter to POST /api/ideas only
+app.post('/api/ideas', publicSubmitLimiter);
+app.use('/api/ideas', agreementGuard, ideaRoutes);
 
 // Central error handling middleware — standard API error format
 app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {

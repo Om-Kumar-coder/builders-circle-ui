@@ -18,7 +18,7 @@ const router = Router();
 
 const signupSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(8),
   name: z.string().optional(),
 });
 
@@ -47,7 +47,7 @@ function signJwt(userId: string, twoFactorVerified = false, role = 'contributor'
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax' as const,
-  secure: process.env.NODE_ENV === 'production',
+  secure: false, // set to true only when serving over HTTPS
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (matches default JWT_EXPIRES)
   path: '/',
 };
@@ -76,8 +76,16 @@ export async function revokeAllUserTokens(userId: string) {
 }
 
 // ── Sign up ───────────────────────────────────────────────────────────────────
+// Direct signup is disabled. New members must apply via /submit-to-triage
+// and be approved by an admin before an account is created.
 
-router.post('/signup', async (req: Request, res: Response) => {
+router.post('/signup', (_req: Request, res: Response) => {
+  return res.status(403).json({
+    error: 'Direct signup is not available. Please apply at /submit-to-triage and wait for admin approval.',
+  });
+});
+
+router.post('/signup-disabled-stub', async (req: Request, res: Response) => {
   try {
     const { email, password, name } = signupSchema.parse(req.body);
 
@@ -200,16 +208,23 @@ router.post('/verify-email', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid or expired verification link' });
     }
 
+    // If the user has no password set (triage-approved), keep the token alive
+    // so the /set-password endpoint can use it. Clear it only for normal users.
+    const needsPassword = !user.password || user.password === '';
+
     await prisma.user.update({
       where: { id: user.id },
       data: {
         emailVerified: true,
-        emailVerifyToken: null,
-        emailVerifyExpiry: null,
+        // Keep token alive for triage users who still need to set a password
+        ...(needsPassword ? {} : {
+          emailVerifyToken: null,
+          emailVerifyExpiry: null,
+        }),
       },
     });
 
-    res.json({ success: true, message: 'Email verified successfully' });
+    res.json({ success: true, message: 'Email verified successfully', needsPassword });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
     res.status(500).json({ error: 'Internal server error' });
@@ -393,7 +408,7 @@ router.post('/change-password', authMiddleware, async (req: AuthRequest, res: Re
   try {
     const schema = z.object({
       currentPassword: z.string().min(1),
-      newPassword: z.string().min(6),
+      newPassword: z.string().min(8),
     });
     const { currentPassword, newPassword } = schema.parse(req.body);
 
@@ -563,7 +578,7 @@ router.post('/reset-password', async (req: Request, res: Response) => {
   try {
     const { token, newPassword } = z.object({
       token: z.string().min(1),
-      newPassword: z.string().min(6),
+      newPassword: z.string().min(8),
     }).parse(req.body);
 
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
@@ -600,6 +615,46 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 });
 
 
+
+// ── Set password (triage-approved users with empty password) ─────────────────
+
+router.post('/set-password', async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = z.object({
+      token: z.string().min(1),
+      newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+    }).parse(req.body);
+
+    // Reuse the emailVerifyToken — same token that was sent in the approval email
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerifyToken: token,
+        emailVerifyExpiry: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired link. Please request a new verification email.' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashed,
+        emailVerified: true,
+        emailVerifyToken: null,
+        emailVerifyExpiry: null,
+      },
+    });
+
+    res.json({ success: true, message: 'Password set successfully. You can now complete onboarding.' });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors[0].message });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 router.post('/relogin', async (req: Request, res: Response) => {
   try {

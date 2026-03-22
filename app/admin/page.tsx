@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { Shield, Users, Settings, BarChart3, CheckCircle, Clock, RefreshCw, ChevronDown, ChevronUp, ExternalLink, User, Calendar, PauseCircle, ListTodo, Scale, FileText } from 'lucide-react';
 import { apiClient } from '../../src/lib/api-client';
 import JobExecutionPanel from '../../src/components/admin/JobExecutionPanel';
+import BackupStatusPanel from '../../src/components/admin/BackupStatusPanel';
 
 interface QuickStats {
   pendingActivities: number;
@@ -355,6 +356,9 @@ export default function AdminPage() {
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           <JobExecutionPanel onJobComplete={fetchStats} />
         </div>
+
+        {/* Backup & Recovery Status */}
+        <BackupStatusPanel />
 
         {/* Admin Actions Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

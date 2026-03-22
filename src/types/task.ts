@@ -1,4 +1,4 @@
-export type TaskStatus = 'open' | 'completed' | 'overdue';
+export type TaskStatus = 'open' | 'in_progress' | 'review' | 'completed' | 'overdue';
 export type AssignmentStatus = 'assigned' | 'in_progress' | 'completed';
 export type LeaveStatus = 'active' | 'paused' | 'left';
 
@@ -6,6 +6,12 @@ export interface Task {
   id: string;
   title: string;
   description?: string;
+  acceptanceCriteria?: string;
+  proofLink?: string;
+  securityNote?: string;
+  restricted?: boolean;
+  isStarter?: boolean;
+  groupId?: string;
   cycleId: string;
   createdBy: string;
   dueDate?: string;

@@ -10,6 +10,57 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
+  tasks Task[]
+
+  @@map("groups")
+}
+
+model TriageSubmission {
+  id             String       @id @default(cuid())
+  name           String
+  email          String
+  roleType       String
+  submissionType String
+  description    String
+  proofLinks     String? // JSON array stored as string
+  availability   String?
+  status         String @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  rejectionNote  String?
+  createdAt      DateTime     @default(now())
+
+  @@map("triage_submissions")
+}
+
+model Idea {
+  id            String     @id @default(cuid())
+  submittedBy   String
+  title         String
+  description   String
+  attachments   String? // JSON array stored as string
+  status        String @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  rejectionNote String?
+  cycleId       String?
+  createdAt     DateTime   @default(now())
+
+  submitter User        @relation(fields: [submittedBy], references: [id], onDelete: Cascade)
+  cycle     BuildCycle? @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+
+  @@map("ideas")
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -30,6 +81,7 @@ model User {
   // Onboarding
   onboardingStep      Int     @default(0)
   onboardingCompleted Boolean @default(false)
+  onboardingTourCompleted Boolean @default(false)
 
   // Token revocation (force-logout all devices)
   tokenRevokedAt DateTime?
@@ -37,6 +89,10 @@ model User {
   // Password reset
   passwordResetToken  String?
   passwordResetExpiry DateTime?
+
+  // Group assignment
+  groupId String?
+  group   Group?  @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   // Relations
   profile              UserProfile?
@@ -70,6 +126,8 @@ model User {
   docAccessGranted     DocumentAccess[]   @relation("DocAccessGranter")
   docVersionUploads    DocumentVersion[]  @relation("DocVersionUploader")
   docActivity          DocumentActivity[] @relation("DocActivityUser")
+  contributionScores   ContributionScore[]
+  submittedIdeas       Idea[]
 
   @@map("users")
 }
@@ -91,11 +149,13 @@ model UserProfile {
 model BuildCycle {
   id               String   @id @default(cuid())
   name             String
-  description      String?  // Optional description for the cycle
+  description      String?
   state            String // planned, active, paused, closed
   startDate        DateTime
   endDate          DateTime
   participantCount Int      @default(0)
+  // ISSUE 8: tracks whether initializeCycleMetrics() has been called
+  metricsInitialized Boolean @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -109,6 +169,8 @@ model BuildCycle {
   engagement       CycleEngagement?
   tasks            Task[]
   participationLeaves ParticipationLeave[]
+  contributionScores  ContributionScore[]
+  ideas            Idea[]
 
   @@map("build_cycles")
 }
@@ -121,6 +183,7 @@ model CycleParticipation {
   participationStatus String // active, at-risk, paused, grace
   stallStage          String // none, grace, active, at_risk, diminishing, paused
   lastActivityDate    DateTime?
+  isLead              Boolean   @default(false)
   createdAt           DateTime  @default(now())
 
   user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -137,19 +200,21 @@ model ActivityEvent {
   activityType        String    // code, documentation, review, task_completion, hours_logged, meeting, research
   proofLink           String
   description         String?
-  hoursLogged         Float?    // Hours worked on this activity
-  workSummary         String?   // Summary of work done
-  taskReference       String?   // Reference to task/issue
+  hoursLogged         Float?
+  workSummary         String?
+  taskReference       String?   // free-text external reference (Jira, Linear, etc.)
+  linkedTaskId        String?   // hard FK to internal Task
   status              String    @default("pending") // pending, verified, rejected, changes_requested
-  verifiedBy          String?   // Admin who verified/rejected
-  verifiedAt          DateTime? // When verification happened
-  rejectionReason     String?   // Reason for rejection/changes requested
-  feedbackComment     String?   // Detailed feedback from admin
-  feedbackAuthor      String?   // Admin who provided feedback
-  feedbackTimestamp   DateTime? // When feedback was provided
-  contributionType    String    @default("code") // code, documentation, review, hours_logged, meeting, research, task_completion
+  verifiedBy          String?
+  verifiedAt          DateTime?
+  rejectionReason     String?
+  feedbackComment     String?
+  feedbackAuthor      String?
+  feedbackTimestamp   DateTime?
+  contributionType    String    @default("code")
   contributionWeight  Float     @default(1.0)
   calculatedOwnership Float     @default(0.0)
+  scoreContribution   Float?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -157,6 +222,7 @@ model ActivityEvent {
   cycle          BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   verifier       User?      @relation("ActivityVerifier", fields: [verifiedBy], references: [id])
   feedbackGiver  User?      @relation("ActivityFeedback", fields: [feedbackAuthor], references: [id])
+  linkedTask     Task?      @relation(fields: [linkedTaskId], references: [id], onDelete: SetNull)
   disputes       Dispute[]
 
   @@map("activity_events")
@@ -171,6 +237,7 @@ model OwnershipLedger {
   multiplierSnapshot Float
   sourceReference    String?
   createdBy          String
+  normalizedOwnershipPct Float? // normalized % within contributor pool (nullable, additive)
   createdAt          DateTime @default(now())
 
   user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -426,19 +493,32 @@ model UserAgreement {
 }
 
 model Task {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  cycleId     String
-  createdBy   String
-  dueDate     DateTime?
-  status      String    @default("open") // open, completed, overdue
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                  String    @id @default(cuid())
+  title               String
+  description         String?
+  acceptanceCriteria  String?
+  proofLink           String?
+  securityNote        String?
+  restricted          Boolean   @default(false)
+  isStarter           Boolean   @default(false)
+  // ISSUE 7: starter tasks use a reduced score weight (e.g. 0.2) to prevent inflation
+  starterWeight       Float     @default(1.0)
+  cycleId             String
+  groupId             String?
+  createdBy           String
+  dueDate             DateTime?
+  // ISSUE 2: status lifecycle: open → claimed → submitted → approved | overdue
+  status              String    @default("open")
+  // ISSUE 3: cap how many users can claim this task concurrently
+  maxAssignments      Int       @default(1)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  cycle       BuildCycle       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  creator     User             @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: Cascade)
-  assignments TaskAssignment[]
+  cycle            BuildCycle       @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  group            Group?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  creator          User             @relation("TaskCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  assignments      TaskAssignment[]
+  linkedActivities ActivityEvent[]
 
   @@map("tasks")
 }
@@ -447,7 +527,10 @@ model TaskAssignment {
   id          String    @id @default(cuid())
   taskId      String
   userId      String
-  status      String    @default("assigned") // assigned, in_progress, completed
+  // ISSUE 2 & 4: status lifecycle: assigned → in_progress → submitted → approved
+  status      String    @default("assigned")
+  claimedAt   DateTime? // ISSUE 4: set when user claims the task
+  submittedAt DateTime? // ISSUE 2: set when linked activity is submitted
   completedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -497,8 +580,11 @@ model AccessGrant {
 model AdminActionLog {
   id            String   @id @default(cuid())
   adminId       String
-  action        String   // bulk_grant, bulk_revoke, bulk_force_logout, bulk_remove_cycle, bulk_assign_task, grant_access, revoke_access, role_change, override, etc.
+  action        String   // bulk_grant, bulk_revoke, triage_approved, idea_approved, task_claim, task_approved, etc.
   targetUserIds String   // JSON array
+  // ISSUE 10: structured entity reference for all new systems
+  entityType    String?  // triage | idea | task | cycle | group | activity
+  entityId      String?  // the primary entity this action affected
   metadata      String?  // JSON
   createdAt     DateTime @default(now())
 
@@ -602,4 +688,36 @@ model DocumentActivity {
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("document_activity")
+}
+
+// ── Ownership Economy Engine ──────────────────────────────────────────────────
+
+/// Per-user, per-cycle contribution score derived from verified activities.
+model ContributionScore {
+  id            String   @id @default(cuid())
+  userId        String
+  cycleId       String
+  score         Float    @default(0.0)
+  lastUpdatedAt DateTime @default(now()) @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle BuildCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cycleId])
+  @@map("contribution_scores")
+}
+
+/// Global pool configuration — one active row drives the whole economy.
+model SystemPool {
+  id                 String   @id @default(cuid())
+  totalValue         Float    @default(0.0)
+  contributorPoolPct Float    @default(0.4)  // 40 %
+  founderPoolPct     Float    @default(0.5)  // 50 %
+  investorPoolPct    Float    @default(0.1)  // 10 %
+  decayRate          Float    @default(0.01) // configurable exponential decay rate
+  isActive           Boolean  @default(true)
+  updatedAt          DateTime @updatedAt
+  createdAt          DateTime @default(now())
+
+  @@map("system_pool")
 }

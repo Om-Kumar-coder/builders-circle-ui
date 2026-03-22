@@ -139,6 +139,30 @@ router.patch('/:id/read', authMiddleware, requireFullAccess, async (req: AuthReq
   }
 });
 
+// POST /notifications/:id/dismiss-threat — log threat alert dismissal then mark read
+router.post('/:id/dismiss-threat', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const notifId = req.params.id as string;
+    // Mark as read
+    await prisma.notification.update({
+      where: { id: notifId, userId: req.user!.id },
+      data: { read: true },
+    });
+    // Audit log
+    await prisma.adminActionLog.create({
+      data: {
+        adminId: req.user!.id,
+        action: 'threat_alert_dismissed',
+        targetUserIds: JSON.stringify([req.user!.id]),
+        metadata: JSON.stringify({ notificationId: notifId, dismissedAt: new Date().toISOString() }),
+      },
+    }).catch(() => {}); // non-fatal
+    res.json({ success: true, data: null, error: null });
+  } catch {
+    res.status(500).json({ success: false, data: null, error: 'Failed to dismiss alert' });
+  }
+});
+
 // Get notification preferences
 router.get('/preferences', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
