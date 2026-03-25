@@ -394,6 +394,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
       createdAt: user.createdAt,
       emailVerified: user.emailVerified,
       twoFactorEnabled: user.twoFactorEnabled,
+      twoFactorVerified: req.user!.twoFactorVerified,
       onboardingStep: user.onboardingStep ?? 0,
       onboardingCompleted: user.onboardingCompleted ?? false,
     });
