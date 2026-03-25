@@ -2,7 +2,7 @@ import { Resend } from 'resend';
 import { env } from '../config/env';
 
 const resend = new Resend(env.RESEND_API_KEY);
-const FROM = 'Builders Circle <onboarding@resend.dev>';
+const FROM = 'Builders Circle <noreply@triagebuilders.com>';
 
 // ── Email event types ─────────────────────────────────────────────────────────
 
