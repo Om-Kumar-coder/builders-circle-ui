@@ -116,7 +116,9 @@ class ApiClient {
       // Handle standardized success format
       if (responseData.success !== undefined) {
         if (responseData.success) {
-          return responseData.data;
+          // If data field is present, return it; otherwise return the full response
+          // so callers can access top-level fields like needsPassword, message, etc.
+          return responseData.data !== undefined ? responseData.data : responseData;
         } else {
           throw new ApiError(400, responseData.error || 'Request failed');
         }
