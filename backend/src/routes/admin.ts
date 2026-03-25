@@ -230,6 +230,40 @@ router.get('/users', authMiddleware, roleMiddleware(['admin', 'founder']), async
   }
 });
 
+// Delete user (founder only) — cascades all related data
+router.delete('/users/:id', authMiddleware, roleMiddleware(['founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    // Prevent self-deletion
+    if (userId === req.user!.id) {
+      return res.status(400).json({ success: false, data: null, error: 'You cannot delete your own account.' });
+    }
+
+    const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true } });
+    if (!target) return res.status(404).json({ success: false, data: null, error: 'User not found.' });
+
+    // Audit before deletion (record is gone after)
+    await prisma.auditTrail.create({
+      data: {
+        adminId: req.user!.id,
+        action: 'user_deleted',
+        targetUserId: userId,
+        previousValue: JSON.stringify({ email: target.email, name: target.name }),
+        newValue: null,
+        reason: `User deleted by founder ${req.user!.id}`,
+        timestamp: new Date(),
+      },
+    });
+
+    await prisma.user.delete({ where: { id: userId } });
+
+    res.json({ success: true, data: { message: `User ${target.email} deleted.` }, error: null });
+  } catch (error) {
+    res.status(500).json({ success: false, data: null, error: 'Failed to delete user.' });
+  }
+});
+
 // Update user role (admin only)
 router.patch('/users/:id/role', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {

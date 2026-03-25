@@ -67,9 +67,11 @@ export default function AdminRolesPage() {
   const [bulkRole, setBulkRole] = useState('contributor');
   const [bulkCycleId, setBulkCycleId] = useState('');
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
-  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
-  const fetchUsers = async () => {
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
     try {
       setLoading(true);
       setError(null);
@@ -166,6 +168,25 @@ export default function AdminRolesPage() {
   };
 
   const openRoleModal = (u: User) => { setSelectedUser(u); setNewRole(u.profile.role); setModalError(null); setShowRoleModal(true); };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setDeleteSubmitting(true);
+    try {
+      await requireStepUpAuth('delete user', async () => {
+        await apiClient.deleteUser(userToDelete.id);
+      });
+      setShowDeleteConfirm(false);
+      setUserToDelete(null);
+      setSuccessMessage(`User ${userToDelete.name || userToDelete.email} deleted.`);
+      setTimeout(() => setSuccessMessage(null), 4000);
+      await fetchUsers();
+    } catch {
+      // cancelled or failed
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
   const getRoleInfo = (v: string) => ROLES.find(r => r.value === v) || ROLES[3];
   const roleStats = ROLES.map(role => ({ ...role, count: users.filter(u => u.profile.role === role.value).length }));
 
@@ -336,6 +357,13 @@ export default function AdminRolesPage() {
                           Change Role
                         </button>
                       )}
+                      {isFounder && (
+                        <button onClick={() => { setUserToDelete(u); setShowDeleteConfirm(true); }}
+                          className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/30 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -351,6 +379,36 @@ export default function AdminRolesPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirm Dialog */}
+      {showDeleteConfirm && userToDelete && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-red-800/50 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-500/20 rounded-full">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-100">Delete User</h3>
+            </div>
+            <p className="text-gray-400 text-sm mb-2">
+              Permanently delete <span className="text-white font-medium">{userToDelete.name || userToDelete.email}</span>?
+            </p>
+            <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">
+              This will delete all their activities, ownership records, participations, and data. This cannot be undone. Step-up authentication required.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowDeleteConfirm(false); setUserToDelete(null); }}
+                className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleDeleteUser} disabled={deleteSubmitting}
+                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50">
+                {deleteSubmitting ? 'Deleting...' : 'Delete User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bulk Confirm Dialog */}
       {showBulkConfirm && (

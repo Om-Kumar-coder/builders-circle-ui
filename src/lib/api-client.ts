@@ -91,6 +91,10 @@ class ApiClient {
           errorMessage = responseData.details?.length
             ? `${responseData.error}: ${(responseData.details as string[]).join('; ')}`
             : responseData.error;
+          // 2FA required — redirect to login so user can complete 2FA step
+          if (responseData.error === 'TWO_FACTOR_REQUIRED' && typeof window !== 'undefined') {
+            window.location.href = '/login?reason=2fa_required';
+          }
         } else if (responseData.message) {
           errorMessage = responseData.message;
         } else if (response.status === 403) {
@@ -438,6 +442,13 @@ class ApiClient {
     return this.request<any>(`/admin/users/${userId}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),
+      headers: this.getStepUpHeaders(),
+    });
+  }
+
+  async deleteUser(userId: string): Promise<any> {
+    return this.request<any>(`/admin/users/${userId}`, {
+      method: 'DELETE',
       headers: this.getStepUpHeaders(),
     });
   }

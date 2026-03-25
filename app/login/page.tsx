@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../src/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { LogIn, Loader2, ShieldCheck } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { Suspense } from 'react';
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
@@ -16,7 +17,9 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login, user, loading, refreshUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const redirectingRef = useRef(false);
+  const needs2FA = searchParams.get('reason') === '2fa_required';
 
   useEffect(() => {
     if (!loading && user && !redirectingRef.current) {
@@ -56,9 +59,15 @@ export default function LoginPage() {
     try {
       const res = await apiClient.loginWith2FA(email, password, totpCode);
       if (res?.token) {
-        await refreshUser();
-        const role = res.user?.role;
-        router.replace(role === 'founder' || role === 'admin' ? '/admin' : '/dashboard');
+        localStorage.setItem('auth_token', res.token);
+        document.cookie = `auth_token=${res.token}; path=/; max-age=604800; SameSite=Lax`;
+      }
+      await refreshUser();
+      const role = res?.user?.role;
+      if (role === 'founder' || role === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/dashboard');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid code');
@@ -99,6 +108,12 @@ export default function LoginPage() {
               {error && (
                 <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg mb-6">
                   {error}
+                </div>
+              )}
+
+              {needs2FA && !error && (
+                <div className="bg-yellow-500/10 border border-yellow-500/40 text-yellow-400 px-4 py-3 rounded-lg mb-6 text-sm">
+                  Two-factor authentication is required. Please sign in again.
                 </div>
               )}
 
@@ -198,5 +213,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }
