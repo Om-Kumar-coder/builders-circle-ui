@@ -362,7 +362,7 @@ async function sendTriageApprovalEmail(email: string, name: string, token: strin
   const { Resend } = await import('resend');
   const resend = new Resend(env.RESEND_API_KEY);
   await resend.emails.send({
-    from: 'Builders Circle <onboarding@resend.dev>',
+    from: 'Builders Circle <noreply@triagebuilders.com>',
     to: email,
     subject: 'Your application has been approved – Builders Circle',
     html: `
@@ -388,7 +388,7 @@ async function sendTriageRejectionEmail(email: string, name: string, note?: stri
   const { Resend } = await import('resend');
   const resend = new Resend(env.RESEND_API_KEY);
   await resend.emails.send({
-    from: 'Builders Circle <onboarding@resend.dev>',
+    from: 'Builders Circle <noreply@triagebuilders.com>',
     to: email,
     subject: 'Your Builder\'s Circle application – update',
     html: `
