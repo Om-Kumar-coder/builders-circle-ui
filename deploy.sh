@@ -356,7 +356,7 @@ cmd_update() {
     info "Updating application..."
 
     BACKUP="/tmp/builders-circle-backup-$(date +%Y%m%d-%H%M%S)"
-    cp -r "$APP_DIR" "$BACKUP"
+    rsync -a --exclude='node_modules' --exclude='.next' --exclude='backend/node_modules' --exclude='backend/dist' "$APP_DIR/" "$BACKUP/"
     info "Backup saved to $BACKUP"
 
     cd "$APP_DIR"
