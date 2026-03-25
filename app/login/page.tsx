@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../src/context/AuthContext';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { LogIn, Loader2, ShieldCheck } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
@@ -15,16 +15,12 @@ function LoginContent() {
   const [step, setStep] = useState<'credentials' | '2fa'>('credentials');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, user, loading, refreshUser } = useAuth();
+  const { login, user, loading, refreshUser, is2FAVerified } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const redirectingRef = useRef(false);
-  const needs2FA = searchParams.get('reason') === '2fa_required';
 
   useEffect(() => {
-    // Don't auto-redirect if we're here because 2FA verification is needed
-    if (needs2FA) return;
-    if (!loading && user && !redirectingRef.current) {
+    if (!loading && user && is2FAVerified && !redirectingRef.current) {
       redirectingRef.current = true;
       if (!user.onboardingCompleted) {
         router.replace('/onboarding');
@@ -34,7 +30,7 @@ function LoginContent() {
         router.replace('/dashboard');
       }
     }
-  }, [user, loading, router, needs2FA]);
+  }, [user, loading, router, is2FAVerified]);
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
@@ -119,12 +115,6 @@ function LoginContent() {
               {error && (
                 <div className="bg-red-500/10 border border-red-500 text-red-500 px-4 py-3 rounded-lg mb-6">
                   {error}
-                </div>
-              )}
-
-              {needs2FA && !error && (
-                <div className="bg-yellow-500/10 border border-yellow-500/40 text-yellow-400 px-4 py-3 rounded-lg mb-6 text-sm">
-                  Two-factor authentication is required. Please sign in again.
                 </div>
               )}
 

@@ -12,6 +12,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [is2FAVerified, setIs2FAVerified] = useState(false);
   const sessionConfirmedRef = useRef(false);
   const router = useRouter();
 
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.log('[AuthContext] checkSession success — user:', mapped.email, 'onboardingCompleted:', mapped.onboardingCompleted);
       sessionConfirmedRef.current = true;
       setUser(mapped);
+      setIs2FAVerified(userData.twoFactorVerified ?? false);
       setCachedEmail(mapped.email);
       startSessionTimers();
       attachActivityListeners();
@@ -63,8 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const userData = await apiClient.getCurrentUser();
       setUser(mapUser(userData));
+      setIs2FAVerified(userData.twoFactorVerified ?? false);
     } catch {
       setUser(null);
+      setIs2FAVerified(false);
     }
   }
 
@@ -79,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userData = response.user;
     const mapped = mapUser(userData);
     setUser(mapped);
+    setIs2FAVerified(true); // password login without 2FA = verified
     setCachedEmail(mapped.email);
     sessionConfirmedRef.current = true;
 
@@ -117,12 +122,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Ignore logout errors
     } finally {
       setUser(null);
+      setIs2FAVerified(false);
       router.replace('/login');
     }
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, is2FAVerified, login, signup, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

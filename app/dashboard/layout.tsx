@@ -10,7 +10,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading } = useAuth();
+  const { user, loading, is2FAVerified } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -18,11 +18,14 @@ export default function DashboardLayout({
     if (!loading && !user) {
       console.log('[DashboardLayout] → redirecting to /login');
       router.replace('/login');
+    } else if (!loading && user && user.twoFactorEnabled && !is2FAVerified) {
+      console.log('[DashboardLayout] → redirecting to /verify-2fa');
+      router.replace('/verify-2fa');
     } else if (!loading && user && !user.onboardingCompleted) {
       console.log('[DashboardLayout] → redirecting to /onboarding');
       router.replace('/onboarding');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, is2FAVerified]);
 
   if (loading) {
     return (
@@ -35,7 +38,7 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user || !user.onboardingCompleted) {
+  if (!user || !user.onboardingCompleted || (user.twoFactorEnabled && !is2FAVerified)) {
     return null;
   }
 

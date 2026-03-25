@@ -10,20 +10,22 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading } = useAuth();
+  const { user, loading, is2FAVerified } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (!loading) {
       if (!user) {
         router.replace('/login');
+      } else if (user.twoFactorEnabled && !is2FAVerified) {
+        router.replace('/verify-2fa');
       } else if (!user.onboardingCompleted) {
         router.replace('/onboarding');
       } else if (user.role !== 'admin' && user.role !== 'founder') {
         router.replace('/dashboard');
       }
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, is2FAVerified]);
 
   if (loading) {
     return (
@@ -36,7 +38,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!user || !user.onboardingCompleted || (user.role !== 'admin' && user.role !== 'founder')) {
+  if (!user || !user.onboardingCompleted || (user.twoFactorEnabled && !is2FAVerified) || (user.role !== 'admin' && user.role !== 'founder')) {
     return null;
   }
 
