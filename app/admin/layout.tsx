@@ -18,7 +18,7 @@ export default function AdminLayout({
       if (!user) {
         router.replace('/login');
       } else if (user.twoFactorEnabled && !is2FAVerified) {
-        router.replace('/verify-2fa');
+        router.replace('/login');
       } else if (!user.onboardingCompleted) {
         router.replace('/onboarding');
       } else if (user.role !== 'admin' && user.role !== 'founder') {

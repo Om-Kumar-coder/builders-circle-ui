@@ -100,7 +100,7 @@ class ApiClient {
             !window.location.pathname.startsWith('/verify') &&
             !window.location.pathname.startsWith('/set-password')
           ) {
-            window.location.href = '/verify-2fa';
+            window.location.href = '/login';
           }
         } else if (responseData.message) {
           errorMessage = responseData.message;

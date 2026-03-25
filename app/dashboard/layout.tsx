@@ -19,8 +19,8 @@ export default function DashboardLayout({
       console.log('[DashboardLayout] → redirecting to /login');
       router.replace('/login');
     } else if (!loading && user && user.twoFactorEnabled && !is2FAVerified) {
-      console.log('[DashboardLayout] → redirecting to /verify-2fa');
-      router.replace('/verify-2fa');
+      console.log('[DashboardLayout] → redirecting to /login');
+      router.replace('/login');
     } else if (!loading && user && !user.onboardingCompleted) {
       console.log('[DashboardLayout] → redirecting to /onboarding');
       router.replace('/onboarding');
