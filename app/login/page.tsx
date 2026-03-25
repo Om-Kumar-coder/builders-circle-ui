@@ -22,6 +22,8 @@ function LoginContent() {
   const needs2FA = searchParams.get('reason') === '2fa_required';
 
   useEffect(() => {
+    // Don't auto-redirect if we're here because 2FA verification is needed
+    if (needs2FA) return;
     if (!loading && user && !redirectingRef.current) {
       redirectingRef.current = true;
       if (!user.onboardingCompleted) {
@@ -32,7 +34,7 @@ function LoginContent() {
         router.replace('/dashboard');
       }
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, needs2FA]);
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
@@ -43,8 +45,17 @@ function LoginContent() {
       // If backend signals 2FA required
       if (res?.requires2FA) {
         setStep('2fa');
+        return;
       }
-      // Otherwise AuthContext handles redirect
+      // Successful login — redirect manually (auto-redirect is suppressed when needs2FA)
+      const userData = await apiClient.getCurrentUser();
+      if (!userData.onboardingCompleted) {
+        router.replace('/onboarding');
+      } else if (userData.role === 'founder' || userData.role === 'admin') {
+        router.replace('/admin');
+      } else {
+        router.replace('/dashboard');
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid credentials');
     } finally {

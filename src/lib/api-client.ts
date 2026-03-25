@@ -92,7 +92,14 @@ class ApiClient {
             ? `${responseData.error}: ${(responseData.details as string[]).join('; ')}`
             : responseData.error;
           // 2FA required — redirect to login so user can complete 2FA step
-          if (responseData.error === 'TWO_FACTOR_REQUIRED' && typeof window !== 'undefined') {
+          // Only redirect if not already on an auth page to prevent redirect loops
+          if (
+            responseData.error === 'TWO_FACTOR_REQUIRED' &&
+            typeof window !== 'undefined' &&
+            !window.location.pathname.startsWith('/login') &&
+            !window.location.pathname.startsWith('/verify') &&
+            !window.location.pathname.startsWith('/set-password')
+          ) {
             window.location.href = '/login?reason=2fa_required';
           }
         } else if (responseData.message) {
