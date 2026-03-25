@@ -9,7 +9,7 @@ import ForceReAuthModal from '../auth/ForceReAuthModal';
 import SessionWarningModal from '../auth/SessionWarningModal';
 import AgreementGate from '../agreements/AgreementGate';
 
-const AUTH_PAGES = ['/login', '/signup', '/verify-email', '/setup-2fa', '/onboarding'];
+const AUTH_PAGES = ['/login', '/signup', '/verify-email', '/setup-2fa', '/onboarding', '/submit-to-triage'];
 
 function AppModals() {
   const pathname = usePathname();

@@ -50,7 +50,10 @@ export default function AgreementGate({ children }: { children: ReactNode }) {
 
   // Initial check on mount / user change
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user) {
+      setChecked(true); // no user = no agreement check needed
+      return;
+    }
     checkAgreement();
   }, [user, authLoading, checkAgreement]);
 
