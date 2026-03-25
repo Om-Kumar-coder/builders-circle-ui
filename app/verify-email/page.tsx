@@ -10,16 +10,19 @@ function VerifyEmailContent() {
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [isResending, setIsResending] = useState(false);
+  const [needsPassword, setNeedsPassword] = useState<boolean>(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const verifyEmail = useCallback(async (token: string) => {
     try {
       const result = await apiClient.verifyEmail(token);
+      const requiresPassword = !!(result as any)?.needsPassword;
+      setNeedsPassword(requiresPassword);
       setStatus('success');
 
-      if ((result as any)?.needsPassword) {
-        setMessage('Email verified! Please set your password to continue.');
+      if (requiresPassword) {
+        setMessage('Email verified! Setting up your account...');
         setTimeout(() => {
           router.push(`/set-password?token=${token}`);
         }, 2000);
@@ -210,14 +213,29 @@ function VerifyEmailContent() {
             </div>
           )}
 
-          {status === 'success' && (
+          {status === 'success' && needsPassword && (
+            <div className="space-y-4">
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                <p className="text-blue-400 text-sm">
+                  🔐 Email verified! Setting up your account...
+                </p>
+              </div>
+              <button
+                onClick={() => router.push(`/set-password?token=${searchParams.get('token')}`)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200"
+              >
+                Set Up Password
+              </button>
+            </div>
+          )}
+
+          {status === 'success' && !needsPassword && (
             <div className="space-y-4">
               <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
                 <p className="text-green-400 text-sm">
                   🎉 Welcome to Builder&apos;s Circle! You&apos;ll be redirected to the login page in a few seconds.
                 </p>
               </div>
-              
               <button
                 onClick={() => router.push('/login?verified=true')}
                 className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition duration-200"
