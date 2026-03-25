@@ -72,6 +72,8 @@ export default function AdminRolesPage() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
+
+  const fetchUsers = async () => {
     try {
       setLoading(true);
       setError(null);
