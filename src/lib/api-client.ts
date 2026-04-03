@@ -660,6 +660,31 @@ class ApiClient {
     });
   }
 
+  async forgotPassword(email: string): Promise<void> {
+    await this.request<void>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await this.request<void>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    });
+  }
+
+  async getFoundationPhaseConfig(): Promise<{ foundationPhaseEnabled: boolean }> {
+    return this.request<{ foundationPhaseEnabled: boolean }>('/admin/config/foundation-phase');
+  }
+
+  async setFoundationPhaseEnabled(enabled: boolean): Promise<{ foundationPhaseEnabled: boolean }> {
+    return this.request<{ foundationPhaseEnabled: boolean }>('/admin/config/foundation-phase', {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    });
+  }
+
   /** Re-authenticate with password only (for forced re-auth modal) */
   async reLogin(password: string, email?: string): Promise<string> {
     await this.request<any>('/auth/relogin', {
@@ -783,6 +808,12 @@ class ApiClient {
   }
 
   // Access control methods
+  async adminSendPasswordReset(userId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/admin/users/${userId}/send-reset`, {
+      method: 'POST',
+    });
+  }
+
   async adminBulkAction(action: string, userIds: string[], metadata?: Record<string, unknown>): Promise<any> {
     return this.request<any>('/admin/bulk-action', {
       method: 'POST',

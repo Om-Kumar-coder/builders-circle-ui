@@ -702,6 +702,53 @@ router.post('/jobs/execute', authMiddleware, roleMiddleware(['admin', 'founder']
   }
 });
 
+// Send password reset email for a user (admin only)
+router.post('/users/:id/send-reset', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true },
+    });
+    if (!target) {
+      return res.status(404).json({ success: false, data: null, error: 'User not found.' });
+    }
+
+    const crypto = await import('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordResetToken: hashedToken, passwordResetExpiry: expiry },
+    });
+
+    const { EmailService } = await import('../services/emailService');
+    EmailService.sendPasswordResetEmail(target.email, target.name ?? null, resetToken).catch(
+      (err: unknown) => console.error('Failed to send admin-triggered reset email:', err)
+    );
+
+    await prisma.auditTrail.create({
+      data: {
+        adminId: req.user!.id,
+        action: 'admin_password_reset_sent',
+        targetUserId: userId,
+        previousValue: null,
+        newValue: JSON.stringify({ email: target.email }),
+        reason: `Admin triggered password reset for ${target.email}`,
+        timestamp: new Date(),
+      },
+    });
+
+    res.json({ success: true, data: { message: `Password reset email sent to ${target.email}.` }, error: null });
+  } catch (error) {
+    console.error('Admin send-reset failed:', error);
+    res.status(500).json({ success: false, data: null, error: 'Failed to send reset email.' });
+  }
+});
+
 // Mount access control routes under the same admin router
 router.use('/', accessControlRoutes);
 

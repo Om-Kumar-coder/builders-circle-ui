@@ -47,7 +47,7 @@ function signJwt(userId: string, twoFactorVerified = false, role = 'contributor'
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax' as const,
-  secure: false, // set to true only when serving over HTTPS
+  secure: process.env.NODE_ENV === 'production', // secure in production only
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (matches default JWT_EXPIRES)
   path: '/',
 };
@@ -148,6 +148,19 @@ router.post('/login', async (req: Request, res: Response) => {
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
+
+    // ── Phase 4: post-credential checks (additive, non-breaking) ─────────────
+    // Check email verification
+    if (!user.emailVerified) {
+      return res.status(403).json({ error: 'Please verify your email before logging in.' });
+    }
+
+    // Check account status (suspended / inactive)
+    const profileStatus = user.profile?.status ?? 'active';
+    if (profileStatus === 'suspended' || profileStatus === 'inactive') {
+      return res.status(403).json({ error: 'Account suspended. Please contact support.' });
+    }
+    // ── End Phase 4 checks ────────────────────────────────────────────────────
 
     // 2FA check
     let twoFactorVerified = false;

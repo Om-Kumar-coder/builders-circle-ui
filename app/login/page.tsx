@@ -156,6 +156,9 @@ function LoginContent() {
 
               <div className="mt-6 text-center space-y-3">
                 <p className="text-gray-400">
+                  <Link href="/forgot-password" className="text-gray-400 hover:text-gray-200 text-sm transition">Forgot password?</Link>
+                </p>
+                <p className="text-gray-400">
                   Don&apos;t have an account?{' '}
                   <Link href="/submit-to-triage" className="text-blue-500 hover:text-blue-400 font-medium transition">Sign up</Link>
                 </p>

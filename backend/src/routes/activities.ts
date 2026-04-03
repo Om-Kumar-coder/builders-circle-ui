@@ -6,6 +6,7 @@ import { ReputationService } from '../services/reputationService';
 import { requireAgreement } from '../middleware/requireAgreement';
 import { validateActivitySubmission } from '../services/activityValidationService';
 import { isActiveParticipant, completeTaskViaActivity, getEffectiveContributionWeight, auditLog } from '../services/integrityService';
+import { getFoundationPhaseEnabled } from './config';
 
 const router = Router();
 
@@ -370,6 +371,65 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
     // NOTE: stall recovery (lastActivityDate reset, multiplier restore, notification)
     // is intentionally handled only in the verify route, not here.
     // This prevents users from gaming the stall countdown by submitting unverified activities.
+
+    // ── Foundation Phase auto-approve (founder only) ──────────────────────────
+    // When foundation phase is enabled AND the submitter is a founder, the activity
+    // is immediately auto-approved. The manual approval system is NOT removed —
+    // this is purely an additive conditional bypass.
+    if (req.user!.role === 'founder') {
+      const foundationPhaseEnabled = await getFoundationPhaseEnabled();
+      if (foundationPhaseEnabled) {
+        const baseReward = 0.1;
+        const hoursLogged = activity.hoursLogged || 1;
+        const hoursFactor = Math.min(hoursLogged / 4, 2);
+        const autoOwnership = baseReward * activity.contributionWeight * hoursFactor;
+
+        await prisma.$transaction(async (tx) => {
+          await tx.activityEvent.update({
+            where: { id: activity.id },
+            data: {
+              status: 'verified',
+              calculatedOwnership: autoOwnership,
+              verifiedBy: req.user!.id,
+              verifiedAt: new Date(),
+              feedbackComment: 'Auto-approved: Foundation Phase',
+              feedbackAuthor: req.user!.id,
+              feedbackTimestamp: new Date(),
+            },
+          });
+
+          const latestMultiplier = await tx.multiplier.findFirst({
+            where: { userId: req.user!.id, cycleId: activity.cycleId },
+            orderBy: { createdAt: 'desc' },
+          });
+          const multiplierSnapshot = latestMultiplier?.multiplier ?? 1.0;
+
+          await tx.ownershipLedger.create({
+            data: {
+              userId: req.user!.id,
+              cycleId: activity.cycleId,
+              eventType: 'contribution_approved',
+              ownershipAmount: autoOwnership,
+              multiplierSnapshot,
+              sourceReference: activity.id,
+              createdBy: req.user!.id,
+            },
+          });
+
+          await tx.auditTrail.create({
+            data: {
+              adminId: req.user!.id,
+              action: 'activity_verification',
+              targetUserId: req.user!.id,
+              previousValue: JSON.stringify({ status: 'pending' }),
+              newValue: JSON.stringify({ status: 'verified', calculatedOwnership: autoOwnership, foundationPhase: true }),
+              reason: 'Foundation Phase auto-approval',
+            },
+          });
+        });
+      }
+    }
+    // ── End foundation phase block ────────────────────────────────────────────
 
     console.log('✅ Activity created successfully:', {
       activityId: activity.id,

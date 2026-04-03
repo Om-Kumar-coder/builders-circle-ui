@@ -11,7 +11,7 @@ import { useStepUpAuth } from '@/hooks/useStepUpAuth';
 import { 
   Users, Shield, Crown, Settings, Eye, RefreshCw,
   Search, ChevronDown, Check, Square, CheckSquare,
-  Trash2, UserX, LogOut, X,
+  Trash2, UserX, LogOut, X, Mail,
 } from 'lucide-react';
 
 interface User {
@@ -70,6 +70,8 @@ export default function AdminRolesPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
 
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
@@ -191,6 +193,23 @@ export default function AdminRolesPage() {
   };
   const getRoleInfo = (v: string) => ROLES.find(r => r.value === v) || ROLES[3];
   const roleStats = ROLES.map(role => ({ ...role, count: users.filter(u => u.profile.role === role.value).length }));
+
+  const handleSendReset = async (u: User) => {
+    setResetTarget(u);
+    setResetSubmitting(true);
+    try {
+      const result = await apiClient.adminSendPasswordReset(u.id);
+      setSuccessMessage(result.message || `Reset email sent to ${u.email}.`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err) {
+      setSuccessMessage(null);
+      setError(err instanceof Error ? err.message : 'Failed to send reset email.');
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setResetSubmitting(false);
+      setResetTarget(null);
+    }
+  };
 
   if (authLoading) return <LoadingScreen />;
   if (!isAdmin) return (
@@ -359,6 +378,15 @@ export default function AdminRolesPage() {
                           Change Role
                         </button>
                       )}
+                      <button
+                        onClick={() => handleSendReset(u)}
+                        disabled={resetSubmitting && resetTarget?.id === u.id}
+                        className="px-3 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-400 border border-yellow-600/30 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                        title="Send password reset email"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        {resetSubmitting && resetTarget?.id === u.id ? 'Sending...' : 'Reset Link'}
+                      </button>
                       {isFounder && (
                         <button onClick={() => { setUserToDelete(u); setShowDeleteConfirm(true); }}
                           className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-600/30 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
