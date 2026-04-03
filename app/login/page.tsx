@@ -43,6 +43,11 @@ function LoginContent() {
         setStep('2fa');
         return;
       }
+      // If email not yet verified — redirect to verify-email page
+      if (res?.emailNotVerified) {
+        router.replace(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
       // Successful login — redirect manually (auto-redirect is suppressed when needs2FA)
       const userData = await apiClient.getCurrentUser();
       if (!userData.onboardingCompleted) {

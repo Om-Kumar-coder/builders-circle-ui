@@ -149,17 +149,14 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
-    // ── Phase 4: post-credential checks (additive, non-breaking) ─────────────
-    // Check email verification
-    if (!user.emailVerified) {
-      return res.status(403).json({ error: 'Please verify your email before logging in.' });
-    }
-
-    // Check account status (suspended / inactive)
+    // ── Phase 4: post-credential checks ──────────────────────────────────────
+    // Hard block: suspended / inactive accounts cannot log in at all
     const profileStatus = user.profile?.status ?? 'active';
     if (profileStatus === 'suspended' || profileStatus === 'inactive') {
       return res.status(403).json({ error: 'Account suspended. Please contact support.' });
     }
+    // Soft flag: unverified email — allow login but signal frontend to redirect
+    const emailNotVerified = !user.emailVerified;
     // ── End Phase 4 checks ────────────────────────────────────────────────────
 
     // 2FA check
@@ -197,6 +194,7 @@ router.post('/login', async (req: Request, res: Response) => {
         onboardingCompleted: user.onboardingCompleted,
         onboardingStep: user.onboardingStep,
       },
+      ...(emailNotVerified ? { emailNotVerified: true } : {}),
     });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });

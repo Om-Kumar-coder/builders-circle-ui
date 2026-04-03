@@ -100,6 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     attachActivityListeners();
 
     // Redirect is handled by the login page's useEffect watching user state
+    // Surface emailNotVerified flag so the login page can redirect appropriately
+    if (response?.emailNotVerified) {
+      return { emailNotVerified: true };
+    }
   }
 
   async function signup(name: string, email: string, password: string) {
