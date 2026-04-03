@@ -21,6 +21,7 @@ import {
   ListTodo,
   Lock,
   Lightbulb,
+  Bolt,
 } from 'lucide-react';
 import type { Permission } from '@/lib/permissions';
 
@@ -60,6 +61,7 @@ const adminItems: NavItem[] = [
   { name: 'Triage',          href: '/admin/triage',         icon: CheckCircle },
   { name: 'Ideas',           href: '/admin/ideas',          icon: Lightbulb },
   { name: 'Docs Vault',      href: '/admin/docs',           icon: Shield },
+  { name: 'Foundation Phase', href: '/admin/foundation-phase', icon: Bolt },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {

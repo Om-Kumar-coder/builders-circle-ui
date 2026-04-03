@@ -15,8 +15,11 @@ import {
   ExternalLink, 
   User,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  ArrowLeft
 } from 'lucide-react';
+import MainLayout from '@/components/layout/MainLayout';
+import Link from 'next/link';
 
 export default function ActivityReviewPage() {
   const { user, loading: authLoading } = useAuth();
@@ -123,13 +126,22 @@ export default function ActivityReviewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 p-6">
+    <MainLayout title="Activity Review">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-100">Activity Review</h1>
-            <p className="text-gray-400 mt-1">Review and verify submitted activities</p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/admin"
+              className="flex items-center gap-1.5 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-100">Activity Review</h1>
+              <p className="text-gray-400 mt-1">Review and verify submitted activities</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -252,7 +264,7 @@ export default function ActivityReviewPage() {
           )}
         </div>
       </div>
-    </div>
+    </MainLayout>
   );
 }
 
