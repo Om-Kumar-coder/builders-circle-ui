@@ -1192,7 +1192,7 @@ class ApiClient {
   // ── Gatekeeper (Veronica) ─────────────────────────────────────────────────
 
   async getGatekeeperQueues() {
-    return this.request<{ success: boolean; data: { new_users: number; submissions: number; returned: number } }>('/gatekeeper/queues');
+    return this.request<{ new_users: number; submissions: number; returned: number }>('/gatekeeper/queues');
   }
 
   async getGatekeeperIntake(params?: { status?: string; queue?: string; page?: number; limit?: number }) {
