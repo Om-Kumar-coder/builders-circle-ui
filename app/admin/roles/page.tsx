@@ -25,6 +25,7 @@ interface User {
 const ROLES = [
   { value: 'founder', label: 'Founder', icon: Crown, color: 'text-purple-400', bgColor: 'bg-purple-500/20', description: 'Full platform control' },
   { value: 'admin', label: 'Admin', icon: Shield, color: 'text-red-400', bgColor: 'bg-red-500/20', description: 'Verify activities, manage cycles' },
+  { value: 'gatekeeper', label: 'Gatekeeper', icon: Shield, color: 'text-violet-400', bgColor: 'bg-violet-500/20', description: 'Review intake and submissions (Veronica)' },
   { value: 'employee', label: 'Employee', icon: Users, color: 'text-blue-400', bgColor: 'bg-blue-500/20', description: 'Submit activities and participate' },
   { value: 'contributor', label: 'Contributor', icon: Users, color: 'text-green-400', bgColor: 'bg-green-500/20', description: 'Submit activities and participate' },
   { value: 'observer', label: 'Observer', icon: Eye, color: 'text-gray-400', bgColor: 'bg-gray-500/20', description: 'Read-only access' },
@@ -33,6 +34,7 @@ const ROLES = [
 const PERMISSIONS = {
   founder: ['Full platform control', 'Manage all users and roles', 'Create and manage cycles', 'Verify activities', 'Admin overrides', 'System configuration'],
   admin: ['Verify activities', 'Manage cycles', 'Admin overrides', 'Dispute resolution', 'View audit logs', 'Moderate discussions'],
+  gatekeeper: ['Review user intake queue', 'Pre-check activity submissions', 'Manage review queues', 'Run Veronica AI scans', 'View daily reports'],
   employee: ['Submit activities', 'Participate in cycles', 'View own data', 'Join discussions'],
   contributor: ['Submit activities', 'Participate in cycles', 'View own data', 'Join discussions'],
   observer: ['Read-only access', 'View public data', 'View cycle information'],

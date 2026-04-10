@@ -24,6 +24,7 @@ import {
   Bolt,
 } from 'lucide-react';
 import type { Permission } from '@/lib/permissions';
+import { isGatekeeper } from '@/lib/permissions';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -66,7 +67,7 @@ const adminItems: NavItem[] = [
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { user: _user } = useAuth();
+  const { user } = useAuth();
   const { isAdmin, can } = usePermissions();
 
   return (
@@ -172,28 +173,46 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 {adminItems.map((item) => {
                   const isActive = pathname === item.href;
                   const Icon = item.icon;
-
                   return (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      onClick={() => onClose()}
-                      className={`
-                        flex items-center space-x-3 px-3 py-2.5 rounded-lg
-                        transition-all duration-200 group
-                        ${
-                          isActive
-                            ? 'bg-red-600/10 text-red-400'
-                            : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
-                        }
-                      `}
+                    <Link key={item.name} href={item.href} onClick={() => onClose()}
+                      className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
+                        isActive ? 'bg-red-600/10 text-red-400' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                      }`}
                       aria-current={isActive ? 'page' : undefined}
                     >
-                      <Icon
-                        className={`w-5 h-5 transition-colors ${
-                          isActive ? 'text-red-400' : 'group-hover:text-gray-200'
-                        }`}
-                      />
+                      <Icon className={`w-5 h-5 transition-colors ${isActive ? 'text-red-400' : 'group-hover:text-gray-200'}`} />
+                      <span className="font-medium">{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Gatekeeper (Veronica) Section */}
+            {isGatekeeper(user) && (
+              <>
+                <div className="pt-4 pb-2">
+                  <div className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Veronica
+                  </div>
+                </div>
+                {[
+                  { name: 'Gatekeeper', href: '/gatekeeper', icon: Shield },
+                  { name: 'User Intake', href: '/gatekeeper/intake', icon: Users },
+                  { name: 'Submissions', href: '/gatekeeper/submissions', icon: CheckCircle },
+                  { name: 'Returned', href: '/gatekeeper/returned', icon: Clock },
+                  { name: 'Daily Reports', href: '/gatekeeper/reports', icon: BarChart3 },
+                ].map((item) => {
+                  const isActive = pathname === item.href;
+                  const Icon = item.icon;
+                  return (
+                    <Link key={item.name} href={item.href} onClick={() => onClose()}
+                      className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group ${
+                        isActive ? 'bg-violet-600/10 text-violet-400' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                      }`}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      <Icon className={`w-5 h-5 transition-colors ${isActive ? 'text-violet-400' : 'group-hover:text-gray-200'}`} />
                       <span className="font-medium">{item.name}</span>
                     </Link>
                   );

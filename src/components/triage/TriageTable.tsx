@@ -1,7 +1,8 @@
 'use client';
 
-import { Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import type { TriageSubmission } from '@/hooks/useTriage';
+import VeronicaBadge from '@/components/gatekeeper/VeronicaBadge';
 
 const STATUS_STYLES = {
   PENDING: 'bg-yellow-900/30 text-yellow-400 border-yellow-800/40',
@@ -32,6 +33,7 @@ export default function TriageTable({ submissions, onView, onApprove, onReject }
             <th className="pb-3 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</th>
             <th className="pb-3 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">Submitted</th>
             <th className="pb-3 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+            <th className="pb-3 pr-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">Veronica</th>
             <th className="pb-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
           </tr>
         </thead>
@@ -47,6 +49,27 @@ export default function TriageTable({ submissions, onView, onApprove, onReject }
                 <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[s.status]}`}>
                   {s.status}
                 </span>
+              </td>
+              <td className="py-3 pr-4">
+                {s.veronicaReview ? (
+                  <div className="flex flex-col gap-1">
+                    <VeronicaBadge status={s.veronicaReview.status} score={s.veronicaReview.veronicaScore} />
+                    {s.veronicaReview.veronicaFlags && s.veronicaReview.veronicaFlags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {s.veronicaReview.veronicaFlags.slice(0, 2).map((f: string) => (
+                          <span key={f} className="flex items-center gap-0.5 text-xs text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">
+                            <AlertTriangle className="w-2.5 h-2.5" />{f.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                        {s.veronicaReview.veronicaFlags.length > 2 && (
+                          <span className="text-xs text-gray-500">+{s.veronicaReview.veronicaFlags.length - 2}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-600">—</span>
+                )}
               </td>
               <td className="py-3">
                 <div className="flex items-center gap-1">

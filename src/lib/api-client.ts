@@ -1188,6 +1188,67 @@ class ApiClient {
   }> {
     return this.request('/admin/backup/trigger', { method: 'POST' });
   }
+
+  // ── Gatekeeper (Veronica) ─────────────────────────────────────────────────
+
+  async getGatekeeperQueues() {
+    return this.request<{ success: boolean; data: { new_users: number; submissions: number; returned: number } }>('/gatekeeper/queues');
+  }
+
+  async getGatekeeperIntake(params?: { status?: string; queue?: string; page?: number; limit?: number }) {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.queue) q.set('queue', params.queue);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return this.request<any>(`/gatekeeper/intake?${q}`);
+  }
+
+  async getGatekeeperSubmissions(params?: { status?: string; queue?: string; page?: number; limit?: number }) {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.queue) q.set('queue', params.queue);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return this.request<any>(`/gatekeeper/submissions?${q}`);
+  }
+
+  async getGatekeeperReturned(params?: { page?: number; limit?: number }) {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    return this.request<any>(`/gatekeeper/returned?${q}`);
+  }
+
+  async scanIntakeWithVeronica(triageId: string) {
+    return this.request<any>(`/gatekeeper/intake/${triageId}/scan`, { method: 'POST' });
+  }
+
+  async scanSubmissionWithVeronica(activityId: string) {
+    return this.request<any>(`/gatekeeper/submissions/${activityId}/scan`, { method: 'POST' });
+  }
+
+  async gatekeeperAction(reviewId: string, action: 'APPROVED' | 'REJECTED' | 'SENT_BACK', notes?: string) {
+    return this.request<any>(`/gatekeeper/review/${reviewId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action, notes }),
+    });
+  }
+
+  async moveGatekeeperItem(reviewId: string, queue: 'new_users' | 'submissions' | 'returned') {
+    return this.request<any>(`/gatekeeper/review/${reviewId}/move`, {
+      method: 'PATCH',
+      body: JSON.stringify({ queue }),
+    });
+  }
+
+  async getDailyReports(page = 1, limit = 30) {
+    return this.request<any>(`/gatekeeper/reports?page=${page}&limit=${limit}`);
+  }
+
+  async generateDailyReport() {
+    return this.request<any>('/gatekeeper/reports/generate', { method: 'POST' });
+  }
 }
 
 export const apiClient = new ApiClient();

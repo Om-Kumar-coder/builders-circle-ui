@@ -16,10 +16,12 @@ import {
   User,
   Calendar,
   RefreshCw,
-  ArrowLeft
+  ArrowLeft,
+  AlertTriangle,
 } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import Link from 'next/link';
+import VeronicaBadge from '@/components/gatekeeper/VeronicaBadge';
 
 export default function ActivityReviewPage() {
   const { user, loading: authLoading } = useAuth();
@@ -343,6 +345,24 @@ function ActivityReviewCard({ activity, onVerify, isVerifying, selected, onToggl
               </p>
             </div>
           </div>
+
+          {/* Veronica AI Review */}
+          {activity.veronicaReview && (
+            <div className="flex flex-wrap items-center gap-2 mb-3 p-2 bg-gray-900/50 rounded-lg border border-gray-700/50">
+              <span className="text-xs text-gray-500">Veronica:</span>
+              <VeronicaBadge status={activity.veronicaReview.status} score={activity.veronicaReview.veronicaScore} />
+              {activity.veronicaReview.veronicaFlags && activity.veronicaReview.veronicaFlags.length > 0 && (
+                activity.veronicaReview.veronicaFlags.map((f: string) => (
+                  <span key={f} className="flex items-center gap-1 text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full">
+                    <AlertTriangle className="w-3 h-3" />{f.replace(/_/g, ' ')}
+                  </span>
+                ))
+              )}
+              {activity.veronicaReview.veronicaNotes && (
+                <span className="text-xs text-gray-500 italic ml-1">{activity.veronicaReview.veronicaNotes}</span>
+              )}
+            </div>
+          )}
 
           {/* Activity Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">

@@ -49,7 +49,12 @@ export type Permission =
   | 'groups:manage'
   // Ideas
   | 'ideas:submit'
-  | 'ideas:manage';
+  | 'ideas:manage'
+  // Gatekeeper (Veronica)
+  | 'gatekeeper:intake'
+  | 'gatekeeper:submissions'
+  | 'gatekeeper:queue'
+  | 'gatekeeper:reports';
 
 // ── Matrix ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +83,16 @@ const MATRIX: Record<Role, Set<Permission>> = {
     'docs:view',
     'groups:view',
     'ideas:submit',
+  ]),
+
+  gatekeeper: new Set([
+    'users:view',
+    'docs:view',
+    'groups:view',
+    'gatekeeper:intake',
+    'gatekeeper:submissions',
+    'gatekeeper:queue',
+    'gatekeeper:reports',
   ]),
 
   admin: new Set([
@@ -110,6 +125,11 @@ const MATRIX: Record<Role, Set<Permission>> = {
     'groups:manage',
     'ideas:submit',
     'ideas:manage',
+    // gatekeeper visibility
+    'gatekeeper:intake',
+    'gatekeeper:submissions',
+    'gatekeeper:queue',
+    'gatekeeper:reports',
   ]),
 
   founder: new Set([
@@ -146,6 +166,11 @@ const MATRIX: Record<Role, Set<Permission>> = {
     'groups:manage',
     'ideas:submit',
     'ideas:manage',
+    // gatekeeper visibility
+    'gatekeeper:intake',
+    'gatekeeper:submissions',
+    'gatekeeper:queue',
+    'gatekeeper:reports',
   ]),
 };
 
@@ -177,4 +202,9 @@ export function isFounder(user: User | null | undefined): boolean {
 /** Convenience: can the user submit or participate (not observer)? */
 export function isParticipant(user: User | null | undefined): boolean {
   return can(user, 'activity:submit');
+}
+
+/** Convenience: is the user a gatekeeper (or admin/founder)? */
+export function isGatekeeper(user: User | null | undefined): boolean {
+  return user?.role === 'gatekeeper' || isPrivileged(user);
 }

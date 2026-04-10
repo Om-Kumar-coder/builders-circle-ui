@@ -3,7 +3,7 @@ export interface User {
   email: string;
   name?: string;
   createdAt?: string;
-  role?: 'founder' | 'admin' | 'contributor' | 'employee' | 'observer';
+  role?: 'founder' | 'admin' | 'gatekeeper' | 'contributor' | 'employee' | 'observer';
   status?: string;
   bio?: string;
   avatar?: string;

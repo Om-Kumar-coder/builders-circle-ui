@@ -199,6 +199,13 @@ export default function AdminPage() {
       href: '/admin/agreements',
       color: 'bg-violet-600',
     },
+    {
+      title: 'Veronica (Gatekeeper)',
+      description: 'AI-powered intake review, submission pre-check, and daily reports',
+      icon: Shield,
+      href: '/gatekeeper',
+      color: 'bg-violet-700',
+    },
   ];
 
   return (

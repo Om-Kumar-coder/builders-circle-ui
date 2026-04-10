@@ -51,6 +51,12 @@ export interface ActivityEvent {
     email: string;
     name: string;
   };
+  veronicaReview?: {
+    status: string;
+    veronicaScore?: number | null;
+    veronicaFlags?: string[];
+    veronicaNotes?: string | null;
+  } | null;
 }
 
 export interface ActivitySubmission {

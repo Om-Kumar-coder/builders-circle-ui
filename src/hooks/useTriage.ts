@@ -17,6 +17,12 @@ export interface TriageSubmission {
   reviewedAt?: string | null;
   rejectionNote?: string | null;
   createdAt: string;
+  veronicaReview?: {
+    status: string;
+    veronicaScore?: number | null;
+    veronicaFlags?: string[];
+    veronicaNotes?: string | null;
+  } | null;
 }
 
 export function useTriage() {

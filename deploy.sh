@@ -12,6 +12,7 @@ set -e
 #   sudo ./deploy.sh seed       — Seed database with test users
 #   sudo ./deploy.sh nginx      — Fix/reload Nginx config
 #   sudo ./deploy.sh check      — Health check all services
+#   sudo ./deploy.sh veronica   — Install/update Ollama + Phi-3 Mini (Veronica AI)
 # --------------------------------------------------------------------------
 
 DOMAIN="triagebuilders.com"
@@ -37,6 +38,53 @@ require_app_dir() {
     if [ ! -d "$APP_DIR" ]; then
         error "App directory $APP_DIR not found. Run: sudo ./deploy.sh install"
         exit 1
+    fi
+}
+
+# --------------------------------------------------------------------------
+# VERONICA — Ollama + Phi-3 Mini setup (shared between install and veronica subcommand)
+# --------------------------------------------------------------------------
+setup_veronica() {
+    info "Setting up Veronica AI (Ollama + Phi-3 Mini)..."
+
+    # Install Ollama if not present
+    if ! command -v ollama &> /dev/null; then
+        info "Installing Ollama..."
+        curl -fsSL https://ollama.com/install.sh | sh
+    else
+        info "Ollama already installed — skipping."
+    fi
+
+    # Ensure ollama service is running
+    if systemctl is-active --quiet ollama 2>/dev/null; then
+        info "Ollama service already running."
+    else
+        info "Starting Ollama service..."
+        systemctl enable ollama 2>/dev/null || true
+        systemctl start ollama  2>/dev/null || true
+        # Give it a moment to bind
+        sleep 3
+    fi
+
+    # Pull Phi-3 Mini model
+    info "Pulling Phi-3 Mini model (this may take a few minutes on first run)..."
+    ollama pull phi3:mini
+
+    # Verify model is available
+    if ollama list | grep -q "phi3:mini"; then
+        info "✅ Phi-3 Mini (Veronica) is ready."
+    else
+        warn "⚠️  phi3:mini not found in ollama list — pull may have failed. Check: ollama pull phi3:mini"
+    fi
+
+    # Write OLLAMA_URL into backend .env if not already set
+    if [ -f "$APP_DIR/backend/.env" ]; then
+        if ! grep -q "OLLAMA_URL" "$APP_DIR/backend/.env"; then
+            echo 'OLLAMA_URL=http://localhost:11434' >> "$APP_DIR/backend/.env"
+            info "Added OLLAMA_URL to backend/.env"
+        else
+            info "OLLAMA_URL already in backend/.env — skipping."
+        fi
     fi
 }
 
@@ -151,6 +199,17 @@ run_health_checks() {
         info "✅ https://$DOMAIN is reachable"
     else
         warn "⚠️  https://$DOMAIN not reachable — check DNS/SSL"
+    fi
+
+    # Veronica (Ollama) health check
+    if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+        if curl -s http://localhost:11434/api/tags | grep -q "phi3:mini"; then
+            info "✅ Veronica (Phi-3 Mini) is loaded and ready"
+        else
+            warn "⚠️  Ollama running but phi3:mini not found — run: sudo ./deploy.sh veronica"
+        fi
+    else
+        warn "⚠️  Ollama not responding on :11434 — Veronica will use rule-based fallback"
     fi
 }
 
@@ -337,6 +396,9 @@ EOF
     write_nginx_config
     nginx -t && systemctl reload nginx
 
+    # Veronica AI
+    setup_veronica
+
     run_health_checks
 
     info "------------------------------------------------"
@@ -377,6 +439,16 @@ cmd_update() {
 
     info "Reloading PM2..."
     pm2 reload all
+
+    # Keep Veronica model up to date
+    if command -v ollama &> /dev/null; then
+        info "Refreshing Veronica model..."
+        systemctl start ollama 2>/dev/null || true
+        sleep 2
+        ollama pull phi3:mini || warn "Could not refresh phi3:mini — continuing anyway"
+    else
+        warn "Ollama not installed — run: sudo ./deploy.sh veronica"
+    fi
 
     run_health_checks
 
@@ -474,15 +546,38 @@ cmd_check() {
 }
 
 # --------------------------------------------------------------------------
+# SUBCOMMAND: veronica
+# --------------------------------------------------------------------------
+cmd_veronica() {
+    require_root
+    require_app_dir
+    cd "$APP_DIR"
+    setup_veronica
+
+    info "Testing Veronica inference..."
+    RESPONSE=$(curl -s -X POST http://localhost:11434/api/generate \
+        -H "Content-Type: application/json" \
+        -d '{"model":"phi3:mini","prompt":"Reply with only the word: ready","stream":false,"options":{"num_predict":5}}' \
+        2>/dev/null || echo "")
+
+    if echo "$RESPONSE" | grep -qi "ready\|done"; then
+        info "✅ Veronica inference test passed"
+    else
+        warn "⚠️  Inference test inconclusive — response: ${RESPONSE:0:100}"
+    fi
+}
+
+# --------------------------------------------------------------------------
 # ENTRYPOINT
 # --------------------------------------------------------------------------
 case "${1:-}" in
-    install) cmd_install ;;
-    update)  cmd_update  ;;
-    restart) cmd_restart ;;
-    seed)    cmd_seed    ;;
-    nginx)   cmd_nginx   ;;
-    check)   cmd_check   ;;
+    install)  cmd_install  ;;
+    update)   cmd_update   ;;
+    restart)  cmd_restart  ;;
+    seed)     cmd_seed     ;;
+    nginx)    cmd_nginx    ;;
+    check)    cmd_check    ;;
+    veronica) cmd_veronica ;;
     *)
         echo ""
         echo "Usage: sudo ./deploy.sh <command>"
@@ -493,6 +588,7 @@ case "${1:-}" in
         echo "  seed      Seed database with test users"
         echo "  nginx     Fix/reload Nginx config"
         echo "  check     Health check all services"
+        echo "  veronica  Install/update Ollama + Phi-3 Mini (Veronica AI)"
         echo ""
         exit 1
         ;;
