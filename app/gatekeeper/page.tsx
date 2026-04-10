@@ -19,7 +19,7 @@ export default function GatekeeperDashboard() {
   const fetchQueues = useCallback(async () => {
     try {
       const res = await apiClient.getGatekeeperQueues();
-      if (res.success) setQueues(res.data);
+      if (res?.new_users !== undefined) setQueues(res);
     } catch {
       // silent
     } finally {

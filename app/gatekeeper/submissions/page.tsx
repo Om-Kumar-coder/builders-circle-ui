@@ -27,9 +27,9 @@ export default function SubmissionsPage() {
         page,
         limit: 20,
       });
-      if (res.success) {
-        setReviews(res.data.reviews);
-        setTotal(res.data.total);
+      if (res?.reviews) {
+        setReviews(res.reviews);
+        setTotal(res.total);
       }
     } catch {
       // silent

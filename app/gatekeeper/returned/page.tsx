@@ -19,9 +19,9 @@ export default function ReturnedPage() {
     setLoading(true);
     try {
       const res = await apiClient.getGatekeeperReturned({ page, limit: 20 });
-      if (res.success) {
-        setReviews(res.data.reviews);
-        setTotal(res.data.total);
+      if (res?.reviews) {
+        setReviews(res.reviews);
+        setTotal(res.total);
       }
     } catch {
       // silent
