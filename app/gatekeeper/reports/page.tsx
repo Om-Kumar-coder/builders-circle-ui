@@ -39,16 +39,22 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState('');
+  const [fetchError, setFetchError] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const { isAdmin, can } = usePermissions();
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
+    setFetchError('');
     try {
       const res = await apiClient.getDailyReports();
-      if (res.success) setReports(res.data.reports);
-    } catch {
-      // silent
+      if (res.success) {
+        setReports(res.data.reports);
+      } else {
+        setFetchError(res.error ?? 'Failed to load reports');
+      }
+    } catch (e: any) {
+      setFetchError(e.message ?? 'Failed to load reports');
     } finally {
       setLoading(false);
     }
@@ -99,6 +105,11 @@ export default function ReportsPage() {
           </div>
         </div>
 
+        {fetchError && (
+          <div className="bg-red-900/20 border border-red-800/50 text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
+            Fetch error: {fetchError}
+          </div>
+        )}
         {generateError && (
           <div className="bg-red-900/20 border border-red-800/50 text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
             {generateError}
