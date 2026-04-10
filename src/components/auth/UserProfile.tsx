@@ -6,6 +6,7 @@ import { User, Shield, Briefcase, Eye, Users } from 'lucide-react';
 const roleIcons = {
   founder: Shield,
   admin: Shield,
+  gatekeeper: Shield,
   contributor: Users,
   employee: Briefcase,
   observer: Eye,
@@ -14,6 +15,7 @@ const roleIcons = {
 const roleColors = {
   founder: 'text-purple-400',
   admin: 'text-purple-400',
+  gatekeeper: 'text-violet-400',
   contributor: 'text-blue-400',
   employee: 'text-green-400',
   observer: 'text-gray-400',
