@@ -54,7 +54,7 @@ export default function ReportsPage() {
         setFetchError(res.error ?? 'Failed to load reports');
       }
     } catch (e: any) {
-      setFetchError(e.message ?? 'Failed to load reports');
+      setFetchError(`${e.message ?? 'Failed to load reports'} (status: ${e.status ?? 'unknown'})`);
     } finally {
       setLoading(false);
     }
@@ -73,7 +73,7 @@ export default function ReportsPage() {
       }
       await fetchReports();
     } catch (e: any) {
-      setGenerateError(e.message ?? 'Generation failed');
+      setGenerateError(`${e.message ?? 'Generation failed'} (status: ${e.status ?? 'unknown'})`);
     } finally {
       setGenerating(false);
     }
