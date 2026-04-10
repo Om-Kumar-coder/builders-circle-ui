@@ -51,10 +51,12 @@ export default function ReportsPage() {
       if (res.success) {
         setReports(res.data.reports);
       } else {
-        setFetchError(res.error ?? 'Failed to load reports');
+        setFetchError(`API error: ${res.error ?? 'unknown'}`);
       }
     } catch (e: any) {
-      setFetchError(`${e.message ?? 'Failed to load reports'} (status: ${e.status ?? 'unknown'})`);
+      const status = e.status ?? 'no-status';
+      const msg = e.message ?? 'unknown';
+      setFetchError(`${msg} [${status}]`);
     } finally {
       setLoading(false);
     }
@@ -68,12 +70,14 @@ export default function ReportsPage() {
     try {
       const res = await apiClient.generateDailyReport();
       if (!res.success) {
-        setGenerateError(res.error ?? 'Generation failed');
+        setGenerateError(`API error: ${res.error ?? 'unknown'}`);
         return;
       }
       await fetchReports();
     } catch (e: any) {
-      setGenerateError(`${e.message ?? 'Generation failed'} (status: ${e.status ?? 'unknown'})`);
+      const status = e.status ?? 'no-status';
+      const msg = e.message ?? 'unknown';
+      setGenerateError(`${msg} [${status}]`);
     } finally {
       setGenerating(false);
     }
