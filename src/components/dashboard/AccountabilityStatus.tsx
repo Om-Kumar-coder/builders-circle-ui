@@ -32,7 +32,13 @@ export default function AccountabilityStatus({ userId, cycleId }: Accountability
         
         // Get participation data
         const participation = await apiClient.getParticipation(cycleId);
-        
+
+        // No participation record yet — show empty state
+        if (!participation) {
+          setData(null);
+          return;
+        }
+
         // Get ownership data for multiplier
         const ownership = await apiClient.getOwnership(userId, cycleId);
         
@@ -82,14 +88,8 @@ export default function AccountabilityStatus({ userId, cycleId }: Accountability
           riskLevel
         });
       } catch (err) {
-        // 404 = user hasn't joined this cycle yet — show empty state silently
-        const status = (err as { status?: number }).status;
-        if (status === 404 || (err instanceof Error && err.message.toLowerCase().includes('not found'))) {
-          setData(null);
-        } else {
-          console.error('Error fetching accountability data:', err);
-          setError(err instanceof Error ? err.message : 'Failed to load accountability status');
-        }
+        console.error('Error fetching accountability data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load accountability status');
       } finally {
         setLoading(false);
       }
