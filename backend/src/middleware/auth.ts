@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { prisma } from '../config/database';
-import { verifyStepUpToken } from '../routes/auth';
+import { verifyStepUpToken } from '../utils/stepUpToken';
 
 export interface AuthRequest extends Request {
   user?: {

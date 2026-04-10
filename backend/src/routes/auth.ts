@@ -11,6 +11,10 @@ import { env } from '../config/env';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { EmailService } from '../services/emailService';
 import { SecurityService } from '../services/securityService';
+import { signStepUpToken, verifyStepUpToken } from '../utils/stepUpToken';
+
+// Re-export verifyStepUpToken for any legacy imports (no-op — real impl is in utils/stepUpToken)
+export { verifyStepUpToken };
 
 const router = Router();
 
@@ -500,43 +504,6 @@ router.post('/logout', authMiddleware, async (req: AuthRequest, res: Response) =
 });
 
 // ── Step-up authentication ────────────────────────────────────────────────────
-
-const STEP_UP_TTL_MS = 15 * 60 * 1000; // 15 minutes
-
-function signStepUpToken(userId: string): string {
-  const payload = `${userId}:${Date.now() + STEP_UP_TTL_MS}`;
-  const sig = crypto
-    .createHmac('sha256', env.JWT_SECRET)
-    .update(payload)
-    .digest('hex');
-  return Buffer.from(`${payload}:${sig}`).toString('base64url');
-}
-
-export function verifyStepUpToken(token: string, userId: string): boolean {
-  try {
-    const decoded = Buffer.from(token, 'base64url').toString();
-    const lastColon = decoded.lastIndexOf(':');
-    const payload = decoded.slice(0, lastColon);
-    const sig = decoded.slice(lastColon + 1);
-
-    const expected = crypto
-      .createHmac('sha256', env.JWT_SECRET)
-      .update(payload)
-      .digest('hex');
-
-    if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
-      return false;
-    }
-
-    const [tokenUserId, expiryStr] = payload.split(':');
-    if (tokenUserId !== userId) return false;
-    if (Date.now() > Number(expiryStr)) return false;
-
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 // POST /auth/step-up — verify password and issue a short-lived step-up token
 router.post('/step-up', authMiddleware, async (req: AuthRequest, res: Response) => {
