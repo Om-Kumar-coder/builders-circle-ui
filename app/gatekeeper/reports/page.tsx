@@ -38,8 +38,9 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<DailyReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
-  const { isAdmin } = usePermissions();
+  const { isAdmin, can } = usePermissions();
 
   const fetchReports = useCallback(async () => {
     setLoading(true);
@@ -57,9 +58,16 @@ export default function ReportsPage() {
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setGenerateError('');
     try {
-      await apiClient.generateDailyReport();
+      const res = await apiClient.generateDailyReport();
+      if (!res.success) {
+        setGenerateError(res.error ?? 'Generation failed');
+        return;
+      }
       await fetchReports();
+    } catch (e: any) {
+      setGenerateError(e.message ?? 'Generation failed');
     } finally {
       setGenerating(false);
     }
@@ -78,7 +86,7 @@ export default function ReportsPage() {
             <button onClick={fetchReports} className="flex items-center gap-1 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
-            {isAdmin && (
+            {(isAdmin || can('gatekeeper:reports')) && (
               <button
                 onClick={handleGenerate}
                 disabled={generating}
@@ -90,6 +98,12 @@ export default function ReportsPage() {
             )}
           </div>
         </div>
+
+        {generateError && (
+          <div className="bg-red-900/20 border border-red-800/50 text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
+            {generateError}
+          </div>
+        )}
 
         {loading ? (
           <div className="text-center py-12 text-gray-400">Loading reports...</div>

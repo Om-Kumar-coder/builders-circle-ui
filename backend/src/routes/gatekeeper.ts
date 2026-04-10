@@ -289,7 +289,7 @@ router.get('/reports', authMiddleware, roleMiddleware(gatekeeperRoles), async (r
 });
 
 // ── POST /gatekeeper/reports/generate — manually trigger today's report ──────
-router.post('/reports/generate', authMiddleware, roleMiddleware(['admin', 'founder']), async (_req: AuthRequest, res: Response) => {
+router.post('/reports/generate', authMiddleware, roleMiddleware(gatekeeperRoles), async (_req: AuthRequest, res: Response) => {
   try {
     const report = await generateDailyReport();
     res.json({ success: true, data: report, error: null });
