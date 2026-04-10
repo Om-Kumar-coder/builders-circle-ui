@@ -96,35 +96,25 @@ router.post('/join', authMiddleware, requireFullAccess, async (req: AuthRequest,
   }
 });
 
-// Get participation for a cycle
+// Get participation for a cycle — returns null data (not 404) when user hasn't joined
 router.get('/:cycleId', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
+    const cycleId = Array.isArray(req.params.cycleId) ? req.params.cycleId[0] : req.params.cycleId;
+    const userId = req.user!.id;
+
     const participation = await prisma.cycleParticipation.findUnique({
-      where: {
-        userId_cycleId: {
-          userId: req.user!.id,
-          cycleId: Array.isArray(req.params.cycleId) ? req.params.cycleId[0] : req.params.cycleId
-        }
-      },
+      where: { userId_cycleId: { userId, cycleId } },
       include: {
-        cycle: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true
-          }
-        }
-      }
+        cycle: { select: { id: true, name: true, state: true, startDate: true, endDate: true } },
+        user: { select: { id: true, email: true, name: true } },
+      },
     });
 
-    if (!participation) {
-      return res.status(404).json({ error: 'Participation not found' });
-    }
-
-    res.json(participation);
+    // Always return 200 with null data when not found — never 404 for valid auth context
+    return res.json({ success: true, data: participation ?? null, error: null });
   } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error fetching participation:', error);
+    res.status(500).json({ success: false, data: null, error: 'Internal server error' });
   }
 });
 

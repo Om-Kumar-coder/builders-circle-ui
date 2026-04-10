@@ -23,14 +23,19 @@ export default function ParticipationSummary({ userId }: ParticipationSummaryPro
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const status = await getParticipationStatus(userId);
-      setParticipations(status.participations);
-      setStats({
-        activeCount: status.activeCount,
-        atRiskCount: status.atRiskCount,
-        graceCount: status.graceCount,
-      });
-      setLoading(false);
+      try {
+        const status = await getParticipationStatus(userId);
+        setParticipations(status.participations ?? []);
+        setStats({
+          activeCount: status.activeCount,
+          atRiskCount: status.atRiskCount,
+          graceCount: status.graceCount,
+        });
+      } catch {
+        setParticipations([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();

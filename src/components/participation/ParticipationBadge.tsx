@@ -43,7 +43,8 @@ export default function ParticipationBadge({
   size = 'md',
   showIcon = true,
 }: ParticipationBadgeProps) {
-  const config = statusConfig[participation.participationStatus];
+  if (!participation) return null;
+  const config = statusConfig[participation.participationStatus] ?? statusConfig['grace'];
   const Icon = config.icon;
 
   return (

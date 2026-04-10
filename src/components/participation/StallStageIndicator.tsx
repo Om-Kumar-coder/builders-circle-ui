@@ -59,8 +59,9 @@ const STALL_STAGE_CONFIG = {
 };
 
 export default function StallStageIndicator({ participation, showDetails = false }: StallStageIndicatorProps) {
+  if (!participation) return null;
   const stallStage = participation.stallStage || 'grace';
-  const config = STALL_STAGE_CONFIG[stallStage as keyof typeof STALL_STAGE_CONFIG] || STALL_STAGE_CONFIG.grace;
+  const config = STALL_STAGE_CONFIG[stallStage as keyof typeof STALL_STAGE_CONFIG] ?? STALL_STAGE_CONFIG.grace;
 
   const calculateDaysInactive = () => {
     if (!participation.lastActivityDate) return null;

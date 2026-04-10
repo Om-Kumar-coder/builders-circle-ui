@@ -53,16 +53,16 @@ export function useParticipation(
       setError(null);
       
       const participationData = await apiClient.getParticipation(cycleId);
-      setParticipation(participationData);
+      // apiClient unwraps { success: true, data: ... } automatically
+      setParticipation(participationData ?? null);
     } catch (err) {
-      if (err instanceof Error && (err.message.includes('404') || err.message.includes('not found'))) {
-        setParticipation(null);
-        setError(null);
-      } else {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch participation';
+      // Treat any fetch failure as "no participation" — never crash the UI
+      setParticipation(null);
+      if (err instanceof Error && !err.message.includes('404') && !err.message.includes('not found')) {
         console.error('Error fetching participation:', err);
-        setError(errorMessage);
-        setParticipation(null);
+        setError(err.message);
+      } else {
+        setError(null);
       }
     } finally {
       setLoading(false);
