@@ -51,7 +51,7 @@ export default function ReportsPage() {
       if (res.success) {
         setReports(res.data.reports);
       } else {
-        setFetchError(`API error: ${res.error ?? 'unknown'}`);
+        setFetchError(`API error: ${res.error ?? JSON.stringify(res)}`);
       }
     } catch (e: any) {
       const status = e.status ?? 'no-status';
@@ -70,7 +70,7 @@ export default function ReportsPage() {
     try {
       const res = await apiClient.generateDailyReport();
       if (!res.success) {
-        setGenerateError(`API error: ${res.error ?? 'unknown'}`);
+        setGenerateError(`API error: ${res.error ?? JSON.stringify(res)}`);
         return;
       }
       await fetchReports();
