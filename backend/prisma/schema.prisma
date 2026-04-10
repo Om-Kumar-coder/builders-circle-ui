@@ -135,7 +135,7 @@ model User {
 model UserProfile {
   id                String @id @default(cuid())
   userId            String @unique
-  role              String @default("contributor") // founder, admin, contributor, employee, observer
+  role              String @default("contributor") // founder, admin, gatekeeper, contributor, employee, observer
   status            String @default("active") // active, suspended
   bio               String?
   avatar            String?
@@ -720,4 +720,50 @@ model SystemPool {
   createdAt          DateTime @default(now())
 
   @@map("system_pool")
+}
+
+// ── Veronica Gatekeeper System ────────────────────────────────────────────────
+
+/// Gatekeeper review record — tracks intake, submission pre-checks, and queue state
+model GatekeeperReview {
+  id            String    @id @default(cuid())
+  entityType    String    // user_intake | submission | registration
+  entityId      String    // references TriageSubmission.id or ActivityEvent.id or User.id
+  queue         String    @default("new_users") // new_users | submissions | returned
+  status        String    @default("PENDING") // PENDING | VALID | NEEDS_REVIEW | FLAGGED | APPROVED | REJECTED | SENT_BACK
+  veronicaScore Float?    // 0.0–1.0 confidence score from Veronica AI
+  veronicaFlags String?   // JSON array of flag strings
+  veronicaNotes String?   // Veronica's reasoning summary
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  notes         String?   // Gatekeeper manual notes
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([queue, status])
+  @@map("gatekeeper_reviews")
+}
+
+/// Auto-generated daily system report
+model DailyReport {
+  id                   String   @id @default(cuid())
+  reportDate           DateTime @unique // date only (stored as midnight UTC)
+  newSignups           Int      @default(0)
+  approvedUsers        Int      @default(0)
+  rejectedUsers        Int      @default(0)
+  totalSubmissions     Int      @default(0)
+  approvedSubmissions  Int      @default(0)
+  rejectedSubmissions  Int      @default(0)
+  pendingSubmissions   Int      @default(0)
+  activeContributors   Int      @default(0)
+  inactiveContributors Int      @default(0)
+  openCycles           Int      @default(0)
+  pendingReviews       Int      @default(0)
+  flaggedItems         Int      @default(0)
+  metadata             String?  // JSON for extra stats
+  generatedAt          DateTime @default(now())
+
+  @@index([reportDate])
+  @@map("daily_reports")
 }

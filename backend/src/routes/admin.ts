@@ -268,7 +268,7 @@ router.delete('/users/:id', authMiddleware, roleMiddleware(['founder']), stepUpM
 router.patch('/users/:id/role', authMiddleware, roleMiddleware(['admin', 'founder']), stepUpMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const schema = z.object({
-      role: z.enum(['founder', 'admin', 'contributor', 'employee', 'observer'])
+      role: z.enum(['founder', 'admin', 'gatekeeper', 'contributor', 'employee', 'observer'])
     });
 
     const { role } = schema.parse(req.body);

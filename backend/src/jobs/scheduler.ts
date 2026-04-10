@@ -9,6 +9,7 @@ import { AggregationJob } from './aggregationJob';
 import { NormalizationJob } from './normalizationJob';
 import { BackupJob } from './backupJob';
 import { prisma } from '../config/database';
+import { generateDailyReport } from '../routes/gatekeeper';
 
 export class JobScheduler {
   static start() {
@@ -183,6 +184,17 @@ export class JobScheduler {
         if (result.count > 0) console.log(`Cleaned up ${result.count} expired revoked token(s)`);
       } catch (error) {
         console.error('Revoked token cleanup failed:', error);
+      }
+    });
+
+    // Veronica daily report — generated at 11:55 PM each day
+    cron.schedule('55 23 * * *', async () => {
+      console.log('[Veronica] Generating daily report...');
+      try {
+        const report = await generateDailyReport();
+        console.log(`[Veronica] Daily report generated for ${report.reportDate.toISOString().split('T')[0]}`);
+      } catch (error) {
+        console.error('[Veronica] Daily report generation failed:', error);
       }
     });
 

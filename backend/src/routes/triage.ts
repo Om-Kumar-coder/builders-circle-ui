@@ -79,6 +79,42 @@ router.post('/submit', triageLimiter, async (req: Request, res: Response) => {
         availability: data.availability,
       },
     });
+
+    // Auto-create GatekeeperReview and trigger async Veronica scan
+    const reviewId = `intake-${submission.id}`;
+    await prisma.gatekeeperReview.create({
+      data: {
+        id: reviewId,
+        entityType: 'user_intake',
+        entityId: submission.id,
+        queue: 'new_users',
+        status: 'PENDING',
+      },
+    });
+
+    // Fire-and-forget Veronica scan (non-blocking)
+    import('../services/veronicaService').then(({ reviewUserIntake }) =>
+      reviewUserIntake({
+        name: data.name,
+        email: data.email,
+        roleType: data.roleType,
+        description: data.description,
+        proofLinks: data.proofLinks ? JSON.stringify(data.proofLinks) : undefined,
+        availability: data.availability,
+      }).then(result =>
+        prisma.gatekeeperReview.update({
+          where: { id: reviewId },
+          data: {
+            status: result.status,
+            veronicaScore: result.score,
+            veronicaFlags: JSON.stringify(result.flags),
+            veronicaNotes: result.notes,
+            updatedAt: new Date(),
+          },
+        })
+      ).catch(() => {}) // never crash the request
+    ).catch(() => {});
+
     res.status(201).json({ success: true, data: { id: submission.id, status: 'PENDING' }, error: null });
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -101,10 +137,22 @@ router.get('/admin', authMiddleware, roleMiddleware(['admin', 'founder']), async
       where,
       orderBy: { createdAt: 'desc' },
     });
-    const parsed = submissions.map(s => ({
-      ...s,
-      proofLinks: s.proofLinks ? JSON.parse(s.proofLinks) : [],
+
+    // Enrich with Veronica review data
+    const parsed = await Promise.all(submissions.map(async (s) => {
+      const review = await prisma.gatekeeperReview.findUnique({
+        where: { id: `intake-${s.id}` },
+        select: { status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true },
+      });
+      return {
+        ...s,
+        proofLinks: s.proofLinks ? JSON.parse(s.proofLinks) : [],
+        veronicaReview: review
+          ? { ...review, veronicaFlags: review.veronicaFlags ? JSON.parse(review.veronicaFlags) : [] }
+          : null,
+      };
     }));
+
     res.json({ success: true, data: parsed, error: null });
   } catch {
     res.status(500).json({ success: false, data: null, error: 'Failed to fetch submissions' });
@@ -183,6 +231,22 @@ router.post('/admin/sync-sheet', authMiddleware, roleMiddleware(['admin', 'found
           proofLinks: '[]',
         },
       });
+      // Auto-create GatekeeperReview for sheet-synced entries (fire-and-forget Veronica scan)
+      const syncedSubmission = await prisma.triageSubmission.findFirst({ where: { email }, orderBy: { createdAt: 'desc' } });
+      if (syncedSubmission) {
+        const reviewId = `intake-${syncedSubmission.id}`;
+        prisma.gatekeeperReview.create({
+          data: { id: reviewId, entityType: 'user_intake', entityId: syncedSubmission.id, queue: 'new_users', status: 'PENDING' },
+        }).then(() =>
+          import('../services/veronicaService').then(({ reviewUserIntake }) =>
+            reviewUserIntake({ name, email, roleType: guessRoleType(engagement, primaryRole), description: syncedSubmission.description })
+              .then(result => prisma.gatekeeperReview.update({
+                where: { id: reviewId },
+                data: { status: result.status, veronicaScore: result.score, veronicaFlags: JSON.stringify(result.flags), veronicaNotes: result.notes, updatedAt: new Date() },
+              }))
+          )
+        ).catch(() => {});
+      }
       imported++;
     }
 

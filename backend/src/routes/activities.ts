@@ -148,40 +148,32 @@ router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
 router.get('/pending', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
   try {
     const activities = await prisma.activityEvent.findMany({
-      where: {
-        status: 'pending'
-      },
+      where: { status: 'pending' },
       orderBy: { createdAt: 'desc' },
       include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true
-          }
-        },
-        cycle: {
-          select: {
-            id: true,
-            name: true,
-            state: true
-          }
-        }
-      }
+        user: { select: { id: true, email: true, name: true } },
+        cycle: { select: { id: true, name: true, state: true } },
+      },
     });
 
-    res.json({
-      success: true,
-      data: activities,
-      error: null
-    });
+    // Enrich with Veronica review data
+    const enriched = await Promise.all(activities.map(async (a) => {
+      const review = await prisma.gatekeeperReview.findUnique({
+        where: { id: `sub-${a.id}` },
+        select: { status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true },
+      });
+      return {
+        ...a,
+        veronicaReview: review
+          ? { ...review, veronicaFlags: review.veronicaFlags ? JSON.parse(review.veronicaFlags) : [] }
+          : null,
+      };
+    }));
+
+    res.json({ success: true, data: enriched, error: null });
   } catch (error) {
     console.error('❌ Error fetching pending activities:', error);
-    res.status(500).json({
-      success: false,
-      data: null,
-      error: 'Failed to fetch pending activities'
-    });
+    res.status(500).json({ success: false, data: null, error: 'Failed to fetch pending activities' });
   }
 });
 
@@ -437,6 +429,45 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
       cycleId: data.cycleId,
       contributionWeight
     });
+
+    // Auto-create GatekeeperReview and trigger async Veronica scan (non-blocking)
+    const reviewId = `sub-${activity.id}`;
+    prisma.gatekeeperReview.create({
+      data: {
+        id: reviewId,
+        entityType: 'submission',
+        entityId: activity.id,
+        queue: 'submissions',
+        status: 'PENDING',
+      },
+    }).then(() => {
+      // Count same-user same-day submissions for duplicate check
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      return prisma.activityEvent.count({
+        where: { userId: req.user!.id, createdAt: { gte: today }, id: { not: activity.id } },
+      }).then(existingCount =>
+        import('../services/veronicaService').then(({ reviewSubmission }) =>
+          reviewSubmission({
+            description: data.description ?? '',
+            proofLink: data.proofLink,
+            hoursLogged: data.hoursLogged,
+            contributionType: data.contributionType,
+            existingCount,
+          }).then(result =>
+            prisma.gatekeeperReview.update({
+              where: { id: reviewId },
+              data: {
+                status: result.status,
+                veronicaScore: result.score,
+                veronicaFlags: JSON.stringify(result.flags),
+                veronicaNotes: result.notes,
+                updatedAt: new Date(),
+              },
+            })
+          )
+        )
+      );
+    }).catch(() => {}); // never crash the request
 
     res.status(201).json({
       success: true,
