@@ -7,6 +7,12 @@ import { requireAgreement } from '../middleware/requireAgreement';
 import { validateActivitySubmission } from '../services/activityValidationService';
 import { isActiveParticipant, completeTaskViaActivity, getEffectiveContributionWeight, auditLog } from '../services/integrityService';
 import { getFoundationPhaseEnabled } from './config';
+import {
+  enforceGatekeeperDecision,
+  logGatekeeperOverride,
+  notifyGatekeeperOfOverride,
+  syncGatekeeperReviewOnAdminAction,
+} from '../services/gatekeeperEnforcementService';
 
 const router = Router();
 
@@ -47,31 +53,23 @@ async function checkDailyLimits(userId: string): Promise<{ canSubmit: boolean; e
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const todayActivities = await prisma.activityEvent.findMany({
-    where: {
-      userId,
-      createdAt: {
-        gte: today,
-        lt: tomorrow,
-      },
-    },
-  });
+  const dateFilter = { gte: today, lt: tomorrow };
 
-  // Check activity count limit
-  if (todayActivities.length >= ACTIVITY_LIMITS.MAX_ACTIVITIES_PER_DAY) {
-    return {
-      canSubmit: false,
-      error: `Daily limit reached: ${ACTIVITY_LIMITS.MAX_ACTIVITIES_PER_DAY} activities per day`,
-    };
+  const [activityCount, hoursResult] = await Promise.all([
+    prisma.activityEvent.count({ where: { userId, createdAt: dateFilter } }),
+    prisma.activityEvent.aggregate({
+      where: { userId, createdAt: dateFilter },
+      _sum: { hoursLogged: true },
+    }),
+  ]);
+
+  if (activityCount >= ACTIVITY_LIMITS.MAX_ACTIVITIES_PER_DAY) {
+    return { canSubmit: false, error: `Daily limit reached: ${ACTIVITY_LIMITS.MAX_ACTIVITIES_PER_DAY} activities per day` };
   }
 
-  // Check hours limit
-  const totalHours = todayActivities.reduce((sum, activity) => sum + (activity.hoursLogged || 0), 0);
+  const totalHours = hoursResult._sum.hoursLogged ?? 0;
   if (totalHours >= ACTIVITY_LIMITS.MAX_HOURS_PER_DAY) {
-    return {
-      canSubmit: false,
-      error: `Daily hours limit reached: ${ACTIVITY_LIMITS.MAX_HOURS_PER_DAY} hours per day`,
-    };
+    return { canSubmit: false, error: `Daily hours limit reached: ${ACTIVITY_LIMITS.MAX_HOURS_PER_DAY} hours per day` };
   }
 
   return { canSubmit: true };
@@ -156,19 +154,23 @@ router.get('/pending', authMiddleware, roleMiddleware(['admin', 'founder']), asy
       },
     });
 
-    // Enrich with Veronica review data
-    const enriched = await Promise.all(activities.map(async (a) => {
-      const review = await prisma.gatekeeperReview.findUnique({
-        where: { id: `sub-${a.id}` },
-        select: { status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true },
-      });
+    // Batch-fetch all gatekeeper reviews in one query — no N+1
+    const reviewIds = activities.map(a => `sub-${a.id}`);
+    const reviews = await prisma.gatekeeperReview.findMany({
+      where: { id: { in: reviewIds } },
+      select: { id: true, status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true },
+    });
+    const reviewMap = new Map(reviews.map(r => [r.id, r]));
+
+    const enriched = activities.map(a => {
+      const review = reviewMap.get(`sub-${a.id}`) ?? null;
       return {
         ...a,
         veronicaReview: review
           ? { ...review, veronicaFlags: review.veronicaFlags ? JSON.parse(review.veronicaFlags) : [] }
           : null,
       };
-    }));
+    });
 
     res.json({ success: true, data: enriched, error: null });
   } catch (error) {
@@ -461,6 +463,7 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
                 veronicaScore: result.score,
                 veronicaFlags: JSON.stringify(result.flags),
                 veronicaNotes: result.notes,
+                aiDecision: result.aiDecision ?? null,
                 updatedAt: new Date(),
               },
             })
@@ -531,6 +534,48 @@ router.patch('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder'])
         error: `Activity has already been ${existingActivity.status}. Use PATCH /:id/verify only on pending activities.`,
       });
     }
+
+    // ── GATEKEEPER ENFORCEMENT ────────────────────────────────────────────────
+    const enforcement = await enforceGatekeeperDecision(activityId, 'activity');
+
+    if (!enforcement.allowed) {
+      const overrideSchema = z.object({
+        overrideGatekeeper: z.literal(true),
+        overrideReason: z.string().min(10, 'Override reason must be at least 10 characters'),
+      });
+      const override = overrideSchema.safeParse(req.body);
+
+      if (!override.success) {
+        return res.status(403).json({
+          success: false,
+          data: null,
+          error: enforcement.blockReason,
+          requiresOverride: true,
+          gatekeeperStatus: enforcement.gatekeeperStatus,
+          aiScore: enforcement.aiScore,
+          aiDecision: enforcement.aiDecision,
+        });
+      }
+
+      await logGatekeeperOverride({
+        adminId: req.user!.id,
+        targetUserId: existingActivity.userId,
+        entityType: 'activity',
+        entityId: activityId,
+        previousStatus: enforcement.gatekeeperStatus,
+        reason: override.data.overrideReason,
+        aiScore: enforcement.aiScore,
+      });
+
+      await notifyGatekeeperOfOverride({
+        entityType: 'activity',
+        entityId: activityId,
+        adminId: req.user!.id,
+        reason: override.data.overrideReason,
+        previousStatus: enforcement.gatekeeperStatus,
+      });
+    }
+    // ── END ENFORCEMENT ───────────────────────────────────────────────────────
 
     // Calculate ownership if verified and not provided
     let calculatedOwnership = verificationData.calculatedOwnership || 0;
@@ -707,6 +752,12 @@ router.patch('/:id/verify', authMiddleware, roleMiddleware(['admin', 'founder'])
     ReputationService.updateCycleEngagement(activity.cycleId).catch(err =>
       console.error('Failed to update cycle engagement:', err)
     );
+
+    // Sync GatekeeperReview to reflect final admin decision — awaited to prevent stale state
+    const adminActionType =
+      verificationData.status === 'verified' ? 'verified' :
+      verificationData.status === 'rejected' ? 'rejected' : 'changes_requested';
+    await syncGatekeeperReviewOnAdminAction(activityId, 'activity', adminActionType, req.user!.id);
 
     res.json({
       success: true,

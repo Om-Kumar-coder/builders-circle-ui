@@ -734,6 +734,7 @@ model GatekeeperReview {
   veronicaScore Float?    // 0.0–1.0 confidence score from Veronica AI
   veronicaFlags String?   // JSON array of flag strings
   veronicaNotes String?   // Veronica's reasoning summary
+  aiDecision    String?   // AUTO_PASS | FLAGGED | AUTO_BLOCK — stored at scan time, not re-derived
   reviewedBy    String?
   reviewedAt    DateTime?
   notes         String?   // Gatekeeper manual notes

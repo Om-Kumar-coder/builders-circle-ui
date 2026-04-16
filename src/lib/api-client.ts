@@ -19,9 +19,20 @@ function triggerBlobDownload(blob: Blob, filename: string) {
 }
 
 class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  public requiresOverride?: boolean;
+  public gatekeeperStatus?: string;
+  public aiScore?: number | null;
+  public aiDecision?: string | null;
+
+  constructor(public status: number, message: string, extra?: Record<string, unknown>) {
     super(message);
     this.name = 'ApiError';
+    if (extra) {
+      this.requiresOverride = extra.requiresOverride as boolean | undefined;
+      this.gatekeeperStatus = extra.gatekeeperStatus as string | undefined;
+      this.aiScore = extra.aiScore as number | null | undefined;
+      this.aiDecision = extra.aiDecision as string | null | undefined;
+    }
   }
 }
 
@@ -84,6 +95,24 @@ class ApiClient {
           // For auth endpoints, just throw with the server's error message
           errorMessage = responseData.error || responseData.message || 'Invalid credentials';
           throw new ApiError(401, errorMessage);
+        } else if (response.status === 403) {
+          // Agreement enforcement block
+          if (responseData.error === 'AGREEMENT_NOT_ACCEPTED') {
+            window.dispatchEvent(new CustomEvent('agreement:required', {
+              detail: {
+                agreementId: responseData.agreementId,
+                agreementVersion: responseData.agreementVersion,
+              },
+            }));
+          }
+          errorMessage = responseData.error || 'Access denied';
+          // Carry gatekeeper enforcement fields so callers can detect override requirement
+          throw new ApiError(response.status, errorMessage, {
+            requiresOverride: responseData.requiresOverride,
+            gatekeeperStatus: responseData.gatekeeperStatus,
+            aiScore: responseData.aiScore,
+            aiDecision: responseData.aiDecision,
+          });
         } else if (response.status === 429) {
           errorMessage = 'Too many requests. Please wait a moment and try again.';
         } else if (responseData.error) {
@@ -104,17 +133,6 @@ class ApiClient {
           }
         } else if (responseData.message) {
           errorMessage = responseData.message;
-        } else if (response.status === 403) {
-          // Check if this is an agreement enforcement block
-          if (responseData.error === 'AGREEMENT_NOT_ACCEPTED') {
-            window.dispatchEvent(new CustomEvent('agreement:required', {
-              detail: {
-                agreementId: responseData.agreementId,
-                agreementVersion: responseData.agreementVersion,
-              },
-            }));
-          }
-          errorMessage = 'Access denied';
         } else if (response.status === 404) {
           errorMessage = 'Resource not found';
         } else if (response.status >= 500) {
@@ -1121,6 +1139,13 @@ class ApiClient {
     return this.request<any>(`/triage/admin/${id}/approve`, { method: 'POST', body: JSON.stringify({ role }) });
   }
 
+  async approveTriageSubmissionWithOverride(id: string, role: string | undefined, overrideReason: string): Promise<any> {
+    return this.request<any>(`/triage/admin/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ role, overrideGatekeeper: true, overrideReason }),
+    });
+  }
+
   async rejectTriageSubmission(id: string, note?: string): Promise<any> {
     return this.request<any>(`/triage/admin/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) });
   }
@@ -1248,6 +1273,37 @@ class ApiClient {
 
   async generateDailyReport() {
     return this.request<any>('/gatekeeper/reports/generate', { method: 'POST' });
+  }
+
+  async getReportDetail(date: string) {
+    return this.request<any>(`/gatekeeper/reports/${date}/detail`);
+  }
+
+  async getVeronicaStatus() {
+    return this.request<{
+      available: boolean;
+      model: string | null;
+      responseLatencyMs: number | null;
+      checkedAt: string;
+    }>('/gatekeeper/veronica/status');
+  }
+
+  async approveTriageWithOverride(id: string, opts: { overrideReason: string; role?: string }) {
+    return this.request<any>(`/triage/admin/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ overrideGatekeeper: true, overrideReason: opts.overrideReason, role: opts.role }),
+    });
+  }
+
+  async verifyActivityWithOverride(
+    activityId: string,
+    verificationData: { status: 'verified' | 'rejected' | 'changes_requested'; rejectionReason?: string; feedbackComment?: string; calculatedOwnership?: number },
+    overrideReason: string
+  ) {
+    return this.request<any>(`/activities/${activityId}/verify`, {
+      method: 'PATCH',
+      body: JSON.stringify({ ...verificationData, overrideGatekeeper: true, overrideReason }),
+    });
   }
 }
 

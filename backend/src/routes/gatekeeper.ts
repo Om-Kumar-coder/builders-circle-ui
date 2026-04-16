@@ -6,7 +6,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
 import { authMiddleware, roleMiddleware, AuthRequest } from '../middleware/auth';
-import { reviewUserIntake, reviewSubmission } from '../services/veronicaService';
+import { reviewUserIntake, reviewSubmission, checkVeronicaHealth } from '../services/veronicaService';
 
 const router = Router();
 const gatekeeperRoles = ['gatekeeper', 'admin', 'founder'];
@@ -44,10 +44,17 @@ router.get('/intake', authMiddleware, roleMiddleware(gatekeeperRoles), async (re
       }),
     ]);
 
-    // Enrich with triage submission data
-    const enriched = await Promise.all(reviews.map(async (r) => {
-      const triage = await prisma.triageSubmission.findUnique({ where: { id: r.entityId } });
-      return { ...r, veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [], triage };
+    // Batch-fetch all triage submissions in one query — no N+1
+    const triageIds = reviews.map(r => r.entityId);
+    const triages = await prisma.triageSubmission.findMany({
+      where: { id: { in: triageIds } },
+    });
+    const triageMap = new Map(triages.map(t => [t.id, t]));
+
+    const enriched = reviews.map(r => ({
+      ...r,
+      veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [],
+      triage: triageMap.get(r.entityId) ?? null,
     }));
 
     res.json({ success: true, data: { reviews: enriched, total, page: parseInt(page), limit: parseInt(limit) }, error: null });
@@ -75,15 +82,21 @@ router.get('/submissions', authMiddleware, roleMiddleware(gatekeeperRoles), asyn
       }),
     ]);
 
-    const enriched = await Promise.all(reviews.map(async (r) => {
-      const activity = await prisma.activityEvent.findUnique({
-        where: { id: r.entityId },
-        include: {
-          user: { select: { id: true, name: true, email: true } },
-          linkedTask: { select: { id: true, title: true, status: true } },
-        },
-      });
-      return { ...r, veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [], activity };
+    // Batch-fetch all activities in one query — no N+1
+    const activityIds = reviews.map(r => r.entityId);
+    const activities = await prisma.activityEvent.findMany({
+      where: { id: { in: activityIds } },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        linkedTask: { select: { id: true, title: true, status: true } },
+      },
+    });
+    const activityMap = new Map(activities.map(a => [a.id, a]));
+
+    const enriched = reviews.map(r => ({
+      ...r,
+      veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [],
+      activity: activityMap.get(r.entityId) ?? null,
     }));
 
     res.json({ success: true, data: { reviews: enriched, total, page: parseInt(page), limit: parseInt(limit) }, error: null });
@@ -120,12 +133,14 @@ router.post('/intake/:triageId/scan', authMiddleware, roleMiddleware(gatekeeperR
         veronicaScore: result.score,
         veronicaFlags: JSON.stringify(result.flags),
         veronicaNotes: result.notes,
+        aiDecision: result.aiDecision ?? null,
       },
       update: {
         status: result.status,
         veronicaScore: result.score,
         veronicaFlags: JSON.stringify(result.flags),
         veronicaNotes: result.notes,
+        aiDecision: result.aiDecision ?? null,
         updatedAt: new Date(),
       },
     });
@@ -168,12 +183,14 @@ router.post('/submissions/:activityId/scan', authMiddleware, roleMiddleware(gate
         veronicaScore: result.score,
         veronicaFlags: JSON.stringify(result.flags),
         veronicaNotes: result.notes,
+        aiDecision: result.aiDecision ?? null,
       },
       update: {
         status: result.status,
         veronicaScore: result.score,
         veronicaFlags: JSON.stringify(result.flags),
         veronicaNotes: result.notes,
+        aiDecision: result.aiDecision ?? null,
         updatedAt: new Date(),
       },
     });
@@ -202,17 +219,30 @@ router.get('/returned', authMiddleware, roleMiddleware(gatekeeperRoles), async (
       }),
     ]);
 
-    const enriched = await Promise.all(reviews.map(async (r) => {
-      if (r.entityType === 'user_intake') {
-        const triage = await prisma.triageSubmission.findUnique({ where: { id: r.entityId } });
-        return { ...r, veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [], triage };
-      } else {
-        const activity = await prisma.activityEvent.findUnique({
-          where: { id: r.entityId },
-          include: { user: { select: { id: true, name: true, email: true } } },
-        });
-        return { ...r, veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [], activity };
-      }
+    // Separate by type, then batch-fetch each group — no N+1
+    const intakeIds = reviews.filter(r => r.entityType === 'user_intake').map(r => r.entityId);
+    const submissionIds = reviews.filter(r => r.entityType !== 'user_intake').map(r => r.entityId);
+
+    const [triages, activities] = await Promise.all([
+      intakeIds.length > 0
+        ? prisma.triageSubmission.findMany({ where: { id: { in: intakeIds } } })
+        : Promise.resolve([]),
+      submissionIds.length > 0
+        ? prisma.activityEvent.findMany({
+            where: { id: { in: submissionIds } },
+            include: { user: { select: { id: true, name: true, email: true } } },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const triageMap = new Map(triages.map(t => [t.id, t]));
+    const activityMap = new Map(activities.map(a => [a.id, a]));
+
+    const enriched = reviews.map(r => ({
+      ...r,
+      veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [],
+      triage: r.entityType === 'user_intake' ? (triageMap.get(r.entityId) ?? null) : undefined,
+      activity: r.entityType !== 'user_intake' ? (activityMap.get(r.entityId) ?? null) : undefined,
     }));
 
     res.json({ success: true, data: { reviews: enriched, total, page: parseInt(page), limit: parseInt(limit) }, error: null });
@@ -267,6 +297,16 @@ router.patch('/review/:id/move', authMiddleware, roleMiddleware(gatekeeperRoles)
   }
 });
 
+// ── GET /gatekeeper/veronica/status — Ollama health check ────────────────────
+router.get('/veronica/status', authMiddleware, roleMiddleware(gatekeeperRoles), async (_req: AuthRequest, res: Response) => {
+  try {
+    const health = await checkVeronicaHealth();
+    res.json({ success: true, data: health, error: null });
+  } catch (err) {
+    res.status(500).json({ success: false, data: null, error: 'Health check failed' });
+  }
+});
+
 // ── GET /gatekeeper/reports — list daily reports ─────────────────────────────
 router.get('/reports', authMiddleware, roleMiddleware(gatekeeperRoles), async (req: AuthRequest, res: Response) => {
   try {
@@ -298,10 +338,114 @@ router.post('/reports/generate', authMiddleware, roleMiddleware(gatekeeperRoles)
   }
 });
 
+// ── GET /gatekeeper/reports/:date/detail — full record breakdown for a day ───
+// date param: YYYY-MM-DD (UTC)
+router.get('/reports/:date/detail', authMiddleware, roleMiddleware(gatekeeperRoles), async (req: AuthRequest, res: Response) => {
+  try {
+    const dateStr = Array.isArray(req.params.date) ? req.params.date[0] : req.params.date;
+    const parts = dateStr.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) {
+      return res.status(400).json({ success: false, data: null, error: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
+    const dayStart = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    const dayEnd   = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1));
+
+    const [
+      approvedTriages,
+      rejectedTriages,
+      verifiedActivities,
+      rejectedActivities,
+      changesRequestedActivities,
+      newTriages,
+    ] = await Promise.all([
+      // Triage submissions approved today
+      prisma.triageSubmission.findMany({
+        where: { status: 'APPROVED', reviewedAt: { gte: dayStart, lt: dayEnd } },
+        select: { id: true, name: true, email: true, roleType: true, reviewedAt: true },
+        orderBy: { reviewedAt: 'desc' },
+      }),
+      // Triage submissions rejected today
+      prisma.triageSubmission.findMany({
+        where: { status: 'REJECTED', reviewedAt: { gte: dayStart, lt: dayEnd } },
+        select: { id: true, name: true, email: true, roleType: true, reviewedAt: true, rejectionNote: true },
+        orderBy: { reviewedAt: 'desc' },
+      }),
+      // Activities verified today
+      prisma.activityEvent.findMany({
+        where: { status: 'verified', verifiedAt: { gte: dayStart, lt: dayEnd } },
+        select: {
+          id: true,
+          contributionType: true,
+          hoursLogged: true,
+          calculatedOwnership: true,
+          verifiedAt: true,
+          proofLink: true,
+          user: { select: { id: true, name: true, email: true } },
+          verifier: { select: { id: true, name: true, email: true } },
+          linkedTask: { select: { id: true, title: true } },
+        },
+        orderBy: { verifiedAt: 'desc' },
+      }),
+      // Activities rejected today
+      prisma.activityEvent.findMany({
+        where: { status: 'rejected', verifiedAt: { gte: dayStart, lt: dayEnd } },
+        select: {
+          id: true,
+          contributionType: true,
+          hoursLogged: true,
+          verifiedAt: true,
+          rejectionReason: true,
+          proofLink: true,
+          user: { select: { id: true, name: true, email: true } },
+          verifier: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { verifiedAt: 'desc' },
+      }),
+      // Activities with changes requested today
+      prisma.activityEvent.findMany({
+        where: { status: 'changes_requested', verifiedAt: { gte: dayStart, lt: dayEnd } },
+        select: {
+          id: true,
+          contributionType: true,
+          hoursLogged: true,
+          verifiedAt: true,
+          rejectionReason: true,
+          user: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { verifiedAt: 'desc' },
+      }),
+      // New triage submissions created today
+      prisma.triageSubmission.findMany({
+        where: { createdAt: { gte: dayStart, lt: dayEnd } },
+        select: { id: true, name: true, email: true, roleType: true, status: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        date: dateStr,
+        approvedTriages,
+        rejectedTriages,
+        verifiedActivities,
+        rejectedActivities,
+        changesRequestedActivities,
+        newTriages,
+      },
+      error: null,
+    });
+  } catch (err) {
+    console.error('Report detail error:', err);
+    res.status(500).json({ success: false, data: null, error: 'Failed to fetch report detail' });
+  }
+});
+
 export async function generateDailyReport() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+  // Use UTC midnight to prevent timezone-related duplicate-key errors
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const tomorrow = new Date(today); tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
   const [
     newSignups, approvedUsers, rejectedUsers,
@@ -332,6 +476,21 @@ export async function generateDailyReport() {
   const totalUsers = await prisma.userProfile.count();
   const inactiveContributors = Math.max(0, totalUsers - activeContributors);
 
+  // Compute AI detection stats for metadata
+  const [aiAutoBlocked, aiAutoPass, aiFallback] = await Promise.all([
+    prisma.gatekeeperReview.count({ where: { veronicaScore: { lte: 0.30 }, updatedAt: { gte: today, lt: tomorrow } } }),
+    prisma.gatekeeperReview.count({ where: { veronicaScore: { gte: 0.75 }, updatedAt: { gte: today, lt: tomorrow } } }),
+    prisma.gatekeeperReview.count({ where: { veronicaFlags: { contains: 'ai_fallback' }, updatedAt: { gte: today, lt: tomorrow } } }),
+  ]);
+
+  const metadata = JSON.stringify({
+    aiAutoBlocked,
+    aiAutoPass,
+    aiFallback,
+    generatedBy: 'system',
+    version: '2',
+  });
+
   return prisma.dailyReport.upsert({
     where: { reportDate: today },
     create: {
@@ -340,12 +499,14 @@ export async function generateDailyReport() {
       totalSubmissions, approvedSubmissions, rejectedSubmissions, pendingSubmissions,
       activeContributors, inactiveContributors,
       openCycles, pendingReviews, flaggedItems,
+      metadata,
     },
     update: {
       newSignups, approvedUsers, rejectedUsers,
       totalSubmissions, approvedSubmissions, rejectedSubmissions, pendingSubmissions,
       activeContributors, inactiveContributors,
       openCycles, pendingReviews, flaggedItems,
+      metadata,
       generatedAt: new Date(),
     },
   });

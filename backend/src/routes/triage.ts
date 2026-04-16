@@ -8,6 +8,12 @@ import { assignStarterTasks } from '../services/starterTaskService';
 import { auditLog } from '../services/integrityService';
 import { env } from '../config/env';
 import { EmailService } from '../services/emailService';
+import {
+  enforceGatekeeperDecision,
+  logGatekeeperOverride,
+  syncGatekeeperReviewOnAdminAction,
+  notifyGatekeeperOfOverride,
+} from '../services/gatekeeperEnforcementService';
 // Standardized token expiry (24h) — used for both signup and triage
 const EMAIL_VERIFY_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
@@ -128,7 +134,7 @@ router.post('/submit', triageLimiter, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/admin/triage — list submissions
+// GET /api/admin/triage — list submissions (batch-fetches gatekeeper reviews — no N+1)
 router.get('/admin', authMiddleware, roleMiddleware(['admin', 'founder']), async (req: AuthRequest, res: Response) => {
   try {
     const { status } = req.query;
@@ -138,12 +144,16 @@ router.get('/admin', authMiddleware, roleMiddleware(['admin', 'founder']), async
       orderBy: { createdAt: 'desc' },
     });
 
-    // Enrich with Veronica review data
-    const parsed = await Promise.all(submissions.map(async (s) => {
-      const review = await prisma.gatekeeperReview.findUnique({
-        where: { id: `intake-${s.id}` },
-        select: { status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true },
-      });
+    // Batch-fetch all gatekeeper reviews in one query
+    const reviewIds = submissions.map(s => `intake-${s.id}`);
+    const reviews = await prisma.gatekeeperReview.findMany({
+      where: { id: { in: reviewIds } },
+      select: { id: true, status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true },
+    });
+    const reviewMap = new Map(reviews.map(r => [r.id, r]));
+
+    const parsed = submissions.map(s => {
+      const review = reviewMap.get(`intake-${s.id}`) ?? null;
       return {
         ...s,
         proofLinks: s.proofLinks ? JSON.parse(s.proofLinks) : [],
@@ -151,7 +161,7 @@ router.get('/admin', authMiddleware, roleMiddleware(['admin', 'founder']), async
           ? { ...review, veronicaFlags: review.veronicaFlags ? JSON.parse(review.veronicaFlags) : [] }
           : null,
       };
-    }));
+    });
 
     res.json({ success: true, data: parsed, error: null });
   } catch {
@@ -276,7 +286,49 @@ router.post('/admin/:id/approve', authMiddleware, roleMiddleware(['admin', 'foun
       return res.status(400).json({ success: false, data: null, error: 'Submission already reviewed' });
     }
 
-    // Allow admin to override the assigned role at approval time
+    // ── GATEKEEPER ENFORCEMENT ────────────────────────────────────────────────
+    const enforcement = await enforceGatekeeperDecision(submission.id, 'triage');
+
+    if (!enforcement.allowed) {
+      const body = z.object({
+        overrideGatekeeper: z.literal(true),
+        overrideReason: z.string().min(10, 'Override reason must be at least 10 characters'),
+        role: z.string().optional(),
+      }).safeParse(req.body);
+
+      if (!body.success) {
+        return res.status(403).json({
+          success: false,
+          data: null,
+          error: enforcement.blockReason,
+          requiresOverride: true,
+          gatekeeperStatus: enforcement.gatekeeperStatus,
+          aiScore: enforcement.aiScore,
+          aiDecision: enforcement.aiDecision,
+        });
+      }
+
+      // Override granted — log it and notify gatekeeper
+      await logGatekeeperOverride({
+        adminId: req.user!.id,
+        targetUserId: req.user!.id,
+        entityType: 'triage',
+        entityId: submission.id,
+        previousStatus: enforcement.gatekeeperStatus,
+        reason: body.data.overrideReason,
+        aiScore: enforcement.aiScore,
+      });
+
+      await notifyGatekeeperOfOverride({
+        entityType: 'triage',
+        entityId: submission.id,
+        adminId: req.user!.id,
+        reason: body.data.overrideReason,
+        previousStatus: enforcement.gatekeeperStatus,
+      });
+    }
+    // ── END ENFORCEMENT ───────────────────────────────────────────────────────
+
     const { role: overrideRole } = z.object({ role: z.string().optional() }).parse(req.body);
     const effectiveRoleType = overrideRole ?? submission.roleType;
 
@@ -284,13 +336,11 @@ router.post('/admin/:id/approve', authMiddleware, roleMiddleware(['admin', 'foun
       throw Object.assign(e, { status: 500 });
     });
 
-    // if user already exists, link them instead of creating a duplicate
     let user = await prisma.user.findUnique({ where: { email: submission.email } });
     let isExistingUser = false;
     let verifyToken: string;
 
     if (user) {
-      // Link existing user to the correct group if not already assigned
       isExistingUser = true;
       verifyToken = crypto.randomBytes(32).toString('hex');
       user = await prisma.user.update({
@@ -303,7 +353,6 @@ router.post('/admin/:id/approve', authMiddleware, roleMiddleware(['admin', 'foun
       });
     } else {
       verifyToken = crypto.randomBytes(32).toString('hex');
-      // Map roleType to a valid user profile role
       const profileRole = ['admin', 'founder', 'contributor', 'employee', 'observer'].includes(effectiveRoleType)
         ? effectiveRoleType as 'admin' | 'founder' | 'contributor' | 'employee' | 'observer'
         : 'contributor';
@@ -323,9 +372,7 @@ router.post('/admin/:id/approve', authMiddleware, roleMiddleware(['admin', 'foun
       });
     }
 
-    // Send approval + verification email (non-blocking)
     sendTriageApprovalEmail(submission.email, submission.name, verifyToken).catch(() => {});
-
     await assignStarterTasks(user.id, group.id);
 
     await prisma.triageSubmission.update({
@@ -333,15 +380,19 @@ router.post('/admin/:id/approve', authMiddleware, roleMiddleware(['admin', 'foun
       data: { status: 'APPROVED', reviewedBy: req.user!.id, reviewedAt: new Date() },
     });
 
-    // ISSUE 10: structured audit log
+    // Sync GatekeeperReview to APPROVED
+    await syncGatekeeperReviewOnAdminAction(submission.id, 'triage', 'approved', req.user!.id);
+
     await auditLog(req.user!.id, 'triage_approved', 'triage', submission.id, [user.id], {
       createdUserId: user.id,
       email: submission.email,
       groupId: group.id,
       isExistingUser,
+      gatekeeperStatus: enforcement.gatekeeperStatus,
+      aiScore: enforcement.aiScore,
     });
 
-    res.json({ success: true, data: { userId: user.id, groupId: group.id, isExistingUser }, error: null });
+    res.json({ success: true, data: { userId: user.id, groupId: group.id, isExistingUser, missingReview: enforcement.missingReview ?? false }, error: null });
   } catch (err: unknown) {
     const e = err as { status?: number; message?: string };
     res.status(e.status ?? 500).json({ success: false, data: null, error: e.message ?? 'Failed to approve submission' });
@@ -370,6 +421,9 @@ router.post('/admin/:id/reject', authMiddleware, roleMiddleware(['admin', 'found
 
     // Send rejection email (non-blocking)
     sendTriageRejectionEmail(submission.email, submission.name, note).catch(() => {});
+
+    // Sync GatekeeperReview to REJECTED
+    await syncGatekeeperReviewOnAdminAction(submission.id, 'triage', 'rejected', req.user!.id);
 
     // ISSUE 10: audit log rejection
     await auditLog(req.user!.id, 'triage_rejected', 'triage', submission.id, [], {

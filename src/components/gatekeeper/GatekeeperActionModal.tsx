@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { apiClient } from '../../lib/api-client';
-import { X, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
+import { X, CheckCircle, XCircle, RotateCcw, AlertTriangle } from 'lucide-react';
 
 interface Props {
   review: any;
@@ -13,7 +13,6 @@ interface Props {
 type Action = 'APPROVED' | 'REJECTED' | 'SENT_BACK';
 
 export default function GatekeeperActionModal({ review, onClose, onSuccess }: Props) {
-  // Pre-select based on Veronica's verdict
   const defaultAction = (): Action | null => {
     if (review.status === 'FLAGGED') return 'REJECTED';
     if (review.status === 'VALID') return 'APPROVED';
@@ -61,6 +60,24 @@ export default function GatekeeperActionModal({ review, onClose, onSuccess }: Pr
         </div>
 
         <div className="p-5 space-y-4">
+          {/* Veronica verdict summary */}
+          {(review.veronicaScore != null || review.veronicaFlags?.length > 0) && (
+            <div className="flex items-start gap-2 p-3 bg-gray-800/60 rounded-lg border border-gray-700 text-xs text-gray-400">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                {review.veronicaScore != null && (
+                  <span className="mr-2">AI score: <span className="text-white font-medium">{Math.round(review.veronicaScore * 100)}%</span></span>
+                )}
+                {review.veronicaFlags?.length > 0 && (
+                  <span>Flags: {review.veronicaFlags.join(', ')}</span>
+                )}
+                {review.veronicaNotes && (
+                  <p className="mt-1 italic text-gray-500">{review.veronicaNotes}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <p className="text-gray-400 text-sm">
             Taking action on: <span className="text-white font-medium">{label}</span>
           </p>

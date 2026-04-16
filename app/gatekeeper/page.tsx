@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import MainLayout from '../../src/components/layout/MainLayout';
 import { apiClient } from '../../src/lib/api-client';
-import { Shield, Users, FileCheck, RotateCcw, BarChart2, RefreshCw } from 'lucide-react';
+import { Shield, Users, FileCheck, RotateCcw, BarChart2, RefreshCw, Zap, AlertTriangle, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 
 interface QueueCounts {
@@ -12,9 +12,17 @@ interface QueueCounts {
   returned: number;
 }
 
+interface VeronicaStatus {
+  available: boolean;
+  model: string | null;
+  responseLatencyMs: number | null;
+  checkedAt: string;
+}
+
 export default function GatekeeperDashboard() {
   const [queues, setQueues] = useState<QueueCounts>({ new_users: 0, submissions: 0, returned: 0 });
   const [loading, setLoading] = useState(true);
+  const [veronicaStatus, setVeronicaStatus] = useState<VeronicaStatus | null>(null);
 
   const fetchQueues = useCallback(async () => {
     try {
@@ -27,7 +35,19 @@ export default function GatekeeperDashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchQueues(); }, [fetchQueues]);
+  const fetchVeronicaStatus = useCallback(async () => {
+    try {
+      const status = await apiClient.getVeronicaStatus();
+      setVeronicaStatus(status);
+    } catch {
+      setVeronicaStatus({ available: false, model: null, responseLatencyMs: null, checkedAt: new Date().toISOString() });
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchQueues();
+    fetchVeronicaStatus();
+  }, [fetchQueues, fetchVeronicaStatus]);
 
   const cards = [
     {
@@ -90,6 +110,29 @@ export default function GatekeeperDashboard() {
             Refresh
           </button>
         </div>
+
+        {/* Veronica AI Status Banner */}
+        {veronicaStatus && (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm ${
+            veronicaStatus.available
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              : 'bg-red-500/10 border-red-500/20 text-red-400'
+          }`}>
+            {veronicaStatus.available
+              ? <CheckCircle className="w-4 h-4 shrink-0" />
+              : <AlertTriangle className="w-4 h-4 shrink-0" />
+            }
+            <span>
+              {veronicaStatus.available
+                ? `Veronica AI online — model: ${veronicaStatus.model ?? 'phi3:mini'} — latency: ${veronicaStatus.responseLatencyMs}ms`
+                : 'Veronica AI offline — rule-based fallback active. Scans will use simplified checks.'
+              }
+            </span>
+            <button onClick={fetchVeronicaStatus} className="ml-auto opacity-60 hover:opacity-100 transition-opacity">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Queue Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">

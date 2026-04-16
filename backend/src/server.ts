@@ -69,10 +69,10 @@ app.use(cors({
   optionsSuccessStatus: 200,
 }));
 
-// Global rate limiter
+// Global rate limiter — 500 requests per 15 minutes per IP
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100000,
+  max: 500,
   message: {
     success: false,
     data: null,
@@ -83,10 +83,10 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Stricter limiter for auth routes
+// Stricter limiter for auth routes — 20 attempts per 15 minutes per IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100000,
+  max: 20,
   message: {
     success: false,
     data: null,
@@ -131,7 +131,20 @@ const onboardingGuard = [authMiddleware, requireEmailVerified, require2FA, requi
 // Admins/founders are exempt so they can manage agreements without being locked out.
 const agreementGuard = [authMiddleware, requireEmailVerified, require2FA, requireOnboarding, requireAgreement];
 
-app.use('/api/cycles', onboardingGuard, cycleRoutes);
+// Participant-only guard — blocks gatekeeper role from routes that are for active contributors only
+// (cycles, sessions, analytics). Gatekeepers have their own dedicated /api/gatekeeper/* routes.
+const participantGuard = [
+  authMiddleware, requireEmailVerified, require2FA, requireOnboarding,
+  (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => {
+    const role = (req as import('./middleware/auth').AuthRequest).user?.role;
+    if (role === 'gatekeeper') {
+      return res.status(403).json({ success: false, data: null, error: 'Gatekeeper role does not have access to this resource.' });
+    }
+    next();
+  },
+];
+
+app.use('/api/cycles', participantGuard, cycleRoutes);
 app.use('/api/participation', agreementGuard, participationRoutes);
 app.use('/api/activities', agreementGuard, activityRoutes);
 app.use('/api/ownership', agreementGuard, ownershipRoutes);
@@ -143,7 +156,7 @@ app.use('/api/messages', agreementGuard, messageRoutes);
 app.use('/api/notifications', onboardingGuard, notificationRoutes);
 app.use('/api/admin', onboardingGuard, adminRoutes);
 app.use('/api/admin/config', onboardingGuard, configRoutes);
-app.use('/api/sessions', onboardingGuard, sessionRoutes);
+app.use('/api/sessions', participantGuard, sessionRoutes);
 app.use('/api/weights', onboardingGuard, weightRoutes);
 app.use('/api/security', onboardingGuard, securityRoutes);
 app.use('/api/logs', onboardingGuard, logsRoutes);

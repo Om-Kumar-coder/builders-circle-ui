@@ -53,6 +53,16 @@ export default function ActivityReviewPage() {
     }
   }, [isAdmin]);
 
+  const [overrideModal, setOverrideModal] = useState<{
+    activityId: string;
+    status: 'verified' | 'rejected' | 'changes_requested';
+    rejectionReason?: string;
+    gatekeeperStatus: string;
+    aiScore: number | null;
+  } | null>(null);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [overrideLoading, setOverrideLoading] = useState(false);
+
   const handleVerification = async (
     activityId: string,
     status: 'verified' | 'rejected' | 'changes_requested',
@@ -61,14 +71,13 @@ export default function ActivityReviewPage() {
     try {
       setVerifying(activityId);
       
-      // Calculate ownership for verified activities
       const activity = activities.find(a => a.id === activityId);
       let calculatedOwnership = 0;
       
       if (status === 'verified' && activity) {
         const baseReward = 0.1;
         const hoursLogged = activity.hoursLogged || 1;
-        const hoursFactor = Math.min(hoursLogged / 4, 2); // Cap at 2x for 4+ hours
+        const hoursFactor = Math.min(hoursLogged / 4, 2);
         calculatedOwnership = baseReward * activity.contributionWeight * hoursFactor;
       }
 
@@ -78,14 +87,56 @@ export default function ActivityReviewPage() {
         calculatedOwnership: status === 'verified' ? calculatedOwnership : undefined,
       });
 
-      // Remove from pending list
       setActivities(prev => prev.filter(a => a.id !== activityId));
       setSelected(prev => { const s = new Set(prev); s.delete(activityId); return s; });
     } catch (err: unknown) {
+      const e = err as any;
+      // Backend blocked due to gatekeeper flag — show override modal
+      if (e?.status === 403 && e?.requiresOverride) {
+        setOverrideModal({
+          activityId,
+          status,
+          rejectionReason,
+          gatekeeperStatus: e.gatekeeperStatus ?? 'FLAGGED',
+          aiScore: e.aiScore ?? null,
+        });
+        return;
+      }
       console.error('Error verifying activity:', err);
-      setError((err as Error).message || 'Failed to verify activity');
+      setError(e.message || 'Failed to verify activity');
     } finally {
       setVerifying(null);
+    }
+  };
+
+  const handleOverrideSubmit = async () => {
+    if (!overrideModal || !overrideReason.trim()) return;
+    setOverrideLoading(true);
+    try {
+      const activity = activities.find(a => a.id === overrideModal.activityId);
+      let calculatedOwnership = 0;
+      if (overrideModal.status === 'verified' && activity) {
+        const baseReward = 0.1;
+        const hoursLogged = activity.hoursLogged || 1;
+        calculatedOwnership = baseReward * activity.contributionWeight * Math.min(hoursLogged / 4, 2);
+      }
+      await apiClient.verifyActivityWithOverride(
+        overrideModal.activityId,
+        {
+          status: overrideModal.status,
+          rejectionReason: overrideModal.rejectionReason,
+          calculatedOwnership: overrideModal.status === 'verified' ? calculatedOwnership : undefined,
+        },
+        overrideReason
+      );
+      setActivities(prev => prev.filter(a => a.id !== overrideModal.activityId));
+      setSelected(prev => { const s = new Set(prev); s.delete(overrideModal.activityId); return s; });
+      setOverrideModal(null);
+      setOverrideReason('');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Override failed');
+    } finally {
+      setOverrideLoading(false);
     }
   };
 
@@ -266,10 +317,56 @@ export default function ActivityReviewPage() {
           )}
         </div>
       </div>
+
+      {/* Gatekeeper Override Modal */}
+      {overrideModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-red-800/50 rounded-2xl w-full max-w-md">
+            <div className="p-5 border-b border-gray-700">
+              <div className="flex items-center gap-2 text-red-400 mb-1">
+                <AlertTriangle className="w-5 h-5" />
+                <h2 className="font-semibold">Gatekeeper Override Required</h2>
+              </div>
+              <p className="text-sm text-gray-400">
+                This activity is <span className="text-red-400 font-medium">{overrideModal.gatekeeperStatus}</span>
+                {overrideModal.aiScore != null && ` (AI score: ${Math.round(overrideModal.aiScore * 100)}%)`}.
+                To proceed, provide a reason for overriding the gatekeeper decision.
+              </p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Override Reason (required, min 10 chars)</label>
+                <textarea
+                  value={overrideReason}
+                  onChange={e => setOverrideReason(e.target.value)}
+                  rows={3}
+                  placeholder="Explain why you are overriding the gatekeeper decision..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
+                />
+              </div>
+              {error && <p className="text-red-400 text-sm">{error}</p>}
+            </div>
+            <div className="flex gap-3 p-5 border-t border-gray-700">
+              <button
+                onClick={() => { setOverrideModal(null); setOverrideReason(''); setError(null); }}
+                className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleOverrideSubmit}
+                disabled={overrideReason.trim().length < 10 || overrideLoading}
+                className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
+              >
+                {overrideLoading ? 'Overriding...' : 'Override & Proceed'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 }
-
 interface ActivityReviewCardProps {
   activity: ActivityEvent;
   onVerify: (id: string, status: 'verified' | 'rejected' | 'changes_requested', reason?: string) => void;

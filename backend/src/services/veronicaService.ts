@@ -5,6 +5,7 @@
  */
 
 import logger from '../utils/logger';
+import { prisma } from '../config/database';
 
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const MODEL = 'phi3:mini';
@@ -14,6 +15,53 @@ export interface VeronicaResult {
   score: number; // 0.0–1.0
   flags: string[];
   notes: string;
+  /** True when Ollama was unavailable and rule-based fallback was used */
+  isFallback?: boolean;
+  /** AI decision tier derived from score */
+  aiDecision?: 'AUTO_PASS' | 'FLAGGED' | 'AUTO_BLOCK';
+}
+
+export interface VeronicaHealthStatus {
+  available: boolean;
+  model: string | null;
+  responseLatencyMs: number | null;
+  checkedAt: string;
+}
+
+// ── Health Check ──────────────────────────────────────────────────────────────
+
+export async function checkVeronicaHealth(): Promise<VeronicaHealthStatus> {
+  const start = Date.now();
+  try {
+    const res = await fetch(`${OLLAMA_URL}/api/tags`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const latency = Date.now() - start;
+    if (!res.ok) {
+      return { available: false, model: null, responseLatencyMs: latency, checkedAt: new Date().toISOString() };
+    }
+    const data = await res.json() as { models?: Array<{ name: string }> };
+    const loaded = data.models?.find(m => m.name.startsWith('phi3')) ?? null;
+    return {
+      available: true,
+      model: loaded?.name ?? null,
+      responseLatencyMs: latency,
+      checkedAt: new Date().toISOString(),
+    };
+  } catch {
+    return {
+      available: false,
+      model: null,
+      responseLatencyMs: Date.now() - start,
+      checkedAt: new Date().toISOString(),
+    };
+  }
+}
+
+function resolveAiDecision(score: number): VeronicaResult['aiDecision'] {
+  if (score >= 0.75) return 'AUTO_PASS';
+  if (score <= 0.30) return 'AUTO_BLOCK';
+  return 'FLAGGED';
 }
 
 interface OllamaResponse {
@@ -93,10 +141,22 @@ Respond ONLY with this JSON (no other text):
 
   try {
     const raw = await callVeronica(prompt);
-    return parseVeronicaResponse(raw);
+    const result = parseVeronicaResponse(raw);
+    return { ...result, isFallback: false, aiDecision: resolveAiDecision(result.score) };
   } catch (err) {
     logger.warn('[Veronica] intake review failed, using rule-based fallback', { err });
-    return ruleBasedIntakeCheck(data);
+    // Log AI failure to SystemLog so it's queryable
+    prisma.systemLog.create({
+      data: {
+        event: 'veronica_ai_failure',
+        severity: 'WARNING',
+        message: '[Veronica] Ollama unavailable for intake review — rule-based fallback used',
+        metadata: JSON.stringify({ type: 'intake', email: data.email, error: String(err) }),
+      },
+    }).catch(() => {});
+    const result = ruleBasedIntakeCheck(data);
+    // Add 'ai_fallback' flag so DB records are distinguishable from real AI scans
+    return { ...result, flags: [...result.flags, 'ai_fallback'], isFallback: true, aiDecision: resolveAiDecision(result.score) };
   }
 }
 
@@ -132,10 +192,22 @@ Respond ONLY with this JSON (no other text):
 
   try {
     const raw = await callVeronica(prompt);
-    return parseVeronicaResponse(raw);
+    const result = parseVeronicaResponse(raw);
+    return { ...result, isFallback: false, aiDecision: resolveAiDecision(result.score) };
   } catch (err) {
     logger.warn('[Veronica] submission review failed, using rule-based fallback', { err });
-    return ruleBasedSubmissionCheck(data);
+    // Log AI failure to SystemLog so it's queryable
+    prisma.systemLog.create({
+      data: {
+        event: 'veronica_ai_failure',
+        severity: 'WARNING',
+        message: '[Veronica] Ollama unavailable for submission review — rule-based fallback used',
+        metadata: JSON.stringify({ type: 'submission', contributionType: data.contributionType, error: String(err) }),
+      },
+    }).catch(() => {});
+    const result = ruleBasedSubmissionCheck(data);
+    // Add 'ai_fallback' flag so DB records are distinguishable from real AI scans
+    return { ...result, flags: [...result.flags, 'ai_fallback'], isFallback: true, aiDecision: resolveAiDecision(result.score) };
   }
 }
 

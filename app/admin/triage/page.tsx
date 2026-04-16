@@ -11,7 +11,8 @@ import TriageDetailModal from '@/components/triage/TriageDetailModal';
 import RejectModal from '@/components/triage/RejectModal';
 import AssignModal from '@/components/triage/AssignModal';
 import type { TriageSubmission } from '@/hooks/useTriage';
-import { RefreshCw, Users, CloudDownload } from 'lucide-react';
+import { RefreshCw, Users, CloudDownload, AlertTriangle } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 
 const TABS = ['All', 'PENDING', 'APPROVED', 'REJECTED'] as const;
 type Tab = typeof TABS[number];
@@ -30,6 +31,10 @@ export default function AdminTriagePage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [overrideModal, setOverrideModal] = useState<{ submission: TriageSubmission; role: string } | null>(null);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [overrideLoading, setOverrideLoading] = useState(false);
+  const [overrideError, setOverrideError] = useState('');
 
   const refresh = useCallback((t: Tab) => {
     fetchTriageList(t === 'All' ? undefined : t);
@@ -81,15 +86,46 @@ export default function AdminTriagePage() {
     setApproving(true);
     setApproveError('');
     try {
-      await approveSubmission(s.id, role);
-      setSuccessMsg(`Approved — invite sent to ${s.email}`);
-      setTimeout(() => setSuccessMsg(''), 4000);
+      const result = await approveSubmission(s.id, role);
+      const msg = result?.missingReview
+        ? `Approved — invite sent to ${s.email}. ⚠️ This application had no Veronica scan on record.`
+        : `Approved — invite sent to ${s.email}`;
+      setSuccessMsg(msg);
+      setTimeout(() => setSuccessMsg(''), result?.missingReview ? 8000 : 4000);
       setAssigning(null);
       refresh(tab);
     } catch (e: unknown) {
-      setApproveError(e instanceof Error ? e.message : 'Approval failed. Please try again.');
+      const err = e as any;
+      if (err?.requiresOverride) {
+        setAssigning(null);
+        setOverrideModal({ submission: s, role });
+        setOverrideError('');
+        return;
+      }
+      setApproveError(err instanceof Error ? err.message : 'Approval failed. Please try again.');
     } finally {
       setApproving(false);
+    }
+  }
+
+  async function handleOverrideApprove() {
+    if (!overrideModal || overrideReason.trim().length < 10) return;
+    setOverrideLoading(true);
+    setOverrideError('');
+    try {
+      const result = await apiClient.approveTriageSubmissionWithOverride(overrideModal.submission.id, overrideModal.role, overrideReason);
+      const msg = result?.missingReview
+        ? `Approved (override) — invite sent to ${overrideModal.submission.email}. ⚠️ No Veronica scan on record.`
+        : `Approved (override) — invite sent to ${overrideModal.submission.email}`;
+      setSuccessMsg(msg);
+      setTimeout(() => setSuccessMsg(''), result?.missingReview ? 8000 : 4000);
+      setOverrideModal(null);
+      setOverrideReason('');
+      refresh(tab);
+    } catch (e: unknown) {
+      setOverrideError(e instanceof Error ? e.message : 'Override failed');
+    } finally {
+      setOverrideLoading(false);
     }
   }
 
@@ -137,6 +173,50 @@ export default function AdminTriagePage() {
           />
         )}
 
+        {/* Gatekeeper override modal */}
+        {overrideModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 border border-red-800/50 rounded-2xl w-full max-w-md">
+              <div className="p-5 border-b border-gray-700">
+                <div className="flex items-center gap-2 text-red-400 mb-1">
+                  <AlertTriangle className="w-5 h-5" />
+                  <h2 className="font-semibold">Gatekeeper Override Required</h2>
+                </div>
+                <p className="text-sm text-gray-400">
+                  This application has been <span className="text-red-400 font-medium">flagged or rejected</span> by the gatekeeper.
+                  To approve anyway, provide a reason.
+                </p>
+              </div>
+              <div className="p-5 space-y-3">
+                <label className="block text-xs text-gray-400 mb-1">Override Reason (min 10 characters)</label>
+                <textarea
+                  value={overrideReason}
+                  onChange={e => setOverrideReason(e.target.value)}
+                  rows={3}
+                  placeholder="Explain why you are overriding the gatekeeper decision..."
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
+                />
+                {overrideError && <p className="text-red-400 text-sm">{overrideError}</p>}
+              </div>
+              <div className="flex gap-3 p-5 border-t border-gray-700">
+                <button
+                  onClick={() => { setOverrideModal(null); setOverrideReason(''); setOverrideError(''); }}
+                  className="flex-1 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleOverrideApprove}
+                  disabled={overrideReason.trim().length < 10 || overrideLoading}
+                  className="flex-1 px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm transition-colors disabled:opacity-50"
+                >
+                  {overrideLoading ? 'Overriding...' : 'Override & Approve'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Users className="w-7 h-7 text-indigo-400" />
@@ -169,7 +249,11 @@ export default function AdminTriagePage() {
           </div>
         )}
         {successMsg && (
-          <div className="bg-green-900/20 border border-green-800/50 text-green-400 px-4 py-3 rounded-lg text-sm">
+          <div className={`px-4 py-3 rounded-lg text-sm border ${
+            successMsg.includes('⚠️')
+              ? 'bg-amber-900/20 border-amber-800/50 text-amber-300'
+              : 'bg-green-900/20 border-green-800/50 text-green-400'
+          }`}>
             {successMsg}
           </div>
         )}
