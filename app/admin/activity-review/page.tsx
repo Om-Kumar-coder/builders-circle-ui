@@ -445,18 +445,39 @@ function ActivityReviewCard({ activity, onVerify, isVerifying, selected, onToggl
 
           {/* Veronica AI Review */}
           {activity.veronicaReview && (
-            <div className="flex flex-wrap items-center gap-2 mb-3 p-2 bg-gray-900/50 rounded-lg border border-gray-700/50">
-              <span className="text-xs text-gray-500">Veronica:</span>
-              <VeronicaBadge status={activity.veronicaReview.status} score={activity.veronicaReview.veronicaScore} />
-              {activity.veronicaReview.veronicaFlags && activity.veronicaReview.veronicaFlags.length > 0 && (
-                activity.veronicaReview.veronicaFlags.map((f: string) => (
-                  <span key={f} className="flex items-center gap-1 text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full">
-                    <AlertTriangle className="w-3 h-3" />{f.replace(/_/g, ' ')}
+            <div className="flex flex-col gap-2 mb-3 p-2 bg-gray-900/50 rounded-lg border border-gray-700/50">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-500">Veronica:</span>
+                <VeronicaBadge status={activity.veronicaReview.status} score={activity.veronicaReview.veronicaScore} />
+                {activity.veronicaReview.aiDecision && (
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+                    activity.veronicaReview.aiDecision === 'AUTO_PASS'  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                    activity.veronicaReview.aiDecision === 'AUTO_BLOCK' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                    'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  }`}>
+                    {activity.veronicaReview.aiDecision.replace('_', ' ')}
                   </span>
-                ))
-              )}
+                )}
+                {activity.veronicaReview.veronicaFlags && activity.veronicaReview.veronicaFlags.length > 0 && (
+                  activity.veronicaReview.veronicaFlags.map((f: string) => (
+                    <span key={f} className="flex items-center gap-1 text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full">
+                      <AlertTriangle className="w-3 h-3" />{f.replace(/_/g, ' ')}
+                    </span>
+                  ))
+                )}
+              </div>
               {activity.veronicaReview.veronicaNotes && (
-                <span className="text-xs text-gray-500 italic ml-1">{activity.veronicaReview.veronicaNotes}</span>
+                <span className="text-xs text-gray-500 italic">{activity.veronicaReview.veronicaNotes}</span>
+              )}
+              {activity.veronicaReview.reasoning && activity.veronicaReview.reasoning !== activity.veronicaReview.veronicaNotes && (
+                <details>
+                  <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-400 transition-colors select-none">
+                    AI reasoning ▸
+                  </summary>
+                  <p className="text-xs text-gray-400 mt-1 bg-gray-800/60 rounded p-2 border border-gray-700/50 leading-relaxed">
+                    {activity.veronicaReview.reasoning}
+                  </p>
+                </details>
               )}
             </div>
           )}

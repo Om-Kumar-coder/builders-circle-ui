@@ -735,6 +735,7 @@ model GatekeeperReview {
   veronicaFlags String?   // JSON array of flag strings
   veronicaNotes String?   // Veronica's reasoning summary
   aiDecision    String?   // AUTO_PASS | FLAGGED | AUTO_BLOCK — stored at scan time, not re-derived
+  reasoning     String?   // Full AI reasoning for inspection on failure/review
   reviewedBy    String?
   reviewedAt    DateTime?
   notes         String?   // Gatekeeper manual notes

@@ -1275,6 +1275,18 @@ class ApiClient {
     return this.request<any>('/gatekeeper/reports/generate', { method: 'POST' });
   }
 
+  async runVeronicaBacktest() {
+    return this.request<{
+      total: number;
+      suspiciousCount: number;
+      suspiciousRate: string;
+      suspicious: Array<{
+        reviewId: string; activityId: string; originalScore: number | null;
+        newScore: number; newStatus: string; flags: string[]; reasoning: string;
+      }>;
+    }>('/gatekeeper/backtest', { method: 'POST' });
+  }
+
   async getReportDetail(date: string) {
     return this.request<any>(`/gatekeeper/reports/${date}/detail`);
   }

@@ -513,3 +513,69 @@ export async function generateDailyReport() {
 }
 
 export default router;
+
+// ── POST /gatekeeper/backtest — re-evaluate existing VALID activities with new logic ──
+// Admin/founder only — runs Veronica's new semantic checks against all previously VALID submissions
+router.post('/backtest', authMiddleware, roleMiddleware(['admin', 'founder']), async (_req: AuthRequest, res: Response) => {
+  try {
+    const reviews = await prisma.gatekeeperReview.findMany({
+      where: { entityType: 'submission', status: { in: ['VALID', 'APPROVED'] } },
+      select: { id: true, entityId: true, veronicaScore: true, aiDecision: true },
+    });
+
+    if (reviews.length === 0) {
+      return res.json({ success: true, data: { total: 0, suspicious: [], suspiciousRate: '0%' }, error: null });
+    }
+
+    const activityIds = reviews.map(r => r.entityId);
+    const activities = await prisma.activityEvent.findMany({
+      where: { id: { in: activityIds } },
+      select: { id: true, description: true, proofLink: true, hoursLogged: true, contributionType: true },
+    });
+    const activityMap = new Map(activities.map(a => [a.id, a]));
+
+    const { ruleBasedSubmissionCheckExport } = await import('../services/veronicaService');
+
+    const suspicious: Array<{
+      reviewId: string; activityId: string; originalScore: number | null;
+      newScore: number; newStatus: string; flags: string[]; reasoning: string;
+    }> = [];
+
+    for (const review of reviews) {
+      const activity = activityMap.get(review.entityId);
+      if (!activity) continue;
+      const result = ruleBasedSubmissionCheckExport({
+        description: activity.description ?? '',
+        proofLink: activity.proofLink,
+        hoursLogged: activity.hoursLogged ?? undefined,
+      });
+      if (result.status !== 'VALID' || result.score < 0.7) {
+        suspicious.push({
+          reviewId: review.id,
+          activityId: activity.id,
+          originalScore: review.veronicaScore,
+          newScore: result.score,
+          newStatus: result.status,
+          flags: result.flags,
+          reasoning: result.notes,
+        });
+      }
+    }
+
+    const suspiciousRate = `${((suspicious.length / reviews.length) * 100).toFixed(1)}%`;
+
+    await prisma.systemLog.create({
+      data: {
+        event: 'veronica_backtest_run',
+        severity: suspicious.length > 0 ? 'WARNING' : 'INFO',
+        message: `[Veronica] Backtest — ${suspicious.length}/${reviews.length} previously VALID submissions flagged (${suspiciousRate})`,
+        metadata: JSON.stringify({ total: reviews.length, suspiciousCount: suspicious.length, suspiciousRate }),
+      },
+    });
+
+    res.json({ success: true, data: { total: reviews.length, suspiciousCount: suspicious.length, suspiciousRate, suspicious }, error: null });
+  } catch (err) {
+    console.error('Backtest error:', err);
+    res.status(500).json({ success: false, data: null, error: 'Backtest failed' });
+  }
+});

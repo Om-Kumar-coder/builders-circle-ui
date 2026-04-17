@@ -126,6 +126,16 @@ export default function SubmissionsPage() {
                     {review.veronicaNotes && (
                       <p className="text-gray-500 text-xs mt-1 italic">Veronica: {review.veronicaNotes}</p>
                     )}
+                    {review.reasoning && review.reasoning !== review.veronicaNotes && (
+                      <details className="mt-1">
+                        <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-400 transition-colors">
+                          AI reasoning ▸
+                        </summary>
+                        <p className="text-gray-500 text-xs mt-1 bg-gray-900/50 rounded p-2 border border-gray-700/50">
+                          {review.reasoning}
+                        </p>
+                      </details>
+                    )}
                     {review.veronicaFlags?.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {review.veronicaFlags.map((f: string) => (

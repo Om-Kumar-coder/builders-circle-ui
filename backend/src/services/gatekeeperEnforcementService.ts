@@ -60,6 +60,8 @@ export interface NotifyOverrideParams {
 
 const BLOCKING_STATUSES = new Set(['FLAGGED', 'REJECTED']);
 const BLOCKING_AI_DECISIONS = new Set(['AUTO_BLOCK']);
+// Statuses that require gatekeeper approval before admin can verify
+const REQUIRES_APPROVAL_STATUSES = new Set(['PENDING', 'NEEDS_REVIEW', 'SENT_BACK', 'VALID']);
 
 // ── Core enforcement function ─────────────────────────────────────────────────
 
@@ -121,7 +123,9 @@ export async function enforceGatekeeperDecision(
 
   const isBlocked =
     BLOCKING_STATUSES.has(review.status) ||
-    (aiDecision !== null && BLOCKING_AI_DECISIONS.has(aiDecision));
+    (aiDecision !== null && BLOCKING_AI_DECISIONS.has(aiDecision)) ||
+    // For activities: require explicit APPROVED status — VALID/PENDING/NEEDS_REVIEW are not enough
+    (type === 'activity' && REQUIRES_APPROVAL_STATUSES.has(review.status));
 
   if (isBlocked) {
     const reason =
@@ -129,6 +133,8 @@ export async function enforceGatekeeperDecision(
         ? `Gatekeeper has REJECTED this ${type}. An override with reason is required to proceed.`
         : aiDecision === 'AUTO_BLOCK'
         ? `Veronica AI has AUTO_BLOCKED this ${type} (score: ${review.veronicaScore?.toFixed(2)}). An override with reason is required.`
+        : REQUIRES_APPROVAL_STATUSES.has(review.status)
+        ? `Gatekeeper approval required. Current status: ${review.status}. A gatekeeper must review and APPROVE this submission before admin verification.`
         : `This ${type} is FLAGGED by Veronica. An override with reason is required to proceed.`;
 
     // Log every blocked attempt — not just overrides

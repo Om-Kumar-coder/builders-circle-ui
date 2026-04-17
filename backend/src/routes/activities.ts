@@ -158,7 +158,7 @@ router.get('/pending', authMiddleware, roleMiddleware(['admin', 'founder']), asy
     const reviewIds = activities.map(a => `sub-${a.id}`);
     const reviews = await prisma.gatekeeperReview.findMany({
       where: { id: { in: reviewIds } },
-      select: { id: true, status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true },
+      select: { id: true, status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true, aiDecision: true, reasoning: true },
     });
     const reviewMap = new Map(reviews.map(r => [r.id, r]));
 
@@ -434,6 +434,7 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
 
     // Auto-create GatekeeperReview and trigger async Veronica scan (non-blocking)
     const reviewId = `sub-${activity.id}`;
+    const capturedUserId = req.user!.id;
     prisma.gatekeeperReview.create({
       data: {
         id: reviewId,
@@ -443,10 +444,9 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
         status: 'PENDING',
       },
     }).then(() => {
-      // Count same-user same-day submissions for duplicate check
       const today = new Date(); today.setHours(0, 0, 0, 0);
       return prisma.activityEvent.count({
-        where: { userId: req.user!.id, createdAt: { gte: today }, id: { not: activity.id } },
+        where: { userId: capturedUserId, createdAt: { gte: today }, id: { not: activity.id } },
       }).then(existingCount =>
         import('../services/veronicaService').then(({ reviewSubmission }) =>
           reviewSubmission({
@@ -455,15 +455,19 @@ router.post('/', authMiddleware, requireFullAccess, async (req: AuthRequest, res
             hoursLogged: data.hoursLogged,
             contributionType: data.contributionType,
             existingCount,
+            activityId: activity.id,
           }).then(result =>
             prisma.gatekeeperReview.update({
               where: { id: reviewId },
               data: {
-                status: result.status,
+                // Auto-approve when Veronica is confident: score >= 0.75 + isMeaningfulWork
+                status: result.autoApproved ? 'APPROVED' : result.status,
                 veronicaScore: result.score,
                 veronicaFlags: JSON.stringify(result.flags),
                 veronicaNotes: result.notes,
                 aiDecision: result.aiDecision ?? null,
+                // Store AI reasoning for inspection on failure
+                reasoning: result.semantic?.reasoning ?? result.notes ?? null,
                 updatedAt: new Date(),
               },
             })
