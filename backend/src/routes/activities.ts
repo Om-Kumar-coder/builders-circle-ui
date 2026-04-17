@@ -158,16 +158,29 @@ router.get('/pending', authMiddleware, roleMiddleware(['admin', 'founder']), asy
     const reviewIds = activities.map(a => `sub-${a.id}`);
     const reviews = await prisma.gatekeeperReview.findMany({
       where: { id: { in: reviewIds } },
-      select: { id: true, status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true, aiDecision: true, reasoning: true },
+      select: { id: true, status: true, veronicaScore: true, veronicaFlags: true, veronicaNotes: true },
     });
     const reviewMap = new Map(reviews.map(r => [r.id, r]));
 
+    // Try to fetch aiDecision and reasoning separately — these columns may not exist yet
+    // if the ALTER TABLE migrations haven't been applied. Fail gracefully.
+    let extendedMap = new Map<string, { aiDecision?: string | null; reasoning?: string | null }>();
+    try {
+      const extended = await prisma.$queryRaw<Array<{ id: string; aiDecision: string | null; reasoning: string | null }>>`
+        SELECT id, "aiDecision", reasoning FROM gatekeeper_reviews WHERE id = ANY(${reviewIds})
+      `;
+      extendedMap = new Map(extended.map(r => [r.id, { aiDecision: r.aiDecision, reasoning: r.reasoning }]));
+    } catch {
+      // Columns don't exist yet — skip gracefully
+    }
+
     const enriched = activities.map(a => {
       const review = reviewMap.get(`sub-${a.id}`) ?? null;
+      const ext = extendedMap.get(`sub-${a.id}`) ?? {};
       return {
         ...a,
         veronicaReview: review
-          ? { ...review, veronicaFlags: review.veronicaFlags ? JSON.parse(review.veronicaFlags) : [] }
+          ? { ...review, ...ext, veronicaFlags: review.veronicaFlags ? JSON.parse(review.veronicaFlags) : [] }
           : null,
       };
     });
