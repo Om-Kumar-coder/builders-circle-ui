@@ -56,6 +56,8 @@ export interface ActivityEvent {
     veronicaScore?: number | null;
     veronicaFlags?: string[];
     veronicaNotes?: string | null;
+    aiDecision?: string | null;
+    reasoning?: string | null;
   } | null;
 }
 
