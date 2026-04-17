@@ -16,7 +16,7 @@ router.get('/queues', authMiddleware, roleMiddleware(gatekeeperRoles), async (_r
   try {
     const [newUsers, submissions, returned] = await Promise.all([
       prisma.gatekeeperReview.count({ where: { queue: 'new_users', status: { in: ['PENDING', 'NEEDS_REVIEW', 'FLAGGED'] } } }),
-      prisma.gatekeeperReview.count({ where: { queue: 'submissions', status: { in: ['PENDING', 'NEEDS_REVIEW', 'FLAGGED'] } } }),
+      prisma.gatekeeperReview.count({ where: { queue: 'submissions', status: { in: ['PENDING', 'NEEDS_REVIEW', 'FLAGGED', 'VALID'] } } }),
       prisma.gatekeeperReview.count({ where: { queue: 'returned' } }),
     ]);
     res.json({ success: true, data: { new_users: newUsers, submissions, returned }, error: null });
