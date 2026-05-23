@@ -747,6 +747,50 @@ model GatekeeperReview {
   @@map("gatekeeper_reviews")
 }
 
+/// Entry Control Layer — Prefilter + Intake submission for Phase 1 Entry Control
+model EntryIntake {
+  id                 String   @id @default(cuid())
+  fullName           String
+  email              String
+  phoneOrWhatsapp    String?
+  countryTimezone    String?
+  intentType         String
+  capitalRange       String?
+  executionProofUrl  String?
+  executionOutcome   String?
+  executionRecency   String?
+  valueProposition   String
+  availability       String?
+  timeline           String?
+  intentOutcome30_60 String?
+  prefilterAck       Boolean  @default(false)
+  prefilterSessionId String?
+  status             String   @default("PENDING")  // PENDING | REVIEWED | CONTACTED | CLOSED
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+  @@map("entry_intake")
+}
+
+/// Event logs for the Entry Control Layer — tracks prefilter page events + intake events
+model EventLog {
+  id        String   @id @default(cuid())
+  event     String   // prefilter_page_view | prefilter_scrolled_50 | prefilter_checkbox_checked | prefilter_cta_click | prefilter_exit_no_click | intake_submitted
+  sessionId String?
+  metadata  String?  // JSON string
+  userId    String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([event])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("event_logs")
+}
+
 /// Auto-generated daily system report
 model DailyReport {
   id                   String   @id @default(cuid())

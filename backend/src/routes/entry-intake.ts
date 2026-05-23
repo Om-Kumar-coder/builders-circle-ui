@@ -1,0 +1,326 @@
+/**
+ * Entry Control Layer — Intake & Event Logging Routes
+ *
+ * Phase 1: Entry Control Layer
+ * Public endpoints for prefilter + intake form submission.
+ * No scoring, no routing, no AI decisions.
+ */
+import { Router, Request, Response } from 'express';
+import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
+import { prisma } from '../config/database';
+import { env } from '../config/env';
+
+const router = Router();
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// 5 submissions per IP per hour
+const intakeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { success: false, data: null, error: 'Too many submissions. Please wait before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Tighter limit for event logging (100 events per IP per hour)
+const eventLogLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 100,
+  message: { success: false, data: null, error: 'Too many requests.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// ── Validation schemas ────────────────────────────────────────────────────────
+
+const intakeSchema = z.object({
+  fullName: z.string().min(2, 'Full name is required (min 2 characters)').max(200),
+  email: z.string().email('Valid email is required'),
+  phoneOrWhatsapp: z.string().max(50).optional().nullable(),
+  countryTimezone: z.string().max(100).optional().nullable(),
+  intentType: z.enum(['join', 'collaborate', 'invest', 'propose', 'other'], {
+    errorMap: () => ({ message: 'Intent type is required' }),
+  }),
+  capitalRange: z.string().max(100).optional().nullable(),
+  executionProofUrl: z.string().url('Must be a valid URL').or(z.literal('')).optional().nullable(),
+  executionOutcome: z.string().max(2000).optional().nullable(),
+  executionRecency: z.string().max(100).optional().nullable(),
+  valueProposition: z.string().min(20, 'Value proposition must be at least 20 characters').max(3000),
+  availability: z.string().max(200).optional().nullable(),
+  timeline: z.string().max(200).optional().nullable(),
+  intentOutcome30_60: z.string().max(2000).optional().nullable(),
+  prefilterAck: z.literal(true, {
+    errorMap: () => ({ message: 'You must acknowledge the prefilter agreement' }),
+  }),
+  prefilterSessionId: z.string().optional().nullable(),
+  captchaToken: z.string().optional().nullable(),
+});
+
+const eventLogSchema = z.object({
+  event: z.enum([
+    'prefilter_page_view',
+    'prefilter_scrolled_50',
+    'prefilter_checkbox_checked',
+    'prefilter_cta_click',
+    'prefilter_exit_no_click',
+    'intake_submitted',
+  ]),
+  sessionId: z.string().optional().nullable(),
+  metadata: z.record(z.unknown()).optional().nullable(),
+});
+
+// ── Akismet spam check ────────────────────────────────────────────────────────
+
+const AKISMET_API_KEY = process.env.AKISMET_API_KEY || '';
+const FRONTEND_URL = env.FRONTEND_URL || 'http://localhost:3000';
+
+async function checkAkismetSpam(params: {
+  userIp: string;
+  userAgent: string;
+  commentAuthor: string;
+  commentAuthorEmail: string;
+  commentContent: string;
+}): Promise<{ isSpam: boolean; reason?: string }> {
+  if (!AKISMET_API_KEY) {
+    // No API key configured — skip check
+    return { isSpam: false };
+  }
+
+  try {
+    const response = await fetch(`https://${AKISMET_API_KEY}.rest.akismet.com/1.1/comment-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        blog: FRONTEND_URL,
+        user_ip: params.userIp,
+        user_agent: params.userAgent,
+        comment_author: params.commentAuthor,
+        comment_author_email: params.commentAuthorEmail,
+        comment_content: params.commentContent,
+        comment_type: 'contact-form',
+        blog_lang: 'en',
+      }),
+    });
+
+    const body = await response.text();
+    if (body.trim() === 'true') {
+      return { isSpam: true, reason: 'Flagged as spam by Akismet' };
+    }
+
+    // Check the debug help info if available
+    const debugHelp = response.headers.get('X-akismet-debug-help');
+    return { isSpam: false };
+  } catch {
+    // Akismet failure should not block submissions — log and continue
+    console.warn('[Akismet] Check failed, allowing submission');
+    return { isSpam: false };
+  }
+}
+
+// ── CAPTCHA validation ────────────────────────────────────────────────────────
+
+async function validateCaptcha(token: string): Promise<boolean> {
+  const secretKey = process.env.CAPTCHA_SECRET_KEY;
+  if (!secretKey) {
+    // No CAPTCHA configured — skip validation
+    return true;
+  }
+
+  try {
+    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        secret: secretKey,
+        response: token,
+      }),
+    });
+
+    const data = await response.json() as { success: boolean; score?: number };
+    // reCAPTCHA v3 returns a score; v2 returns success boolean
+    if (data.score !== undefined) {
+      return data.success && data.score >= 0.5;
+    }
+    return data.success === true;
+  } catch {
+    return false;
+  }
+}
+
+// ── POST /api/triage/intake — Submit entry intake form ────────────────────────
+
+router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
+  try {
+    // Validate request body
+    const data = intakeSchema.parse(req.body);
+
+    // 1. Validate CAPTCHA if provided
+    if (data.captchaToken) {
+      const captchaValid = await validateCaptcha(data.captchaToken);
+      if (!captchaValid) {
+        return res.status(400).json({
+          success: false,
+          data: null,
+          error: 'CAPTCHA validation failed. Please try again.',
+        });
+      }
+    }
+
+    // 2. Akismet spam check
+    const akismetResult = await checkAkismetSpam({
+      userIp: req.ip || req.socket.remoteAddress || '0.0.0.0',
+      userAgent: req.get('User-Agent') || '',
+      commentAuthor: data.fullName,
+      commentAuthorEmail: data.email,
+      commentContent: `${data.valueProposition} ${data.executionOutcome || ''}`,
+    });
+
+    if (akismetResult.isSpam) {
+      // Log the spam attempt but still reject silently (don't reveal it's spam)
+      await prisma.eventLog.create({
+        data: {
+          event: 'intake_spam_blocked',
+          sessionId: data.prefilterSessionId || null,
+          metadata: JSON.stringify({ email: data.email, reason: akismetResult.reason }),
+          ipAddress: req.ip || null,
+        },
+      }).catch(() => {});
+
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: 'Your submission could not be processed. Please try again later.',
+      });
+    }
+
+    // 3. Check for duplicate email (existing intake with PENDING status)
+    const existingPending = await prisma.entryIntake.findFirst({
+      where: { email: data.email, status: 'PENDING' },
+    });
+    if (existingPending) {
+      return res.status(409).json({
+        success: false,
+        data: null,
+        error: 'A pending application for this email already exists. Please wait for review.',
+      });
+    }
+
+    // 4. Store submission
+    const intake = await prisma.entryIntake.create({
+      data: {
+        fullName: data.fullName,
+        email: data.email,
+        phoneOrWhatsapp: data.phoneOrWhatsapp || null,
+        countryTimezone: data.countryTimezone || null,
+        intentType: data.intentType,
+        capitalRange: data.capitalRange || null,
+        executionProofUrl: data.executionProofUrl || null,
+        executionOutcome: data.executionOutcome || null,
+        executionRecency: data.executionRecency || null,
+        valueProposition: data.valueProposition,
+        availability: data.availability || null,
+        timeline: data.timeline || null,
+        intentOutcome30_60: data.intentOutcome30_60 || null,
+        prefilterAck: true,
+        prefilterSessionId: data.prefilterSessionId || null,
+        status: 'PENDING',
+      },
+    });
+
+    // 5. Log event: intake_submitted
+    await prisma.eventLog.create({
+      data: {
+        event: 'intake_submitted',
+        sessionId: data.prefilterSessionId || null,
+        metadata: JSON.stringify({
+          intakeId: intake.id,
+          intentType: data.intentType,
+          email: data.email,
+        }),
+        ipAddress: req.ip || null,
+      },
+    }).catch(() => {});
+
+    // 6. Log to system_logs for audit trail
+    await prisma.systemLog.create({
+      data: {
+        event: 'entry_intake_submitted',
+        severity: 'INFO',
+        message: `[Entry] Intake submitted — ${data.fullName} (${data.email}) — intent: ${data.intentType}`,
+        metadata: JSON.stringify({ intakeId: intake.id, intentType: data.intentType }),
+      },
+    }).catch(() => {});
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: intake.id,
+        status: intake.status,
+        message: 'Your application has been received. We will review it and get back to you.',
+      },
+      error: null,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: err.errors[0]?.message || 'Validation failed',
+      });
+    }
+    console.error('[Entry] Intake error:', err);
+    res.status(500).json({
+      success: false,
+      data: null,
+      error: 'Failed to process submission. Please try again later.',
+    });
+  }
+});
+
+// ── POST /api/triage/event — Log prefilter events ────────────────────────────
+
+router.post('/event', eventLogLimiter, async (req: Request, res: Response) => {
+  try {
+    const data = eventLogSchema.parse(req.body);
+
+    await prisma.eventLog.create({
+      data: {
+        event: data.event,
+        sessionId: data.sessionId || null,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+        ipAddress: req.ip || null,
+      },
+    });
+
+    res.status(201).json({ success: true, data: null, error: null });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ success: false, data: null, error: err.errors[0]?.message || 'Validation failed' });
+    }
+    res.status(500).json({ success: false, data: null, error: 'Failed to log event' });
+  }
+});
+
+// ── POST /api/triage/intake/check-email — Check if email already submitted ───
+
+router.post('/intake/check-email', async (req: Request, res: Response) => {
+  try {
+    const { email } = z.object({ email: z.string().email() }).parse(req.body);
+
+    const existing = await prisma.entryIntake.findFirst({
+      where: { email, status: 'PENDING' },
+      select: { id: true },
+    });
+
+    res.json({
+      success: true,
+      data: { exists: !!existing },
+      error: null,
+    });
+  } catch {
+    res.status(400).json({ success: false, data: null, error: 'Invalid email' });
+  }
+});
+
+export default router;

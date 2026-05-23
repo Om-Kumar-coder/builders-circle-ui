@@ -32,6 +32,7 @@ import groupRoutes from './routes/groups';
 import ideaRoutes from './routes/ideas';
 import configRoutes from './routes/config';
 import gatekeeperRoutes from './routes/gatekeeper';
+import entryIntakeRoutes from './routes/entry-intake';
 import { authMiddleware } from './middleware/auth';
 import { requireEmailVerified } from './middleware/requireEmailVerified';
 import { requireOnboarding } from './middleware/requireOnboarding';
@@ -170,6 +171,9 @@ app.use('/api/groups', agreementGuard, groupRoutes);
 app.use('/api/ideas', agreementGuard, ideaRoutes);
 // Gatekeeper (Veronica) — gatekeeper + admin + founder
 app.use('/api/gatekeeper', onboardingGuard, gatekeeperRoutes);
+
+// Entry Control Layer — Phase 1 intake + event logging (public with own rate limiting)
+app.use('/api/triage', entryIntakeRoutes);
 
 // Central error handling middleware — standard API error format
 app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {

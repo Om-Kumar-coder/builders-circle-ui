@@ -1214,6 +1214,46 @@ class ApiClient {
     return this.request('/admin/backup/trigger', { method: 'POST' });
   }
 
+  // ── Entry Control Layer (Phase 1) ────────────────────────────────────────
+
+  async submitEntryIntake(data: {
+    fullName: string;
+    email: string;
+    phoneOrWhatsapp?: string | null;
+    countryTimezone?: string | null;
+    intentType: string;
+    capitalRange?: string | null;
+    executionProofUrl?: string | null;
+    executionOutcome?: string | null;
+    executionRecency?: string | null;
+    valueProposition: string;
+    availability?: string | null;
+    timeline?: string | null;
+    intentOutcome30_60?: string | null;
+    prefilterAck: boolean;
+    prefilterSessionId?: string | null;
+    captchaToken?: string | null;
+  }): Promise<{ id: string; status: string; message: string }> {
+    return this.request('/triage/intake', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async logEvent(event: string, sessionId?: string | null, metadata?: Record<string, unknown>): Promise<void> {
+    return this.request('/triage/event', {
+      method: 'POST',
+      body: JSON.stringify({ event, sessionId, metadata }),
+    });
+  }
+
+  async checkEmailExists(email: string): Promise<{ exists: boolean }> {
+    return this.request('/triage/intake/check-email', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
   // ── Gatekeeper (Veronica) ─────────────────────────────────────────────────
 
   async getGatekeeperQueues() {
