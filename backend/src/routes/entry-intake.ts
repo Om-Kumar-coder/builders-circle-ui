@@ -11,6 +11,7 @@ import rateLimit from 'express-rate-limit';
 import { prisma } from '../config/database';
 import { env } from '../config/env';
 import logger from '../utils/logger';
+import { reviewUserIntake } from '../services/veronicaService';
 
 const router = Router();
 
@@ -268,27 +269,27 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
     });
 
     // 8. Fire-and-forget Veronica scan (non-blocking)
-    import('../services/veronicaService').then(({ reviewUserIntake }) =>
-      reviewUserIntake({
-        name: data.fullName,
-        email: data.email,
-        roleType: data.intentType,
-        description: `${data.valueProposition}${data.executionOutcome ? ' — ' + data.executionOutcome : ''}`,
-        proofLinks: data.executionProofUrl || undefined,
-        availability: data.availability || undefined,
-      }).then(result =>
-        prisma.gatekeeperReview.update({
-          where: { id: reviewId },
-          data: {
-            status: result.status,
-            veronicaScore: result.score,
-            veronicaFlags: JSON.stringify(result.flags),
-            veronicaNotes: result.notes,
-            updatedAt: new Date(),
-          },
-        })
-      ).catch(() => {})
-    ).catch(() => {});
+    reviewUserIntake({
+      name: data.fullName,
+      email: data.email,
+      roleType: data.intentType,
+      description: `${data.valueProposition}${data.executionOutcome ? ' — ' + data.executionOutcome : ''}`,
+      proofLinks: data.executionProofUrl || undefined,
+      availability: data.availability || undefined,
+    }).then(result =>
+      prisma.gatekeeperReview.update({
+        where: { id: reviewId },
+        data: {
+          status: result.status,
+          veronicaScore: result.score,
+          veronicaFlags: JSON.stringify(result.flags),
+          veronicaNotes: result.notes,
+          updatedAt: new Date(),
+        },
+      })
+    ).catch((err) => {
+      logger.warn('[Entry] Veronica scan failed for ' + data.email, { err });
+    });
 
     res.status(201).json({
       success: true,
