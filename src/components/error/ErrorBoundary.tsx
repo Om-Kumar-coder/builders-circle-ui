@@ -35,14 +35,34 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       errorInfo,
     });
 
-    // Log error to external service in production
+    // Send error to reporting service in production
     if (process.env.NODE_ENV === 'production') {
-      // TODO: Send to error reporting service
-      console.error('Production error:', {
+      // Structured error report for external service
+      const errorReport = {
+        type: 'REACT_ERROR_BOUNDARY',
         error: error.message,
         stack: error.stack,
         componentStack: errorInfo.componentStack,
-      });
+        timestamp: new Date().toISOString(),
+        url: typeof window !== 'undefined' ? window.location.href : undefined,
+      };
+
+      // Log to console for monitoring tools
+      console.error('[ErrorBoundary]', errorReport);
+
+      // Structured error report — an external service can be plugged in here
+      // by posting to a configured endpoint (e.g., Sentry, Datadog, custom logger)
+      const reportingEndpoint = process.env.NEXT_PUBLIC_ERROR_REPORTING_URL;
+      if (reportingEndpoint) {
+        fetch(reportingEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(errorReport),
+          keepalive: true,
+        }).catch(() => {
+          /* Silently fail — error is already captured in console */
+        });
+      }
     }
   }
 

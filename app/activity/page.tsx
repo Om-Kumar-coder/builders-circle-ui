@@ -36,14 +36,6 @@ function ActivityPageInner() {
   
   const { activities, loading, error, refetch } = useActivity(user?.id || '', cycleId);
 
-  console.log('🔍 Activity Page Debug:', {
-    userId: user?.id,
-    selectedCycleId,
-    cycleId,
-    activeCyclesCount: activeCycles.length,
-    activitiesCount: activities.length
-  });
-
   // Filter activities based on selected filter
   const filteredActivities = useMemo(() => {
     if (filter === 'all') return activities;

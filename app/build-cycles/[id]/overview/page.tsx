@@ -73,13 +73,30 @@ export default function CycleOverviewPage() {
       const analytics = await apiClient.getCycleAnalytics(cycleId);
       const engagement = await apiClient.getCycleEngagement(cycleId);
 
-      const ownershipDistribution = participants.map((p: { id: string; name?: string; email: string }, _index: number) => ({
-        userId: p.id,
-        userName: p.name || p.email,
-        totalOwnership: Math.random() * 10,
-        vestedOwnership: Math.random() * 5,
-        percentage: Math.random() * 20
-      })).sort((a: { totalOwnership: number }, b: { totalOwnership: number }) => b.totalOwnership - a.totalOwnership);
+      // Compute ownership distribution proportionally from actual participant data
+      const totalActivityCount = participants.reduce(
+        (sum: number, p: CycleOverview['participants'][0]) => sum + (p.verifiedActivities || 0), 0
+      );
+      const totalHoursSum = participants.reduce(
+        (sum: number, p: CycleOverview['participants'][0]) => sum + (p.totalHours || 0), 0
+      );
+
+      const ownershipDistribution = participants
+        .map((p: typeof participants[0]) => {
+          const activityWeight = totalActivityCount > 0 ? (p.verifiedActivities || 0) / totalActivityCount : 0;
+          const hoursWeight = totalHoursSum > 0 ? (p.totalHours || 0) / totalHoursSum : 0;
+          const combinedWeight = activityWeight * 0.7 + hoursWeight * 0.3;
+          const totalOwnership = combinedWeight * 100;
+          const vestedOwnership = totalOwnership * 0.6;
+          return {
+            userId: p.id,
+            userName: p.name || p.email,
+            totalOwnership: Math.round(totalOwnership * 100) / 100,
+            vestedOwnership: Math.round(vestedOwnership * 100) / 100,
+            percentage: Math.round(combinedWeight * 100 * 100) / 100,
+          };
+        })
+        .sort((a, b) => b.totalOwnership - a.totalOwnership);
 
       setOverview({
         cycle,
