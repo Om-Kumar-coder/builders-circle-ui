@@ -10,6 +10,7 @@ import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../config/database';
 import { env } from '../config/env';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -251,6 +252,43 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
         metadata: JSON.stringify({ intakeId: intake.id, intentType: data.intentType }),
       },
     }).catch(() => {});
+
+    // 7. Create GatekeeperReview so intake shows up in the gatekeeper queue
+    const reviewId = `entry-${intake.id}`;
+    await prisma.gatekeeperReview.create({
+      data: {
+        id: reviewId,
+        entityType: 'user_intake',
+        entityId: intake.id,
+        queue: 'new_users',
+        status: 'PENDING',
+      },
+    }).catch((err) => {
+      logger.warn('[Entry] Failed to create GatekeeperReview', { err });
+    });
+
+    // 8. Fire-and-forget Veronica scan (non-blocking)
+    import('../services/veronicaService').then(({ reviewUserIntake }) =>
+      reviewUserIntake({
+        name: data.fullName,
+        email: data.email,
+        roleType: data.intentType,
+        description: `${data.valueProposition}${data.executionOutcome ? ' — ' + data.executionOutcome : ''}`,
+        proofLinks: data.executionProofUrl || undefined,
+        availability: data.availability || undefined,
+      }).then(result =>
+        prisma.gatekeeperReview.update({
+          where: { id: reviewId },
+          data: {
+            status: result.status,
+            veronicaScore: result.score,
+            veronicaFlags: JSON.stringify(result.flags),
+            veronicaNotes: result.notes,
+            updatedAt: new Date(),
+          },
+        })
+      ).catch(() => {})
+    ).catch(() => {});
 
     res.status(201).json({
       success: true,

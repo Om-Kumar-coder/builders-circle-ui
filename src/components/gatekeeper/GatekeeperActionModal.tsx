@@ -26,7 +26,7 @@ export default function GatekeeperActionModal({ review, onClose, onSuccess }: Pr
   const [error, setError] = useState('');
 
   const label = review.entityType === 'user_intake'
-    ? (review.triage?.name ?? 'Application')
+    ? (review.triage?.name ?? review.entryIntake?.fullName ?? 'Application')
     : (review.activity?.user?.name ?? 'Submission');
 
   const handleSubmit = async () => {

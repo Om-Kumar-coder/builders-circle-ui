@@ -7,7 +7,8 @@
  *   - Default to SKEPTICISM — only pass work that is clearly real
  *   - Detect gibberish, copy-paste, keyword dumps, and spec sheets
  *   - Require: action + context + outcome structure
- *   - Auto-approve only when score >= 0.75 AND isMeaningfulWork === true
+ *   - NEVER auto-approve — always require human review for any uncertain cases
+ *   - Fallback defaults to NEEDS REVIEW, not VALID
  *   - Auto-block when relevanceScore < 0.3 OR isMeaningfulWork === false
  */
 
@@ -36,8 +37,8 @@ export interface VeronicaResult {
   semantic?: SemanticAnalysis;
   isFallback?: boolean;
   aiDecision?: 'AUTO_PASS' | 'FLAGGED' | 'AUTO_BLOCK';
-  /** True when auto-approved by Veronica (score >= 0.75 + isMeaningfulWork) */
-  autoApproved?: boolean;
+  /** @deprecated Removed — Veronica no longer auto-approves anything. */
+  autoApproved?: never;
 }
 
 export interface VeronicaHealthStatus {
@@ -83,8 +84,7 @@ function resolveAiDecision(score: number, semantic?: SemanticAnalysis): Veronica
   // Hard block conditions
   if (semantic && (!semantic.isMeaningfulWork || semantic.relevanceScore < 0.3)) return 'AUTO_BLOCK';
   if (score <= 0.30) return 'AUTO_BLOCK';
-  // Auto-pass only when semantically clean AND high score
-  if (score >= 0.75 && semantic?.isMeaningfulWork && semantic?.hasAction) return 'AUTO_PASS';
+  // Never auto-pass — always require human review
   return 'FLAGGED';
 }
 
@@ -102,9 +102,10 @@ function buildSemanticFlags(semantic: SemanticAnalysis): string[] {
 function resolveStatusFromSemantic(score: number, semantic: SemanticAnalysis): VeronicaResult['status'] {
   if (!semantic.isMeaningfulWork || semantic.isCopyPaste || semantic.relevanceScore < 0.3) return 'FLAGGED';
   if (!semantic.hasAction || !semantic.hasOutcome || semantic.relevanceScore < 0.5) return 'NEEDS_REVIEW';
-  if (score >= 0.75) return 'VALID';
-  if (score >= 0.45) return 'NEEDS_REVIEW';
-  return 'FLAGGED';
+  // No more VALID for score >= 0.75 — always NEEDS_REVIEW at minimum
+  // Only VALID if clearly meaningful work with action + outcome + high relevance
+  if (score >= 0.75 && semantic.hasAction && semantic.hasOutcome) return 'NEEDS_REVIEW';
+  return 'NEEDS_REVIEW';
 }
 
 // ── Ollama call ───────────────────────────────────────────────────────────────
@@ -289,18 +290,14 @@ Respond ONLY with this JSON (no other text):
     const raw = await callVeronica(prompt);
     const { result, semantic } = parseSubmissionResponse(raw);
     const aiDecision = resolveAiDecision(result.score, semantic);
-    const autoApproved = aiDecision === 'AUTO_PASS';
-
-    // Audit log the decision
+    // No auto-approval — always needs review
     const logEvent =
       aiDecision === 'AUTO_BLOCK' ? (semantic.isCopyPaste ? 'veronica_rejected_gibberish' : 'veronica_auto_blocked') :
-      aiDecision === 'AUTO_PASS'  ? 'veronica_auto_approved' :
-      result.status === 'FLAGGED' ? 'veronica_flagged_low_context' :
       'veronica_needs_review';
 
     logVeronicaDecision(logEvent, data.activityId, result.score, result.flags, semantic.reasoning);
 
-    return { ...result, semantic, isFallback: false, aiDecision, autoApproved };
+    return { ...result, semantic, isFallback: false, aiDecision };
   } catch (err) {
     logger.warn('[Veronica] submission review failed, using rule-based fallback', { err });
     prisma.systemLog.create({
@@ -355,19 +352,21 @@ function ruleBasedIntakeCheck(data: {
   proofLinks?: string;
 }): VeronicaResult {
   const flags: string[] = [];
-  let score = 1.0;
+  // Start skeptical — default to 0.5 instead of 1.0
+  let score = 0.5;
 
   const wordCount = data.description?.trim().split(/\s+/).length ?? 0;
-  if (!data.description || wordCount < 10) { flags.push('description_too_short'); score -= 0.3; }
-  if (!data.email?.includes('@')) { flags.push('invalid_email'); score -= 0.4; }
-  if (!data.roleType) { flags.push('missing_role_type'); score -= 0.2; }
+  if (!data.description || wordCount < 10) { flags.push('description_too_short'); score -= 0.2; }
+  if (!data.email?.includes('@')) { flags.push('invalid_email'); score -= 0.3; }
+  if (!data.roleType) { flags.push('missing_role_type'); score -= 0.15; }
   if (!data.proofLinks && ['developer','engineer','designer'].some(r => data.roleType?.toLowerCase().includes(r))) {
-    flags.push('missing_proof_for_technical_role'); score -= 0.2;
+    flags.push('missing_proof_for_technical_role'); score -= 0.15;
   }
 
-  score = Math.max(0, score);
-  const status = score >= 0.7 ? 'VALID' : score >= 0.4 ? 'NEEDS_REVIEW' : 'FLAGGED';
-  return { status, score, flags, notes: flags.length ? `Issues: ${flags.join(', ')}` : 'Passed rule checks' };
+  score = Math.max(0, Math.min(score, 0.65)); // Cap max at 0.65 so it's never VALID via fallback
+  // Fallback NEVER returns VALID — best case is NEEDS_REVIEW
+  const status = score >= 0.4 ? 'NEEDS_REVIEW' : 'FLAGGED';
+  return { status, score, flags, notes: flags.length ? `Issues: ${flags.join(', ')}` : 'Fallback check — no issues found but needs human review' };
 }
 
 function ruleBasedSubmissionCheck(data: {
@@ -375,35 +374,41 @@ function ruleBasedSubmissionCheck(data: {
   proofLink: string;
   hoursLogged?: number;
   existingCount?: number;
-}): VeronicaResult {
+} | null | undefined): VeronicaResult {
+  // Defensive guard: null/undefined data gets default fallback
+  if (!data) {
+    return { status: 'FLAGGED', score: 0.3, flags: ['invalid_input'], notes: 'Rule-based fallback — null or undefined input' };
+  }
   const flags: string[] = [];
-  let score = 1.0;
+  // Start skeptical — default to 0.5 instead of 1.0
+  let score = 0.5;
   const desc = data.description?.trim() ?? '';
 
   if (!data.proofLink || !data.proofLink.startsWith('http')) {
-    flags.push('invalid_proof_link'); score -= 0.4;
+    flags.push('invalid_proof_link'); score -= 0.2;
   }
   if (desc.length < 20) {
-    flags.push('description_too_short'); score -= 0.3;
+    flags.push('description_too_short'); score -= 0.2;
   }
   if (desc.length >= 20 && !hasActionVerb(desc)) {
-    flags.push('no_action_verb'); score -= 0.25;
+    flags.push('no_action_verb'); score -= 0.15;
   }
   if (desc.length >= 20 && detectCopyPaste(desc)) {
-    flags.push('copy_paste_detected'); score -= 0.35;
+    flags.push('copy_paste_detected'); score -= 0.25;
   }
   if (data.hoursLogged !== undefined && (data.hoursLogged < 0.5 || data.hoursLogged > 12)) {
-    flags.push('hours_out_of_range'); score -= 0.2;
+    flags.push('hours_out_of_range'); score -= 0.1;
   }
   if ((data.existingCount ?? 0) > 2) {
-    flags.push('possible_duplicate'); score -= 0.2;
+    flags.push('possible_duplicate'); score -= 0.1;
   }
 
-  score = Math.max(0, score);
-  const status = score >= 0.7 ? 'VALID' : score >= 0.4 ? 'NEEDS_REVIEW' : 'FLAGGED';
+  score = Math.max(0, Math.min(score, 0.65)); // Cap max at 0.65 — never VALID via fallback
+  // Fallback NEVER returns VALID — best case is NEEDS_REVIEW
+  const status = score >= 0.4 ? 'NEEDS_REVIEW' : 'FLAGGED';
   const notes = flags.length
     ? `Rule-based issues: ${flags.join(', ')}`
-    : 'Passed rule checks';
+    : 'Fallback check — no issues found but needs human review';
   return { status, score, flags, notes };
 }
 

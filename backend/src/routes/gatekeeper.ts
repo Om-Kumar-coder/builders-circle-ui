@@ -44,18 +44,32 @@ router.get('/intake', authMiddleware, roleMiddleware(gatekeeperRoles), async (re
       }),
     ]);
 
-    // Batch-fetch all triage submissions in one query — no N+1
-    const triageIds = reviews.map(r => r.entityId);
-    const triages = await prisma.triageSubmission.findMany({
-      where: { id: { in: triageIds } },
-    });
-    const triageMap = new Map(triages.map(t => [t.id, t]));
+    // Batch-fetch all entity records — some are triage_submissions, some are entry_intake
+    const triageIds = reviews.filter(r => r.entityId.startsWith('cm') || r.id.startsWith('intake-')).map(r => r.entityId);
+    const entryIds = reviews.filter(r => !triageIds.includes(r.entityId)).map(r => r.entityId);
 
-    const enriched = reviews.map(r => ({
-      ...r,
-      veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [],
-      triage: triageMap.get(r.entityId) ?? null,
-    }));
+    const [triages, entries] = await Promise.all([
+      triageIds.length > 0
+        ? prisma.triageSubmission.findMany({ where: { id: { in: triageIds } } })
+        : Promise.resolve([]),
+      entryIds.length > 0
+        ? prisma.entryIntake.findMany({ where: { id: { in: entryIds } } })
+        : Promise.resolve([]),
+    ]);
+
+    const triageMap = new Map(triages.map(t => [t.id, t]));
+    const entryMap = new Map(entries.map(e => [e.id, e]));
+
+    const enriched = reviews.map(r => {
+      const triage = triageMap.get(r.entityId) ?? null;
+      const entry = entryMap.get(r.entityId) ?? null;
+      return {
+        ...r,
+        veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [],
+        triage,
+        entryIntake: entry,
+      };
+    });
 
     res.json({ success: true, data: { reviews: enriched, total, page: parseInt(page), limit: parseInt(limit) }, error: null });
   } catch (err) {
@@ -105,29 +119,51 @@ router.get('/submissions', authMiddleware, roleMiddleware(gatekeeperRoles), asyn
   }
 });
 
-// ── POST /gatekeeper/intake/:triageId/scan — run Veronica on a triage submission
-router.post('/intake/:triageId/scan', authMiddleware, roleMiddleware(gatekeeperRoles), async (req: AuthRequest, res: Response) => {
+// ── POST /gatekeeper/intake/:entityId/scan — run Veronica on a user intake record
+// Supports both triage_submissions and entry_intake records
+router.post('/intake/:entityId/scan', authMiddleware, roleMiddleware(gatekeeperRoles), async (req: AuthRequest, res: Response) => {
   try {
-    const triageId = Array.isArray(req.params.triageId) ? req.params.triageId[0] : req.params.triageId;
-    const triage = await prisma.triageSubmission.findUnique({ where: { id: triageId } });
-    if (!triage) return res.status(404).json({ success: false, data: null, error: 'Triage submission not found' });
+    const entityId = Array.isArray(req.params.entityId) ? req.params.entityId[0] : req.params.entityId;
+    
+    // Try triage_submission first, then entry_intake
+    let triage = await prisma.triageSubmission.findUnique({ where: { id: entityId } });
+    let isEntry = false;
+    let reviewId = `intake-${entityId}`;
+    
+    if (!triage) {
+      const entry = await prisma.entryIntake.findUnique({ where: { id: entityId } });
+      if (!entry) return res.status(404).json({ success: false, data: null, error: 'Intake record not found' });
+      isEntry = true;
+      reviewId = `entry-${entityId}`;
+      triage = {
+        id: entry.id,
+        name: entry.fullName,
+        email: entry.email,
+        roleType: entry.intentType,
+        description: entry.valueProposition + (entry.executionOutcome ? ' — ' + entry.executionOutcome : ''),
+        proofLinks: entry.executionProofUrl || null,
+        availability: entry.availability || null,
+      } as any;
+    }
 
+    // triage is guaranteed non-null here — either found or reassigned from entry_intake
+    const intakeData = triage!;
     const result = await reviewUserIntake({
-      name: triage.name,
-      email: triage.email,
-      roleType: triage.roleType,
-      description: triage.description,
-      proofLinks: triage.proofLinks ?? undefined,
-      availability: triage.availability ?? undefined,
+      name: intakeData.name,
+      email: intakeData.email,
+      roleType: intakeData.roleType,
+      description: intakeData.description,
+      proofLinks: intakeData.proofLinks ?? undefined,
+      availability: intakeData.availability ?? undefined,
     });
 
     // Upsert gatekeeper review
     const review = await prisma.gatekeeperReview.upsert({
-      where: { id: `intake-${triageId}` },
+      where: { id: reviewId },
       create: {
-        id: `intake-${triageId}`,
+        id: reviewId,
         entityType: 'user_intake',
-        entityId: triageId,
+        entityId,
         queue: 'new_users',
         status: result.status,
         veronicaScore: result.score,
@@ -223,9 +259,17 @@ router.get('/returned', authMiddleware, roleMiddleware(gatekeeperRoles), async (
     const intakeIds = reviews.filter(r => r.entityType === 'user_intake').map(r => r.entityId);
     const submissionIds = reviews.filter(r => r.entityType !== 'user_intake').map(r => r.entityId);
 
-    const [triages, activities] = await Promise.all([
-      intakeIds.length > 0
-        ? prisma.triageSubmission.findMany({ where: { id: { in: intakeIds } } })
+    // For intake IDs, try triage_submissions first, then entry_intake
+    // We can tell by looking at the review ID prefix: intake- = triage, entry- = entry_intake
+    const triageIntakeIds = reviews.filter(r => r.entityType === 'user_intake' && r.id.startsWith('intake-')).map(r => r.entityId);
+    const entryIntakeIds = reviews.filter(r => r.entityType === 'user_intake' && r.id.startsWith('entry-')).map(r => r.entityId);
+
+    const [triages, entries, activities] = await Promise.all([
+      triageIntakeIds.length > 0
+        ? prisma.triageSubmission.findMany({ where: { id: { in: triageIntakeIds } } })
+        : Promise.resolve([]),
+      entryIntakeIds.length > 0
+        ? prisma.entryIntake.findMany({ where: { id: { in: entryIntakeIds } } })
         : Promise.resolve([]),
       submissionIds.length > 0
         ? prisma.activityEvent.findMany({
@@ -236,12 +280,14 @@ router.get('/returned', authMiddleware, roleMiddleware(gatekeeperRoles), async (
     ]);
 
     const triageMap = new Map(triages.map(t => [t.id, t]));
+    const entryMap = new Map(entries.map(e => [e.id, e]));
     const activityMap = new Map(activities.map(a => [a.id, a]));
 
     const enriched = reviews.map(r => ({
       ...r,
       veronicaFlags: r.veronicaFlags ? JSON.parse(r.veronicaFlags) : [],
-      triage: r.entityType === 'user_intake' ? (triageMap.get(r.entityId) ?? null) : undefined,
+      triage: r.entityType === 'user_intake' && r.id.startsWith('intake-') ? (triageMap.get(r.entityId) ?? null) : undefined,
+      entryIntake: r.entityType === 'user_intake' && r.id.startsWith('entry-') ? (entryMap.get(r.entityId) ?? null) : undefined,
       activity: r.entityType !== 'user_intake' ? (activityMap.get(r.entityId) ?? null) : undefined,
     }));
 

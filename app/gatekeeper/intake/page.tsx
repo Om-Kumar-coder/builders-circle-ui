@@ -92,12 +92,19 @@ export default function IntakePage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-white font-medium">{review.triage?.name ?? 'Unknown'}</span>
-                      <span className="text-gray-500 text-sm">{review.triage?.email}</span>
+                      <span className="text-white font-medium">{review.triage?.name ?? review.entryIntake?.fullName ?? 'Unknown'}</span>
+                      <span className="text-gray-500 text-sm">{review.triage?.email ?? review.entryIntake?.email}</span>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-gray-400 mb-2">
-                      <span className="bg-gray-700 px-2 py-0.5 rounded">{review.triage?.roleType}</span>
-                      <span className="bg-gray-700 px-2 py-0.5 rounded">{review.triage?.submissionType}</span>
+                      {review.triage?.roleType && (
+                        <span className="bg-gray-700 px-2 py-0.5 rounded">{review.triage.roleType}</span>
+                      )}
+                      {review.triage?.submissionType && (
+                        <span className="bg-gray-700 px-2 py-0.5 rounded">{review.triage.submissionType}</span>
+                      )}
+                      {review.entryIntake?.intentType && (
+                        <span className="bg-gray-700 px-2 py-0.5 rounded capitalize">{review.entryIntake.intentType.replace('_', ' ')}</span>
+                      )}
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(review.createdAt).toLocaleDateString()}
@@ -105,6 +112,9 @@ export default function IntakePage() {
                     </div>
                     {review.triage?.description && (
                       <p className="text-gray-400 text-sm line-clamp-2">{review.triage.description}</p>
+                    )}
+                    {!review.triage && review.entryIntake?.valueProposition && (
+                      <p className="text-gray-400 text-sm line-clamp-2">{review.entryIntake.valueProposition}</p>
                     )}
                     {review.veronicaNotes && (
                       <p className="text-gray-500 text-xs mt-1 italic">Veronica: {review.veronicaNotes}</p>
