@@ -858,3 +858,18 @@ model TierThreshold {
 
   @@map("tier_thresholds")
 }
+
+/// Phase 2b — Tier assignments per user, computed by TierEvaluationJob
+model UserTier {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  tier            String    // founder | core | contributor | employee | observer
+  tierScore       Float
+  componentScores String?   // JSON string of component scores
+  previousTier    String?
+  evaluatedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("user_tiers")
+}
