@@ -1216,22 +1216,22 @@ class ApiClient {
 
   // ── Scoring Engine (Phase 2a) ───────────────────────────────────────────
 
-  async getScoringWeights(): Promise<{ weights: any[]; activeWeights: Record<string, number> }> {
+  async getScoringWeights(): Promise<import('@/types/scoring').ScoringWeightsResponse> {
     return this.request('/scoring/weights');
   }
 
-  async updateScoringWeights(weights: Array<{ weightKey: string; weight: number; label?: string; description?: string }>): Promise<any> {
+  async updateScoringWeights(weights: Array<{ weightKey: string; weight: number; label?: string; description?: string }>): Promise<{ updated: number; weights: import('@/types/scoring').ScoringWeight[] }> {
     return this.request('/scoring/weights', {
       method: 'PUT',
       body: JSON.stringify({ weights }),
     });
   }
 
-  async getTierThresholds(): Promise<{ thresholds: any[] }> {
+  async getTierThresholds(): Promise<import('@/types/scoring').TierThresholdsResponse> {
     return this.request('/scoring/tiers');
   }
 
-  async updateTierThresholds(thresholds: Array<{ tier: string; minScore: number; minCycles: number; description?: string }>): Promise<any> {
+  async updateTierThresholds(thresholds: Array<{ tier: string; minScore: number; minCycles: number; description?: string }>): Promise<{ updated: number; thresholds: import('@/types/scoring').TierThreshold[] }> {
     return this.request('/scoring/tiers', {
       method: 'PUT',
       body: JSON.stringify({ thresholds }),
@@ -1244,7 +1244,7 @@ class ApiClient {
     routeTag?: string;
     sortBy?: string;
     sortOrder?: string;
-  }): Promise<{ scores: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+  }): Promise<import('@/types/scoring').ApplicationScoresResponse> {
     const q = new URLSearchParams();
     if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
@@ -1255,11 +1255,11 @@ class ApiClient {
     return this.request(`/scoring/applications${qs ? `?${qs}` : ''}`);
   }
 
-  async getApplicationScoreDetail(id: string): Promise<{ score: any; intake: any; veronicaDimensions?: Record<string, number> }> {
+  async getApplicationScoreDetail(id: string): Promise<import('@/types/scoring').ApplicationScoreDetail> {
     return this.request(`/scoring/applications/${id}`);
   }
 
-  async recomputeApplicationScore(id: string): Promise<any> {
+  async recomputeApplicationScore(id: string): Promise<import('@/types/scoring').ApplicationScoreDetail['score']> {
     return this.request(`/scoring/applications/${id}/recompute`, { method: 'POST' });
   }
 
@@ -1268,7 +1268,7 @@ class ApiClient {
     limit?: number;
     route?: string;
     priority?: string;
-  }): Promise<{ routes: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+  }): Promise<import('@/types/scoring').RouteAssignmentsResponse> {
     const q = new URLSearchParams();
     if (params?.page) q.set('page', String(params.page));
     if (params?.limit) q.set('limit', String(params.limit));
@@ -1278,11 +1278,11 @@ class ApiClient {
     return this.request(`/scoring/routes${qs ? `?${qs}` : ''}`);
   }
 
-  async resolveRouteAssignment(id: string): Promise<any> {
+  async resolveRouteAssignment(id: string): Promise<{ message: string; id: string }> {
     return this.request(`/scoring/routes/${id}/resolve`, { method: 'POST' });
   }
 
-  async triggerRouting(entryIntakeId: string): Promise<any> {
+  async triggerRouting(entryIntakeId: string): Promise<import('@/types/scoring').RouteAssignment> {
     return this.request('/scoring/routes', {
       method: 'POST',
       body: JSON.stringify({ entryIntakeId }),

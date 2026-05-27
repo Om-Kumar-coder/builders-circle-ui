@@ -30,78 +30,19 @@ import {
   Eye,
   Info,
 } from 'lucide-react';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface SubScores {
-  intent: number;
-  capital: number;
-  execution: number;
-  vp: number;
-  availability: number;
-  veronica: number;
-}
-
-interface ScoreItem {
-  id: string;
-  entryIntakeId: string;
-  totalScore: number;
-  subScores: SubScores | string;
-  routeTag: string;
-  weightVersion: string | null;
-  createdAt: string;
-  intake?: {
-    fullName: string;
-    email: string;
-    intentType: string;
-    capitalRange?: string | null;
-  };
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
+import {
+  type SubScores,
+  type ApplicationScoreItem as ScoreItem,
+  type Pagination,
+  parseSubScores,
+  DIMENSION_LABELS,
+  ROUTE_LABELS,
+} from '@/types/scoring';
 
 type SortField = 'totalScore' | 'createdAt' | 'routeTag';
 type SortDir = 'asc' | 'desc';
 
-// ── Label helpers ─────────────────────────────────────────────────────────────
-
-const DIMENSION_LABELS: Record<string, { label: string; color: string }> = {
-  intent: { label: 'Intent', color: '#818cf8' },
-  capital: { label: 'Capital', color: '#34d399' },
-  execution: { label: 'Execution', color: '#fbbf24' },
-  vp: { label: 'Value Prop', color: '#f472b6' },
-  availability: { label: 'Availability', color: '#60a5fa' },
-  veronica: { label: 'Veronica AI', color: '#a78bfa' },
-};
-
-const ROUTE_COLORS: Record<string, string> = {
-  fast_track: '#10b981',
-  standard: '#f59e0b',
-  hold: '#6b7280',
-};
-
-const ROUTE_LABELS: Record<string, string> = {
-  fast_track: 'Fast Track',
-  standard: 'Standard',
-  hold: 'Hold',
-};
-
-function parseSubScores(raw: SubScores | string | null | undefined): SubScores {
-  if (!raw) return { intent: 0, capital: 0, execution: 0, vp: 0, availability: 0, veronica: 0 };
-  if (typeof raw === 'string') {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return { intent: 0, capital: 0, execution: 0, vp: 0, availability: 0, veronica: 0 };
-    }
-  }
-  return raw;
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatScore(val: number): string {
   return (val * 100).toFixed(0);
@@ -151,15 +92,16 @@ export default function DashboardPanel() {
         sortOrder: sortDir,
       });
 
-      const items: ScoreItem[] = (data.scores ?? []).map((s: Record<string, unknown>) => ({
-        id: s.id as string,
-        entryIntakeId: s.entryIntakeId as string,
-        totalScore: s.totalScore as number,
-        subScores: s.subScores as SubScores,
-        routeTag: s.routeTag as string,
-        weightVersion: s.weightVersion as string | null,
-        createdAt: s.createdAt as string,
-        intake: s.intake as ScoreItem['intake'],
+      const items: ScoreItem[] = (data.scores ?? []).map(s => ({
+        id: s.id,
+        entryIntakeId: s.entryIntakeId,
+        totalScore: s.totalScore,
+        subScores: s.subScores,
+        routeTag: s.routeTag,
+        scoredAt: s.scoredAt,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+        intake: s.intake,
       }));
 
       setScores(items);
@@ -222,7 +164,7 @@ export default function DashboardPanel() {
     apiClient.getApplicationScoreDetail(selectedScore.entryIntakeId)
       .then(data => {
         if (!cancelled) {
-          setVeronicaDimensions((data.veronicaDimensions as Record<string, number>) ?? null);
+          setVeronicaDimensions(data.veronicaDimensions);
         }
       })
       .catch(() => { if (!cancelled) setVeronicaDimensions(null); })
@@ -247,12 +189,11 @@ export default function DashboardPanel() {
   // ── Radar chart data ──────────────────────────────────────────────────────
 
   const radarData = selectedScore
-    ? Object.entries(DIMENSION_LABELS).map(([key, meta]) => {
+    ? (Object.keys(DIMENSION_LABELS) as (keyof SubScores)[]).map(key => {
         const sub = parseSubScores(selectedScore.subScores);
-        const subRecord = sub as unknown as Record<string, number>;
         return {
-          dimension: meta.label,
-          value: subRecord[key] ?? 0,
+          dimension: DIMENSION_LABELS[key].label,
+          value: sub[key] ?? 0,
           fullMark: 1,
         };
       })
@@ -425,11 +366,10 @@ export default function DashboardPanel() {
                     </th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredScores.map((score, idx) => {
+                <tbody>                    {filteredScores.map((score, idx) => {
                     const globalRank = (pagination.page - 1) * pagination.limit + idx + 1;
                     const isSelected = selectedScore?.id === score.id;
-                    const sub = parseSubScores(score.subScores) as unknown as Record<string, number>;
+                    const sub = parseSubScores(score.subScores);
 
                     return (
                       <tr
@@ -680,9 +620,10 @@ export default function DashboardPanel() {
                   Dimension Details
                 </h3>
                 <div className="space-y-1.5">
-                  {Object.entries(DIMENSION_LABELS).map(([key, meta]) => {
-                    const sub = parseSubScores(selectedScore.subScores) as unknown as Record<string, number>;
-                    const val = sub[key] ?? 0;
+                  {(Object.keys(DIMENSION_LABELS) as (keyof SubScores)[]).map(key => {
+                    const meta = DIMENSION_LABELS[key];
+                    const sub = parseSubScores(selectedScore.subScores);
+                    const val = sub[key];
                     return (
                       <div key={key} className="flex items-center gap-3 py-1.5 px-2 rounded-lg hover:bg-gray-800/30 transition-colors">
                         <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
@@ -725,15 +666,15 @@ export default function DashboardPanel() {
                     ].map(({ key, label }) => {
                       const val = veronicaDimensions[key] ?? 0;
                       const pct = (val * 100).toFixed(0);
-                      const blendedKey =
+                      const blendedKey: keyof SubScores =
                         key === 'intentConfidence' ? 'intent' :
                         key === 'executionCredibility' ? 'execution' :
-                        key === 'vpQuality' ? 'vp' :
+                        key === 'vpQuality' ? 'valueProposition' :
                         key === 'trustScore' ? 'availability' :
                         key === 'commitmentSignal' ? 'availability' :
                         'veronica';
-                      const sub = parseSubScores(selectedScore.subScores) as unknown as Record<string, number>;
-                      const blendedVal = sub[blendedKey] ?? 0;
+                      const sub = parseSubScores(selectedScore.subScores);
+                      const blendedVal = sub[blendedKey];
                       const blendedPct = (blendedVal * 100).toFixed(0);
                       return (
                         <div
@@ -763,14 +704,6 @@ export default function DashboardPanel() {
                 </div>
               )}
 
-              {/* Weight version metadata */}
-              {selectedScore.weightVersion && (
-                <div className="mt-4 pt-3 border-t border-gray-800">
-                  <p className="text-[10px] text-gray-500">
-                    Weight version: <span className="font-mono text-gray-400">{selectedScore.weightVersion}</span>
-                  </p>
-                </div>
-              )}
             </div>
           )}
         </div>
