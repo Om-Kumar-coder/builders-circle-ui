@@ -1214,6 +1214,30 @@ class ApiClient {
     return this.request('/admin/backup/trigger', { method: 'POST' });
   }
 
+  // ── Scoring Engine (Phase 2a) ───────────────────────────────────────────
+
+  async getScoringWeights(): Promise<{ weights: any[]; activeWeights: Record<string, number> }> {
+    return this.request('/scoring/weights');
+  }
+
+  async updateScoringWeights(weights: Array<{ weightKey: string; weight: number; label?: string; description?: string }>): Promise<any> {
+    return this.request('/scoring/weights', {
+      method: 'PUT',
+      body: JSON.stringify({ weights }),
+    });
+  }
+
+  async getTierThresholds(): Promise<{ thresholds: any[] }> {
+    return this.request('/scoring/tiers');
+  }
+
+  async updateTierThresholds(thresholds: Array<{ tier: string; minScore: number; minCycles: number; description?: string }>): Promise<any> {
+    return this.request('/scoring/tiers', {
+      method: 'PUT',
+      body: JSON.stringify({ thresholds }),
+    });
+  }
+
   // ── Entry Control Layer (Phase 1) ────────────────────────────────────────
 
   async submitEntryIntake(data: {
