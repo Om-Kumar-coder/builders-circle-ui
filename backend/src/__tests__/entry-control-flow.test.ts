@@ -356,9 +356,9 @@ describe('CAPTCHA Fail-Closed [Flow 4]', () => {
     expect(res.status).toBe(201);
   });
 
-  test('rejects submission without CAPTCHA in production', async () => {
+  test('rejects submission without CAPTCHA in production when CAPTCHA is configured', async () => {
     mockEnv.NODE_ENV = 'production';
-    delete (process.env as any).CAPTCHA_SECRET_KEY;
+    (process.env as any).CAPTCHA_SECRET_KEY = 'fake-captcha-secret';
 
     const token = jwt.sign(
       { sessionId: 'pref_captcha_test', type: 'prefilter_ack', jti: 'test-jti' },
@@ -375,6 +375,27 @@ describe('CAPTCHA Fail-Closed [Flow 4]', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain('CAPTCHA is required');
+  });
+
+  test('allows submission without CAPTCHA in production when CAPTCHA is not configured', async () => {
+    mockEnv.NODE_ENV = 'production';
+    delete (process.env as any).CAPTCHA_SECRET_KEY;
+
+    const token = jwt.sign(
+      { sessionId: 'pref_captcha_test', type: 'prefilter_ack', jti: 'test-jti' },
+      mockEnv.JWT_SECRET,
+      { expiresIn: '2h' }
+    );
+
+    mockPrisma.entryIntake.findFirst.mockResolvedValue(null);
+    mockPrisma.entryIntake.create.mockResolvedValue({ id: 'entry-captcha-2', status: 'PENDING' });
+
+    const app = createTestApp();
+    const res = await request(app)
+      .post('/api/triage/intake')
+      .send({ ...validPayload, prefilterToken: token });
+
+    expect(res.status).toBe(201);
   });
 });
 

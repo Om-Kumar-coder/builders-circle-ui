@@ -187,32 +187,36 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
     // Validate request body
     const data = intakeSchema.parse(req.body);
 
-    // 1. CAPTCHA fail-closed in production — check BEFORE prefilter token
-    if (env.NODE_ENV === 'production') {
-      if (!data.captchaToken) {
-        return res.status(400).json({
-          success: false,
-          data: null,
-          error: 'CAPTCHA is required',
-        });
-      }
-      const captchaValid = await validateCaptcha(data.captchaToken);
-      if (!captchaValid) {
-        return res.status(400).json({
-          success: false,
-          data: null,
-          error: 'CAPTCHA validation failed. Please try again.',
-        });
-      }
-    } else if (data.captchaToken) {
-      // In non-production, validate CAPTCHA if provided
-      const captchaValid = await validateCaptcha(data.captchaToken);
-      if (!captchaValid) {
-        return res.status(400).json({
-          success: false,
-          data: null,
-          error: 'CAPTCHA validation failed. Please try again.',
-        });
+    // 1. CAPTCHA validation — fail-closed when keys are configured
+    // If no CAPTCHA_SECRET_KEY is set, the form works without CAPTCHA
+    const captchaSecretKey = process.env.CAPTCHA_SECRET_KEY;
+    if (captchaSecretKey) {
+      if (env.NODE_ENV === 'production') {
+        if (!data.captchaToken) {
+          return res.status(400).json({
+            success: false,
+            data: null,
+            error: 'CAPTCHA is required',
+          });
+        }
+        const captchaValid = await validateCaptcha(data.captchaToken);
+        if (!captchaValid) {
+          return res.status(400).json({
+            success: false,
+            data: null,
+            error: 'CAPTCHA validation failed. Please try again.',
+          });
+        }
+      } else if (data.captchaToken) {
+        // In non-production, validate CAPTCHA if provided
+        const captchaValid = await validateCaptcha(data.captchaToken);
+        if (!captchaValid) {
+          return res.status(400).json({
+            success: false,
+            data: null,
+            error: 'CAPTCHA validation failed. Please try again.',
+          });
+        }
       }
     }
 
@@ -261,8 +265,8 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
           error: 'Prefilter session mismatch. Please restart the process.',
         });
       }
-    } else if (env.NODE_ENV === 'production' && !data.captchaToken) {
-      // In production, require either a prefilter token or CAPTCHA
+    } else if (captchaSecretKey && env.NODE_ENV === 'production' && !data.captchaToken) {
+      // In production with CAPTCHA configured, require either a prefilter token or CAPTCHA
       return res.status(400).json({
         success: false,
         data: null,
