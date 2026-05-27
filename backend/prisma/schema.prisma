@@ -859,6 +859,22 @@ model TierThreshold {
   @@map("tier_thresholds")
 }
 
+/// Phase 2c — Route assignments per intake, computed by RoutingService after scoring
+model RouteAssignment {
+  id            String    @id @default(cuid())
+  entryIntakeId String    @unique
+  route         String    // onboarding | gatekeeper | founder_review | vc_intro
+  priority      String    // high | normal | low
+  reason        String?
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  createdAt     DateTime  @default(now())
+
+  @@index([route])
+  @@index([priority])
+  @@map("route_assignments")
+}
+
 /// Phase 2b — Tier assignments per user, computed by TierEvaluationJob
 model UserTier {
   id              String    @id @default(cuid())

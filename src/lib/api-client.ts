@@ -1238,6 +1238,57 @@ class ApiClient {
     });
   }
 
+  async getApplicationScores(params?: {
+    page?: number;
+    limit?: number;
+    routeTag?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  }): Promise<{ scores: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.routeTag) q.set('routeTag', params.routeTag);
+    if (params?.sortBy) q.set('sortBy', params.sortBy);
+    if (params?.sortOrder) q.set('sortOrder', params.sortOrder);
+    const qs = q.toString();
+    return this.request(`/scoring/applications${qs ? `?${qs}` : ''}`);
+  }
+
+  async getApplicationScoreDetail(id: string): Promise<{ score: any; intake: any }> {
+    return this.request(`/scoring/applications/${id}`);
+  }
+
+  async recomputeApplicationScore(id: string): Promise<any> {
+    return this.request(`/scoring/applications/${id}/recompute`, { method: 'POST' });
+  }
+
+  async getRouteAssignments(params?: {
+    page?: number;
+    limit?: number;
+    route?: string;
+    priority?: string;
+  }): Promise<{ routes: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.route) q.set('route', params.route);
+    if (params?.priority) q.set('priority', params.priority);
+    const qs = q.toString();
+    return this.request(`/scoring/routes${qs ? `?${qs}` : ''}`);
+  }
+
+  async resolveRouteAssignment(id: string): Promise<any> {
+    return this.request(`/scoring/routes/${id}/resolve`, { method: 'POST' });
+  }
+
+  async triggerRouting(entryIntakeId: string): Promise<any> {
+    return this.request('/scoring/routes', {
+      method: 'POST',
+      body: JSON.stringify({ entryIntakeId }),
+    });
+  }
+
   // ── Entry Control Layer (Phase 1) ────────────────────────────────────────
 
   async submitEntryIntake(data: {

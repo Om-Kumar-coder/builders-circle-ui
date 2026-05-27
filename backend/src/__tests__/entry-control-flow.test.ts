@@ -26,6 +26,7 @@ const mockPrisma = {
     create: mockFn(),
     findMany: mockFn(),
     count: mockFn(),
+    findUnique: mockFn(),
   },
   eventLog: {
     create: mockFn(),
@@ -38,6 +39,9 @@ const mockPrisma = {
     create: mockFn(),
     update: mockFn(),
     count: mockFn(),
+  },
+  applicationScore: {
+    findUnique: mockFn(),
   },
 };
 
@@ -89,6 +93,7 @@ beforeEach(() => {
   mockPrisma.systemLog.create.mockResolvedValue({ id: 'sys-1' });
   mockPrisma.gatekeeperReview.create.mockResolvedValue({ id: 'entry-1' });
   mockPrisma.gatekeeperReview.update.mockResolvedValue({ id: 'entry-1' });
+  mockPrisma.applicationScore.findUnique.mockResolvedValue(null);
 });
 
 // ── TEST GROUP 1: PREFILTER EVENT LOGGING ───────────────────────────────

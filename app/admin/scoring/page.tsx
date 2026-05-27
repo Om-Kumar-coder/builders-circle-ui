@@ -17,7 +17,9 @@ import {
   Lightbulb,
   Sliders,
   ToggleLeft,
+  TrendingUp,
 } from 'lucide-react';
+import DashboardPanel from '@/components/scoring/DashboardPanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,7 +43,7 @@ interface TierThreshold {
   updatedAt: string;
 }
 
-type Tab = 'weights' | 'tiers';
+type Tab = 'weights' | 'tiers' | 'dashboard';
 
 // ── Label mappings ────────────────────────────────────────────────────────────
 
@@ -346,12 +348,12 @@ export default function ScoringAdminPage() {
               <span>How it works</span>
             </button>
             <button
-              onClick={activeTab === 'weights' ? fetchWeights : fetchTiers}
-              disabled={loading}
+              onClick={activeTab === 'weights' ? fetchWeights : activeTab === 'tiers' ? fetchTiers : undefined}
+              disabled={loading && activeTab !== 'dashboard'}
               className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-300 text-sm transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
+              <span>{activeTab === 'dashboard' ? 'Auto-refresh' : 'Refresh'}</span>
             </button>
           </div>
         </div>
@@ -426,6 +428,17 @@ export default function ScoringAdminPage() {
           >
             <GitBranch className="w-4 h-4" />
             Tier Thresholds
+          </button>
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === 'dashboard'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4" />
+            Dashboard
           </button>
         </div>
 
@@ -592,6 +605,9 @@ export default function ScoringAdminPage() {
             </div>
           </div>
         )}
+
+        {/* ── Dashboard Panel ──────────────────────────────────────────────────── */}
+        {activeTab === 'dashboard' && <DashboardPanel />}
 
         {/* ── Tier Thresholds Panel ────────────────────────────────────────────── */}
         {activeTab === 'tiers' && (

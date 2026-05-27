@@ -13,6 +13,8 @@ import { prisma } from '../config/database';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 import { reviewUserIntake } from '../services/veronicaService';
+import { scoreApplicationFireAndForget } from '../services/scoring/applicationScoringService';
+import { executeRouting } from '../services/scoring/routingService';
 
 const router = Router();
 
@@ -361,6 +363,34 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
       })
     ).catch((err) => {
       logger.warn('[Entry] Veronica scan failed for ' + data.email, { err });
+    });
+
+    // 10. Fire-and-forget scoring + routing (Phase 2) — runs asynchronously
+    scoreApplicationFireAndForget(intake.id).then((_result) => {
+      // After scoring completes, execute routing
+      // We re-fetch the score to pass the full ScoringResult to the routing service
+      prisma.applicationScore.findUnique({
+        where: { entryIntakeId: intake.id },
+      }).then((score) => {
+        if (!score) return;
+        const subScores = score.subScores ? JSON.parse(score.subScores) : {};
+        executeRouting(
+          intake.id,
+          data.fullName,
+          data.email,
+          data.intentType,
+          data.capitalRange,
+          {
+            entryIntakeId: intake.id,
+            totalScore: score.totalScore,
+            routeTag: score.routeTag as 'fast_track' | 'standard' | 'hold',
+            subScores,
+            scoredAt: score.scoredAt,
+          },
+        ).catch((err) => {
+          logger.warn('[Entry] Routing failed for ' + data.email, { err });
+        });
+      });
     });
 
     res.status(201).json({

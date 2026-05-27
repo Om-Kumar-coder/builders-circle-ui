@@ -13,6 +13,10 @@ import {
   recomputeApplicationScore,
   loadScoringWeights,
 } from '../services/scoring/applicationScoringService';
+import {
+  executeRouting,
+  resolveRouteAssignment,
+} from '../services/scoring/routingService';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -274,6 +278,152 @@ const updateTiersSchema = z.object({
       isActive: z.boolean().optional(),
     })
   ).min(1).max(10),
+});
+
+// ── Route Assignments ───────────────────────────────────────────────────────
+
+/**
+ * GET /api/scoring/routes — List route assignments (paginated, filterable)
+ * Query params: page, limit, route, priority
+ */
+router.get('/routes', authMiddleware, roleMiddleware(scoringReadRoles), async (req: AuthRequest, res: Response) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const routeFilter = req.query.route as string | undefined;
+    const priorityFilter = req.query.priority as string | undefined;
+
+    const where: Record<string, unknown> = {};
+    if (routeFilter && ['onboarding', 'gatekeeper', 'founder_review', 'vc_intro'].includes(routeFilter)) {
+      where.route = routeFilter;
+    }
+    if (priorityFilter && ['high', 'normal', 'low'].includes(priorityFilter)) {
+      where.priority = priorityFilter;
+    }
+
+    const [total, routes] = await Promise.all([
+      prisma.routeAssignment.count({ where }),
+      prisma.routeAssignment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        routes,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      },
+      error: null,
+    });
+  } catch (err) {
+    logger.error('[Scoring] Failed to fetch route assignments', { err });
+    res.status(500).json({ success: false, data: null, error: 'Failed to fetch route assignments' });
+  }
+});
+
+/**
+ * POST /api/scoring/routes/:id/resolve — Mark route assignment as resolved
+ */
+router.post('/routes/:id/resolve', authMiddleware, roleMiddleware(scoringWriteRoles), async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+
+    const assignment = await prisma.routeAssignment.findUnique({ where: { id } });
+    if (!assignment) {
+      return res.status(404).json({ success: false, data: null, error: 'Route assignment not found' });
+    }
+
+    if (assignment.resolvedAt) {
+      return res.status(409).json({ success: false, data: null, error: 'Route assignment already resolved' });
+    }
+
+    const resolved = await resolveRouteAssignment(id, req.user!.id);
+
+    if (!resolved) {
+      return res.status(500).json({ success: false, data: null, error: 'Failed to resolve route assignment' });
+    }
+
+    res.json({
+      success: true,
+      data: { message: 'Route assignment resolved', id },
+      error: null,
+    });
+  } catch (err) {
+    logger.error('[Scoring] Failed to resolve route assignment', { err });
+    res.status(500).json({ success: false, data: null, error: 'Failed to resolve route assignment' });
+  }
+});
+
+/**
+ * POST /api/scoring/routes — Manually trigger routing for a scored intake
+ * Body: { entryIntakeId: string }
+ */
+const triggerRouteSchema = z.object({
+  entryIntakeId: z.string().min(1, 'Entry intake ID is required'),
+});
+
+router.post('/routes', authMiddleware, roleMiddleware(scoringWriteRoles), async (req: AuthRequest, res: Response) => {
+  try {
+    const data = triggerRouteSchema.parse(req.body);
+
+    // Fetch intake
+    const intake = await prisma.entryIntake.findUnique({ where: { id: data.entryIntakeId } });
+    if (!intake) {
+      return res.status(404).json({ success: false, data: null, error: 'Entry intake not found' });
+    }
+
+    // Fetch score
+    const score = await prisma.applicationScore.findUnique({ where: { entryIntakeId: data.entryIntakeId } });
+    if (!score) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: 'No score found for this intake. Run scoring first.',
+      });
+    }
+
+    const subScores = score.subScores ? JSON.parse(score.subScores) : {};
+
+    const result = await executeRouting(
+      intake.id,
+      intake.fullName,
+      intake.email,
+      intake.intentType,
+      intake.capitalRange,
+      {
+        entryIntakeId: intake.id,
+        totalScore: score.totalScore,
+        routeTag: score.routeTag as 'fast_track' | 'standard' | 'hold',
+        subScores,
+        scoredAt: score.scoredAt,
+      },
+    );
+
+    if (!result) {
+      return res.status(500).json({ success: false, data: null, error: 'Routing failed' });
+    }
+
+    res.json({
+      success: true,
+      data: result,
+      error: null,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ success: false, data: null, error: err.errors[0]?.message || 'Validation failed' });
+    }
+    logger.error('[Scoring] Failed to trigger routing', { err });
+    res.status(500).json({ success: false, data: null, error: 'Failed to trigger routing' });
+  }
 });
 
 router.put('/tiers', authMiddleware, roleMiddleware(scoringWriteRoles), async (req: AuthRequest, res: Response) => {
