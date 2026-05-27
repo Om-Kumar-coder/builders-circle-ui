@@ -813,3 +813,48 @@ model DailyReport {
   @@index([reportDate])
   @@map("daily_reports")
 }
+
+/// Phase 2a — Scoring weights that the Application Scoring Engine uses
+model ScoringWeight {
+  id          String   @id @default(cuid())
+  weightKey   String   @unique // intent | capital | execution | vp | availability | veronica
+  weight      Float
+  label       String?
+  description String?
+  isActive    Boolean  @default(true)
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("scoring_weights")
+}
+
+/// Phase 2a — Computed application scores per entry intake
+model ApplicationScore {
+  id            String   @id @default(cuid())
+  entryIntakeId String   @unique
+  totalScore    Float
+  routeTag      String   // fast_track | standard | hold
+  subScores     String?  // JSON string of SubScores
+  scoredAt      DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([routeTag])
+  @@index([totalScore])
+  @@map("application_scores")
+}
+
+/// Phase 2b — Tier thresholds for user role assignment
+model TierThreshold {
+  id          String   @id @default(cuid())
+  tier        String   @unique // founder | core | contributor | employee | observer
+  minScore    Float
+  minCycles   Int
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("tier_thresholds")
+}

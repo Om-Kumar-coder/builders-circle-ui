@@ -6,6 +6,7 @@ import { Shield, ArrowRight, AlertTriangle, Info } from 'lucide-react';
 
 const SESSION_KEY = 'prefilter_session_id';
 const ACK_KEY = 'prefilter_ack';
+const TOKEN_KEY = 'prefilter_token';
 
 function generateSessionId(): string {
   return `pref_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
@@ -47,6 +48,36 @@ export default function SystemEntryPage() {
       });
     } catch {
       // Silent — event logging should never break UX
+    }
+  }, []);
+
+  // ── JWT token acquisition flow ─────────────────────────────────────────
+
+  const acquireJwtToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const res = await fetch('/api/triage/prefilter/ack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sessionId.current }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.data?.token ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const setCookieViaServer = useCallback(async (token: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/prefilter/set-cookie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      return res.ok;
+    } catch {
+      return false;
     }
   }, []);
 
@@ -108,14 +139,29 @@ export default function SystemEntryPage() {
   // ── Handlers ───────────────────────────────────────────────────────────
 
   const handleCheckboxChange = async (checked: boolean) => {
-    setAcknowledged(checked);
     if (checked) {
+      // 1. Acquire JWT token from server
+      const token = await acquireJwtToken();
+
+      // 2. Store acknowledgment + token in localStorage
       localStorage.setItem(ACK_KEY, 'true');
-      localStorage.setItem('prefilter_ack_timestamp', new Date().toISOString());
+      localStorage.setItem(ACK_KEY + '_timestamp', new Date().toISOString());
+      if (token) {
+        localStorage.setItem(TOKEN_KEY, token);
+        // 3. Set httpOnly cookie server-side (non-blocking)
+        setCookieViaServer(token).catch(() => {});
+      }
+
+      // 4. Log event
       await logEvent('prefilter_checkbox_checked');
+
+      setAcknowledged(true);
     } else {
+      // Remove all stored state
       localStorage.removeItem(ACK_KEY);
-      localStorage.removeItem('prefilter_ack_timestamp');
+      localStorage.removeItem(ACK_KEY + '_timestamp');
+      localStorage.removeItem(TOKEN_KEY);
+      setAcknowledged(false);
     }
   };
 

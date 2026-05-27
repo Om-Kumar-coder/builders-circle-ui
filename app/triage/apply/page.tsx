@@ -94,11 +94,12 @@ export default function TriageApplyPage() {
     intentOutcome30_60: '',
   });
 
-  // ── Access control: block if prefilter_ack !== true ─────────────────────
+  // ── Access control: block if prefilter_ack !== true or prefilter_token missing ─────
 
   useEffect(() => {
     const ack = localStorage.getItem(ACK_KEY);
-    if (ack !== 'true') {
+    const token = localStorage.getItem('prefilter_token');
+    if (ack !== 'true' || !token) {
       router.replace('/builders-circle/system-entry');
       return;
     }
@@ -228,6 +229,13 @@ export default function TriageApplyPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle expired prefilter token — redirect back to system-entry
+        if (response.status === 403 && data.error?.toLowerCase().includes('expired prefilter')) {
+          localStorage.removeItem(ACK_KEY);
+          localStorage.removeItem('prefilter_token');
+          router.replace('/builders-circle/system-entry');
+          return;
+        }
         setErrors({ _general: data.error || 'Submission failed. Please try again.' });
         return;
       }

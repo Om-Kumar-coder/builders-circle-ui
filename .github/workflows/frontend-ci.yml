@@ -1,0 +1,53 @@
+# Frontend CI
+#
+# Builds the Next.js app and runs component tests on pull requests that affect
+# frontend source files, plus on every push to main.
+# Also supports manual triggers via the GitHub UI ("Run workflow").
+
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'src/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'next.config.ts'
+      - 'tsconfig.json'
+      - 'jest.config.js'
+      - 'jest.component.config.js'
+      - 'postcss.config.mjs'
+      - 'eslint.config.mjs'
+      - '.github/workflows/frontend-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: 1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Next.js build (typecheck + production build)
+        run: npm run build
+        # next build runs TypeScript type-checking and builds the production bundle
+        # Output is logged so PR authors can inspect build warnings/errors
+
+      - name: Run component tests
+        run: npx jest --config jest.component.config.js --no-coverage --verbose

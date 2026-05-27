@@ -7,6 +7,7 @@
  */
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../config/database';
 import { env } from '../config/env';
@@ -20,6 +21,7 @@ const router = Router();
 const intakeLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
+  skip: () => env.NODE_ENV === 'test',
   message: { success: false, data: null, error: 'Too many submissions. Please wait before trying again.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -29,6 +31,7 @@ const intakeLimiter = rateLimit({
 const eventLogLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 100,
+  skip: () => env.NODE_ENV === 'test',
   message: { success: false, data: null, error: 'Too many requests.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -55,6 +58,7 @@ const intakeSchema = z.object({
   prefilterAck: z.literal(true, {
     errorMap: () => ({ message: 'You must acknowledge the prefilter agreement' }),
   }),
+  prefilterToken: z.string().optional().nullable(),
   prefilterSessionId: z.string().optional().nullable(),
   captchaToken: z.string().optional().nullable(),
 });
@@ -120,6 +124,30 @@ async function checkAkismetSpam(params: {
   }
 }
 
+// ── JWT token helpers ─────────────────────────────────────────────────────────
+
+const JWT_SECRET = env.JWT_SECRET || 'fallback-dev-secret-min-32-chars-long!!';
+
+/** Sign a prefilter acknowledgment JWT */
+function signPrefilterToken(sessionId: string): string {
+  return jwt.sign(
+    { sessionId, type: 'prefilter_ack', jti: `pref_${Date.now()}_${Math.random().toString(36).substring(2, 10)}` },
+    JWT_SECRET,
+    { expiresIn: '2h' },
+  );
+}
+
+/** Verify and decode a prefilter JWT. Returns null on any failure. */
+function verifyPrefilterToken(token: string): { sessionId: string; type: string } | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { sessionId: string; type: string };
+    if (decoded.type !== 'prefilter_ack') return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 // ── CAPTCHA validation ────────────────────────────────────────────────────────
 
 async function validateCaptcha(token: string): Promise<boolean> {
@@ -157,8 +185,25 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
     // Validate request body
     const data = intakeSchema.parse(req.body);
 
-    // 1. Validate CAPTCHA if provided
-    if (data.captchaToken) {
+    // 1. CAPTCHA fail-closed in production — check BEFORE prefilter token
+    if (env.NODE_ENV === 'production') {
+      if (!data.captchaToken) {
+        return res.status(400).json({
+          success: false,
+          data: null,
+          error: 'CAPTCHA is required',
+        });
+      }
+      const captchaValid = await validateCaptcha(data.captchaToken);
+      if (!captchaValid) {
+        return res.status(400).json({
+          success: false,
+          data: null,
+          error: 'CAPTCHA validation failed. Please try again.',
+        });
+      }
+    } else if (data.captchaToken) {
+      // In non-production, validate CAPTCHA if provided
       const captchaValid = await validateCaptcha(data.captchaToken);
       if (!captchaValid) {
         return res.status(400).json({
@@ -196,7 +241,34 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
       });
     }
 
-    // 3. Check for duplicate email (existing intake with PENDING status)
+    // 3. Validate prefilter token
+    if (data.prefilterToken) {
+      const decoded = verifyPrefilterToken(data.prefilterToken);
+      if (!decoded) {
+        return res.status(403).json({
+          success: false,
+          data: null,
+          error: 'Invalid or expired prefilter session. Please go back and acknowledge the entry requirements again.',
+        });
+      }
+      // Session ID mismatch check
+      if (data.prefilterSessionId && decoded.sessionId !== data.prefilterSessionId) {
+        return res.status(403).json({
+          success: false,
+          data: null,
+          error: 'Prefilter session mismatch. Please restart the process.',
+        });
+      }
+    } else if (env.NODE_ENV === 'production' && !data.captchaToken) {
+      // In production, require either a prefilter token or CAPTCHA
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: 'CAPTCHA is required',
+      });
+    }
+
+    // 4. Check for duplicate email (existing intake with PENDING status)
     const existingPending = await prisma.entryIntake.findFirst({
       where: { email: data.email, status: 'PENDING' },
     });
@@ -208,7 +280,7 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
       });
     }
 
-    // 4. Store submission
+    // 5. Store submission
     const intake = await prisma.entryIntake.create({
       data: {
         fullName: data.fullName,
@@ -230,7 +302,7 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
       },
     });
 
-    // 5. Log event: intake_submitted
+    // 6. Log event: intake_submitted
     await prisma.eventLog.create({
       data: {
         event: 'intake_submitted',
@@ -244,7 +316,7 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
       },
     }).catch(() => {});
 
-    // 6. Log to system_logs for audit trail
+    // 7. Log to system_logs for audit trail
     await prisma.systemLog.create({
       data: {
         event: 'entry_intake_submitted',
@@ -254,7 +326,7 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
       },
     }).catch(() => {});
 
-    // 7. Create GatekeeperReview so intake shows up in the gatekeeper queue
+    // 8. Create GatekeeperReview so intake shows up in the gatekeeper queue
     const reviewId = `entry-${intake.id}`;
     await prisma.gatekeeperReview.create({
       data: {
@@ -268,7 +340,7 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
       logger.warn('[Entry] Failed to create GatekeeperReview', { err });
     });
 
-    // 8. Fire-and-forget Veronica scan (non-blocking)
+    // 9. Fire-and-forget Veronica scan (non-blocking)
     reviewUserIntake({
       name: data.fullName,
       email: data.email,
@@ -359,6 +431,119 @@ router.post('/intake/check-email', async (req: Request, res: Response) => {
     });
   } catch {
     res.status(400).json({ success: false, data: null, error: 'Invalid email' });
+  }
+});
+
+// ── POST /api/triage/prefilter/ack — Issue signed JWT for an acknowledged session ────
+
+router.post('/prefilter/ack', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = z.object({
+      sessionId: z.string({ required_error: 'Session ID is required' }).min(1, 'Session ID is required'),
+    }).parse(req.body);
+
+    const token = signPrefilterToken(sessionId);
+
+    res.json({
+      success: true,
+      data: { token, expiresIn: '2h' },
+      error: null,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: err.errors[0]?.message || 'Session ID is required',
+      });
+    }
+    res.status(500).json({ success: false, data: null, error: 'Failed to issue acknowledgment token' });
+  }
+});
+
+// ── POST /api/triage/prefilter/verify — Verify a prefilter JWT ─────────────────
+
+router.post('/prefilter/verify', async (req: Request, res: Response) => {
+  try {
+    const { token } = z.object({
+      token: z.string().min(1, 'Token is required'),
+    }).parse(req.body);
+
+    const decoded = verifyPrefilterToken(token);
+
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        data: null,
+        error: 'Invalid or expired prefilter token. Please go back and acknowledge the entry requirements again.',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { valid: true, sessionId: decoded.sessionId, type: decoded.type },
+      error: null,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: err.errors[0]?.message || 'Token is required',
+      });
+    }
+    res.status(500).json({ success: false, data: null, error: 'Failed to verify token' });
+  }
+});
+
+// ── GET /api/triage/funnel — Funnel analytics query ────────────────────────────
+
+router.get('/funnel', async (req: Request, res: Response) => {
+  try {
+    const events = [
+      'prefilter_page_view',
+      'prefilter_scrolled_50',
+      'prefilter_checkbox_checked',
+      'prefilter_cta_click',
+      'intake_submitted',
+    ];
+
+    const counts = await Promise.all(
+      events.map(event =>
+        prisma.eventLog.count({
+          where: { event },
+        })
+      ),
+    );
+
+    const funnel: Record<string, number> = {};
+    events.forEach((event, i) => {
+      funnel[event] = counts[i];
+    });
+
+    const views = counts[0];
+    const scrolled = counts[1];
+    const checked = counts[2];
+    const cta = counts[3];
+    const submitted = counts[4];
+
+    const conversionRates = {
+      viewToScroll: views > 0 ? `${((scrolled / views) * 100).toFixed(1)}%` : '0%',
+      viewToCheck: views > 0 ? `${((checked / views) * 100).toFixed(1)}%` : '0%',
+      checkToCta: checked > 0 ? `${((cta / checked) * 100).toFixed(1)}%` : '0%',
+      ctaToSubmit: cta > 0 ? `${((submitted / cta) * 100).toFixed(1)}%` : '0%',
+      viewToSubmit: views > 0 ? `${((submitted / views) * 100).toFixed(1)}%` : '0%',
+      checkToSubmit: checked > 0 ? `${((submitted / checked) * 100).toFixed(1)}%` : '0%',
+    };
+
+    res.json({
+      success: true,
+      data: { funnel, conversionRates },
+      error: null,
+    });
+  } catch (err) {
+    logger.error('[Funnel] Failed to fetch analytics', { err });
+    res.status(500).json({ success: false, data: null, error: 'Failed to fetch funnel analytics' });
   }
 });
 
