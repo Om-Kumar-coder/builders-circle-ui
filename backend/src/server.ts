@@ -33,6 +33,7 @@ import ideaRoutes from './routes/ideas';
 import configRoutes from './routes/config';
 import gatekeeperRoutes from './routes/gatekeeper';
 import entryIntakeRoutes from './routes/entry-intake';
+import scoringRoutes from './routes/scoring';
 import { authMiddleware } from './middleware/auth';
 import { requireEmailVerified } from './middleware/requireEmailVerified';
 import { requireOnboarding } from './middleware/requireOnboarding';
@@ -174,6 +175,9 @@ app.use('/api/gatekeeper', onboardingGuard, gatekeeperRoutes);
 
 // Entry Control Layer — Phase 1 intake + event logging (public with own rate limiting)
 app.use('/api/triage', entryIntakeRoutes);
+
+// Scoring Engine — Phase 2 (weights, application scores, tier thresholds)
+app.use('/api/scoring', onboardingGuard, scoringRoutes);
 
 // Central error handling middleware — standard API error format
 app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {

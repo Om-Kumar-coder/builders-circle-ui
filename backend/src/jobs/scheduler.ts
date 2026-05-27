@@ -8,6 +8,8 @@ import { ScoreComputationJob } from './scoreComputationJob';
 import { AggregationJob } from './aggregationJob';
 import { NormalizationJob } from './normalizationJob';
 import { BackupJob } from './backupJob';
+import { TierEvaluationJob } from './tierEvaluationJob';
+import { scoreUnscoredApplications } from '../services/scoring/applicationScoringService';
 import { prisma } from '../config/database';
 import { generateDailyReport } from '../routes/gatekeeper';
 
@@ -228,6 +230,32 @@ export class JobScheduler {
         console.error('Normalization job failed:', error);
       }
     });
+
+    // ── Phase 2 Scoring + Tier jobs ───────────────────────────────────────────
+
+    // Application scoring: every 15 min — scores unscored entry_intake submissions
+    cron.schedule('*/15 * * * *', async () => {
+      try {
+        const result = await scoreUnscoredApplications();
+        if (result.scored > 0) {
+          console.log(`[Scoring] Scored ${result.scored} new application(s)`);
+        }
+      } catch (error) {
+        console.error('[Scoring] Application scoring job failed:', error);
+      }
+    });
+
+    // Tier evaluation: every hour at :30 (after normalization at :20)
+    cron.schedule('30 * * * *', async () => {
+      try {
+        const result = await TierEvaluationJob.run();
+        if (result.changed > 0) {
+          console.log(`[TierEval] ${result.changed} user(s) changed tier (${result.evaluated} evaluated, ${result.errors} errors)`);
+        }
+      } catch (error) {
+        console.error('[TierEval] Tier evaluation job failed:', error);
+      }
+    });
   }
 
   // Manual job execution for testing/admin purposes
@@ -270,5 +298,14 @@ export class JobScheduler {
 
   static async runBackup() {
     return BackupJob.run();
+  }
+
+  // ── Phase 2 manual triggers ────────────────────────────────────────────────
+  static async runTierEvaluation() {
+    return TierEvaluationJob.run();
+  }
+
+  static async runApplicationScoring() {
+    return scoreUnscoredApplications();
   }
 }

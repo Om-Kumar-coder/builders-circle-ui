@@ -329,22 +329,34 @@ The system has a single, well-defined path through the entry control layer.
 | 2 | Document production deployment checklist | 2 hours | Operational readiness |
 | 3 | Add frontend error boundary for intake form submission failures | 1 hour | UX robustness |
 
-### Phase 2 Preparation
+### Phase 2b Remaining Items
 
 | # | Task | Effort | Details |
 |---|------|--------|---------|
 | 4 | Consolidate triage_submissions + entry_intake tables | 4 hours | Long-term maintenance |
-| 5 | Design scoring engine (Phase 2) | Design phase | Requires team discussion |
-| 6 | Design tier system (Phase 2) | Design phase | Requires team discussion |
+| 5 | Create RoutingService + RouteAssignment model + intake flow integration | 7 hours | See Phase 2c in design doc |
+| 6 | Admin UI scoring dashboard (radar chart, leaderboard) | 6 hours | Visualizing scoring/tier data |
 
 ### Phase 2 Readiness Assessment
 
 | Phase | Readiness |
 |-------|-----------|
-| Phase 2 (Scoring Engine) | ✅ **Ready** — Phase 1 fully stable, bypasses closed |
-| Phase 2 (Tier System) | ⏳ Needs scoring engine design |
-| Phase 2 (Routing) | ⏳ Needs tier system |
-| Phase 2 (AI Scoring) | ⚠️ Partial — Veronica infrastructure exists but used for classification |
+| Phase 2 (Scoring Engine) | ✅ **Complete** — `applicationScoringService.ts` with full pipeline (sub-scores → weighted total → route → DB persist), `scoring.ts` routes (GET/PUT weights, GET/POST applications, GET/PUT tiers), `ScoringWeight`/`ApplicationScore`/`TierThreshold` Prisma models seeded, 201 backend tests passing |
+| Phase 2 (Tier System) | ✅ **Complete** — `tierEvaluationJob.ts` with full evaluation loop (ownership/contribution/reputation/cycle/Veronica → weighted score → tier mapping → `UserTier` upsert), `UserTier` model added, wired into cron scheduler at :30 past each hour |
+| Phase 2 (Routing) | ⚠️ Partial — `determineRouteExport()` exists (fast_track/standard/hold), integrated into scoring pipeline. Missing: dedicated `RoutingService`, `RouteAssignment` model, automated actions (auto-onboarding for fast track, founder notification for hold/VC-intro) |
+| Phase 2 (AI Scoring) | ⚠️ Partial — Veronica infrastructure exists for classification. Scoring engine consumes `veronicaScore` as one of 6 sub-score inputs. Veronica does not yet produce structured score components directly |
+
+---
+
+### Phase 2b Remaining Items
+
+| # | Task | Effort | Depends On |
+|---|------|--------|------------|
+| 1 | Create RoutingService + RouteAssignment model | 4 hours | Scoring engine (complete) |
+| 2 | Wire routing into intake submission flow (auto-onboarding, founder notifications) | 3 hours | RoutingService |
+| 3 | Admin UI for score breakdown visualization (radar chart) | 4 hours | Scoring engine (complete) |
+| 4 | Admin UI for leaderboard page | 2 hours | Tier system (complete) |
+| 5 | AI-enhanced scoring (Veronica produces structured score components) | Design phase | Requires team discussion |
 
 ---
 
