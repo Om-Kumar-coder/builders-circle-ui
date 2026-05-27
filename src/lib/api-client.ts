@@ -1255,7 +1255,7 @@ class ApiClient {
     return this.request(`/scoring/applications${qs ? `?${qs}` : ''}`);
   }
 
-  async getApplicationScoreDetail(id: string): Promise<{ score: any; intake: any }> {
+  async getApplicationScoreDetail(id: string): Promise<{ score: any; intake: any; veronicaDimensions?: Record<string, number> }> {
     return this.request(`/scoring/applications/${id}`);
   }
 

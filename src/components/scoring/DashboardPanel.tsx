@@ -126,6 +126,8 @@ export default function DashboardPanel() {
 
   // Selected score for detail view
   const [selectedScore, setSelectedScore] = useState<ScoreItem | null>(null);
+  const [veronicaDimensions, setVeronicaDimensions] = useState<Record<string, number> | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // Stats
   const [stats, setStats] = useState({
@@ -209,11 +211,28 @@ export default function DashboardPanel() {
     setPagination(prev => ({ ...prev, page }));
   };
 
+  // ── Fetch veronica dimensions when a score is selected ─────────────────
+  useEffect(() => {
+    if (!selectedScore) {
+      setVeronicaDimensions(null);
+      return;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    apiClient.getApplicationScoreDetail(selectedScore.entryIntakeId)
+      .then(data => {
+        if (!cancelled) {
+          setVeronicaDimensions((data.veronicaDimensions as Record<string, number>) ?? null);
+        }
+      })
+      .catch(() => { if (!cancelled) setVeronicaDimensions(null); })
+      .finally(() => { if (!cancelled) setDetailLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedScore?.entryIntakeId]);
+
   const handleRowClick = (score: ScoreItem) => {
     setSelectedScore(prev => (prev?.id === score.id ? null : score));
   };
-
-
 
   // ── Filter scores by search term ──────────────────────────────────────────
 
@@ -682,6 +701,67 @@ export default function DashboardPanel() {
                   })}
                 </div>
               </div>
+
+              {/* ── Veronica AI Dimensions ───────────────────────────── */}
+              {veronicaDimensions && (
+                <div className="mt-4 pt-4 border-t border-gray-800">
+                  <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-purple-900/50 border border-purple-700/50 flex items-center justify-center">
+                      <span className="w-2 h-2 rounded-full bg-purple-400" />
+                    </span>
+                    Veronica AI Dimensions
+                    {detailLoading && (
+                      <RefreshCw className="w-3 h-3 text-purple-400 animate-spin" />
+                    )}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { key: 'intentConfidence', label: 'Intent Confidence' },
+                      { key: 'executionCredibility', label: 'Exec Credibility' },
+                      { key: 'vpQuality', label: 'VP Quality' },
+                      { key: 'trustScore', label: 'Trust Score' },
+                      { key: 'commitmentSignal', label: 'Commitment Signal' },
+                      { key: 'inferredCapitalSignal', label: 'Inferred Capital' },
+                    ].map(({ key, label }) => {
+                      const val = veronicaDimensions[key] ?? 0;
+                      const pct = (val * 100).toFixed(0);
+                      const blendedKey =
+                        key === 'intentConfidence' ? 'intent' :
+                        key === 'executionCredibility' ? 'execution' :
+                        key === 'vpQuality' ? 'vp' :
+                        key === 'trustScore' ? 'availability' :
+                        key === 'commitmentSignal' ? 'availability' :
+                        'veronica';
+                      const sub = parseSubScores(selectedScore.subScores) as unknown as Record<string, number>;
+                      const blendedVal = sub[blendedKey] ?? 0;
+                      const blendedPct = (blendedVal * 100).toFixed(0);
+                      return (
+                        <div
+                          key={key}
+                          className="bg-gray-800/30 rounded-xl p-3 border border-gray-800/50"
+                        >
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px] text-gray-400 font-medium">{label}</span>
+                            <span className="text-xs font-mono text-purple-300 font-semibold">{pct}%</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-700/50 rounded-full overflow-hidden mb-1">
+                            <div
+                              className="h-full rounded-full transition-all duration-300"
+                              style={{ width: `${val * 100}%`, backgroundColor: '#a78bfa' }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-gray-500">
+                            Blended → <span className="text-gray-400 font-mono">{blendedPct}%</span>
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-gray-600 mt-2 leading-relaxed">
+                    AI-generated scores for each dimension. Blended 40% with rule-based sub-scores.
+                  </p>
+                </div>
+              )}
 
               {/* Weight version metadata */}
               {selectedScore.weightVersion && (

@@ -358,6 +358,7 @@ router.post('/intake', intakeLimiter, async (req: Request, res: Response) => {
           veronicaScore: result.score,
           veronicaFlags: JSON.stringify(result.flags),
           veronicaNotes: result.notes,
+          veronicaDimensions: result.veronicaDimensions ? JSON.stringify(result.veronicaDimensions) : null,
           updatedAt: new Date(),
         },
       })

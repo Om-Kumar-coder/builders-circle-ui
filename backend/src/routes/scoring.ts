@@ -198,11 +198,27 @@ router.get('/applications/:id', authMiddleware, roleMiddleware(scoringReadRoles)
       },
     });
 
+    // Fetch veronicaDimensions from the associated GatekeeperReview
+    let veronicaDimensions: Record<string, unknown> | null = null;
+    try {
+      const review = await prisma.gatekeeperReview.findFirst({
+        where: { entityType: 'user_intake', entityId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { veronicaDimensions: true },
+      });
+      if (review?.veronicaDimensions) {
+        veronicaDimensions = JSON.parse(review.veronicaDimensions);
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
     res.json({
       success: true,
       data: {
         score,
         intake,
+        veronicaDimensions,
       },
       error: null,
     });

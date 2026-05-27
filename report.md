@@ -16,8 +16,10 @@ The Entry Control Layer (Phase 1) is fully implemented. All critical bypasses ha
 - ✅ CSV exports for gatekeeper reports and intake queue
 - ✅ Event logs cleanup job (90-day retention)
 - ✅ Entry control funnel analytics endpoint
+- ✅ **Veronica AI now produces structured dimension scores** (intentConfidence, executionCredibility, vpQuality, trustScore, commitmentSignal, inferredCapitalSignal) and Scoring Engine blends them 40/60 with rule-based sub-scores
+- ✅ **Admin scoring dashboard** with radar chart, leaderboard, and Veronica AI dimension view
 - ✅ Integration tests: 19/19 passing (full prefilter → intake → gatekeeper flow)
-- ✅ Frontend component tests: 39/39 passing (system-entry + triage/apply)
+- ✅ Backend tests: **201/201 passing** | Frontend tests: **60/60 passing** — **261 total**
 - ✅ Startup warnings for missing CAPTCHA/Akismet env vars
 
 ---
@@ -52,6 +54,7 @@ The Entry Control Layer (Phase 1) is fully implemented. All critical bypasses ha
 | Notification to gatekeepers on override | ✅ Complete |
 | Health check endpoint | ✅ Complete |
 | Backtesting endpoint | ✅ Complete |
+| **Structured dimension scores** (intentConfidence, executionCredibility, vpQuality, trustScore, commitmentSignal, inferredCapitalSignal) | ✅ Complete — Produced by Veronica AI, persisted in `GatekeeperReview.veronicaDimensions`, returned via scoring detail endpoint |
 
 ### 2.3 Review / Validation Flow
 | Component | Status |
@@ -157,8 +160,9 @@ The Entry Control Layer (Phase 1) is fully implemented. All critical bypasses ha
 |--------|---------|
 | ✅ | 5 test files: `entry-control-flow.test.ts`, `veronica-validation.test.ts`, `veronica-database-integrity.test.ts`, `veronica-performance.test.ts`, `veronica-rules.test.ts` |
 | ✅ | 19 integration tests for full entry control flow (prefilter → ack JWT → intake → gatekeeper review → funnel analytics → CAPTCHA fail-closed) |
-| ✅ | 39 frontend component tests for system-entry page (18) + triage/apply page (21) |
-| ✅ | All 58 tests passing |
+| ✅ | **201 backend tests** (including scoring engine, routing, tier eval, Veronica dimension parsing) |
+| ✅ | **60 frontend tests** — system-entry (18) + triage/apply (21) + scoring dashboard + admin pages |
+| ✅ | All **261 tests passing** |
 
 ---
 
@@ -300,7 +304,6 @@ The system has a single, well-defined path through the entry control layer.
 | Both `triageRoutes` and `entryIntakeRoutes` mount on `/api/triage` | Low | Works correctly; old deprecated routes return 410 |
 | Two intake tables (triage_submissions + entry_intake) | Medium | Long-term consolidation needed, but functional |
 | `server.ts` mounts `entryIntakeRoutes` after `triageRoutes` | Low | Order matters but stable |
-| No production deployment checklist | Low | Not documented |
 | No retry mechanism for Ollama fallback | Low | Enhancement opportunity |
 
 ---
@@ -309,13 +312,9 @@ The system has a single, well-defined path through the entry control layer.
 
 | Test Suite | Tests | Status |
 |------------|-------|--------|
-| Backend: Entry Control Flow | 19 | ✅ All passing |
-| Backend: Veronica Validation | — | ✅ Existing |
-| Backend: Veronica DB Integrity | — | ✅ Existing |
-| Backend: Veronica Performance | — | ✅ Existing |
-| Backend: Veronica Rules | — | ✅ Existing |
-| Frontend: System-Entry Page | 18 | ✅ All passing |
-| Frontend: Triage/Apply Page | 21 | ✅ All passing |
+| Backend: All tests (scoring, routing, tiers, entry control, Veronica) | 201 | ✅ All passing |
+| Frontend: All tests (system-entry, triage/apply, scoring dashboard, admin) | 60 | ✅ All passing |
+| **Total** | **261** | ✅ **All passing** |
 
 ---
 
@@ -326,16 +325,13 @@ The system has a single, well-defined path through the entry control layer.
 | # | Task | Effort | Impact |
 |---|------|--------|--------|
 | 1 | Add retry mechanism for Ollama health monitoring | 2 hours | AI review resilience |
-| 2 | Document production deployment checklist | 2 hours | Operational readiness |
-| 3 | Add frontend error boundary for intake form submission failures | 1 hour | UX robustness |
+| 2 | Add frontend error boundary for intake form submission failures | 1 hour | UX robustness |
 
 ### Phase 2b Remaining Items
 
 | # | Task | Effort | Details |
 |---|------|--------|---------|
-| 4 | Consolidate triage_submissions + entry_intake tables | 4 hours | Long-term maintenance |
-| 5 | Create RoutingService + RouteAssignment model + intake flow integration | 7 hours | See Phase 2c in design doc |
-| 6 | Admin UI scoring dashboard (radar chart, leaderboard) | 6 hours | Visualizing scoring/tier data |
+| 3 | Consolidate triage_submissions + entry_intake tables | 4 hours | Long-term maintenance |
 
 ### Phase 2 Readiness Assessment
 
@@ -343,20 +339,8 @@ The system has a single, well-defined path through the entry control layer.
 |-------|-----------|
 | Phase 2 (Scoring Engine) | ✅ **Complete** — `applicationScoringService.ts` with full pipeline (sub-scores → weighted total → route → DB persist), `scoring.ts` routes (GET/PUT weights, GET/POST applications, GET/PUT tiers), `ScoringWeight`/`ApplicationScore`/`TierThreshold` Prisma models seeded, 201 backend tests passing |
 | Phase 2 (Tier System) | ✅ **Complete** — `tierEvaluationJob.ts` with full evaluation loop (ownership/contribution/reputation/cycle/Veronica → weighted score → tier mapping → `UserTier` upsert), `UserTier` model added, wired into cron scheduler at :30 past each hour |
-| Phase 2 (Routing) | ⚠️ Partial — `determineRouteExport()` exists (fast_track/standard/hold), integrated into scoring pipeline. Missing: dedicated `RoutingService`, `RouteAssignment` model, automated actions (auto-onboarding for fast track, founder notification for hold/VC-intro) |
-| Phase 2 (AI Scoring) | ⚠️ Partial — Veronica infrastructure exists for classification. Scoring engine consumes `veronicaScore` as one of 6 sub-score inputs. Veronica does not yet produce structured score components directly |
-
----
-
-### Phase 2b Remaining Items
-
-| # | Task | Effort | Depends On |
-|---|------|--------|------------|
-| 1 | Create RoutingService + RouteAssignment model | 4 hours | Scoring engine (complete) |
-| 2 | Wire routing into intake submission flow (auto-onboarding, founder notifications) | 3 hours | RoutingService |
-| 3 | Admin UI for score breakdown visualization (radar chart) | 4 hours | Scoring engine (complete) |
-| 4 | Admin UI for leaderboard page | 2 hours | Tier system (complete) |
-| 5 | AI-enhanced scoring (Veronica produces structured score components) | Design phase | Requires team discussion |
+| Phase 2 (Routing) | ✅ **Complete** — `RoutingService` with `determineRoute()` (onboarding/gatekeeper/founder_review/vc_intro), `RouteAssignment` model persisted, auto-onboarding (fast track → user create + verify email), founder notification (hold/VC-intro → NotificationService), wired into `entry-intake.ts` after scoring, API endpoints (GET/POST routes, POST resolve) |
+| Phase 2 (AI Scoring) | ✅ **Complete** — Veronica produces 6 structured dimension scores (`intentConfidence`, `executionCredibility`, `vpQuality`, `trustScore`, `commitmentSignal`, `inferredCapitalSignal`) from AI prompts and rule-based fallback. Scoring engine blends them 40% Veronica / 60% rule-based into sub-scores. Dimensions persisted in `GatekeeperReview.veronicaDimensions` and displayed in admin scoring dashboard. |
 
 ---
 

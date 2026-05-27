@@ -1,5 +1,7 @@
 /**
  * Application Scoring Engine — Phase 2a
+ * Updated Phase 4: Blends structured Veronica dimensions (veronicaDimensions) into sub-scores
+ * for richer, AI-informed scoring.
  *
  * Pure score functions + full pipeline for scoring entry intake applications.
  * All DB-accessing functions accept mocked Prisma for testability.
@@ -9,6 +11,15 @@ import { prisma } from '../../config/database';
 import logger from '../../utils/logger';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface VeronicaDimensions {
+  intentConfidence: number;
+  executionCredibility: number;
+  vpQuality: number;
+  trustScore: number;
+  commitmentSignal: number;
+  inferredCapitalSignal: number;
+}
 
 export interface SubScores {
   intent: number;
@@ -217,7 +228,7 @@ export async function scoreApplication(
 
     if (!intake) return null;
 
-    // Fetch gatekeeper review for veronica score
+    // Fetch gatekeeper review for veronica score + structured dimensions
     const review = await prisma.gatekeeperReview.findFirst({
       where: { entityType: 'user_intake', entityId: intake.id },
       orderBy: { createdAt: 'desc' },
@@ -225,14 +236,57 @@ export async function scoreApplication(
 
     const veronicaScore = review?.veronicaScore ?? null;
 
-    // Compute sub-scores
+    // Parse structured dimensions if available
+    let dimensions: VeronicaDimensions | null = null;
+    if (review?.veronicaDimensions) {
+      try {
+        dimensions = JSON.parse(review.veronicaDimensions) as VeronicaDimensions;
+      } catch {
+        // Malformed JSON — ignore
+      }
+    }
+
+    // Compute base sub-scores
+    let intent = scoreIntentExport(intake.intentType);
+    let capital = scoreCapitalExport(intake.capitalRange);
+    let execution = scoreExecutionExport(intake.executionProofUrl, intake.executionOutcome);
+    let valueProposition = scoreValuePropositionExport(intake.valueProposition);
+    let availability = scoreAvailabilityExport(intake.availability);
+    let veronica = scoreVeronicaExport(veronicaScore);
+
+    // Blend with Veronica AI dimensions if available
+    // Blending formula: 60% rule-based base + 40% Veronica dimension
+    if (dimensions) {
+      // intentConfidence → blended with intent score
+      intent = intent * 0.6 + dimensions.intentConfidence * 0.4;
+
+      // executionCredibility → blended with execution score
+      execution = execution * 0.6 + dimensions.executionCredibility * 0.4;
+
+      // vpQuality → blended with valueProposition score
+      valueProposition = valueProposition * 0.6 + dimensions.vpQuality * 0.4;
+
+      // trustScore + commitmentSignal → blended with availability score
+      const availFromDims = (dimensions.trustScore + dimensions.commitmentSignal) / 2;
+      availability = availability * 0.6 + availFromDims * 0.4;
+
+      // veronica overall score stays as-is (it's the aggregate)
+      // But also blend in trustScore for anti-spam signal
+      veronica = veronica * 0.7 + dimensions.trustScore * 0.3;
+
+      // inferredCapitalSignal → used only if capital range not provided
+      if (!intake.capitalRange || intake.capitalRange.trim() === '') {
+        capital = capital * 0.5 + dimensions.inferredCapitalSignal * 0.5;
+      }
+    }
+
     const subScores: SubScores = {
-      intent: scoreIntentExport(intake.intentType),
-      capital: scoreCapitalExport(intake.capitalRange),
-      execution: scoreExecutionExport(intake.executionProofUrl, intake.executionOutcome),
-      valueProposition: scoreValuePropositionExport(intake.valueProposition),
-      availability: scoreAvailabilityExport(intake.availability),
-      veronica: scoreVeronicaExport(veronicaScore),
+      intent,
+      capital,
+      execution,
+      valueProposition,
+      availability,
+      veronica,
     };
 
     // Load weights

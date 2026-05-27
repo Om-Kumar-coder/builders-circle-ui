@@ -169,6 +169,7 @@ router.post('/intake/:entityId/scan', authMiddleware, roleMiddleware(gatekeeperR
         veronicaScore: result.score,
         veronicaFlags: JSON.stringify(result.flags),
         veronicaNotes: result.notes,
+        veronicaDimensions: result.veronicaDimensions ? JSON.stringify(result.veronicaDimensions) : null,
         aiDecision: result.aiDecision ?? null,
       },
       update: {
@@ -176,6 +177,7 @@ router.post('/intake/:entityId/scan', authMiddleware, roleMiddleware(gatekeeperR
         veronicaScore: result.score,
         veronicaFlags: JSON.stringify(result.flags),
         veronicaNotes: result.notes,
+        veronicaDimensions: result.veronicaDimensions ? JSON.stringify(result.veronicaDimensions) : null,
         aiDecision: result.aiDecision ?? null,
         updatedAt: new Date(),
       },
@@ -219,6 +221,7 @@ router.post('/submissions/:activityId/scan', authMiddleware, roleMiddleware(gate
         veronicaScore: result.score,
         veronicaFlags: JSON.stringify(result.flags),
         veronicaNotes: result.notes,
+        veronicaDimensions: result.veronicaDimensions ? JSON.stringify(result.veronicaDimensions) : null,
         aiDecision: result.aiDecision ?? null,
       },
       update: {
@@ -226,6 +229,7 @@ router.post('/submissions/:activityId/scan', authMiddleware, roleMiddleware(gate
         veronicaScore: result.score,
         veronicaFlags: JSON.stringify(result.flags),
         veronicaNotes: result.notes,
+        veronicaDimensions: result.veronicaDimensions ? JSON.stringify(result.veronicaDimensions) : null,
         aiDecision: result.aiDecision ?? null,
         updatedAt: new Date(),
       },

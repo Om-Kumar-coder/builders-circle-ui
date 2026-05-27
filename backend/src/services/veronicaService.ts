@@ -29,6 +29,15 @@ export interface SemanticAnalysis {
   reasoning: string;        // AI's explanation for inspection on failure
 }
 
+export interface VeronicaDimensions {
+  intentConfidence: number;      // 0-1: genuineness of stated intent
+  executionCredibility: number;  // 0-1: credibility of proof links & outcomes
+  vpQuality: number;             // 0-1: specificity & authenticity of value prop
+  trustScore: number;            // 0-1: anti-spam / fraud signal (inverted)
+  commitmentSignal: number;      // 0-1: commitment from availability detail
+  inferredCapitalSignal: number; // 0-1: capital capacity inferred from language
+}
+
 export interface VeronicaResult {
   status: 'VALID' | 'NEEDS_REVIEW' | 'FLAGGED';
   score: number;            // 0.0–1.0 overall confidence
@@ -37,6 +46,7 @@ export interface VeronicaResult {
   semantic?: SemanticAnalysis;
   isFallback?: boolean;
   aiDecision?: 'AUTO_PASS' | 'FLAGGED' | 'AUTO_BLOCK';
+  veronicaDimensions?: VeronicaDimensions;
   /** @deprecated Removed — Veronica no longer auto-approves anything. */
   autoApproved?: never;
 }
@@ -129,6 +139,18 @@ async function callVeronica(prompt: string): Promise<string> {
   return data.response;
 }
 
+function parseDimensions(raw: Record<string, unknown>): VeronicaDimensions {
+  const dims = (raw.dimensions ?? raw.veronicaDimensions ?? {}) as Record<string, unknown>;
+  return {
+    intentConfidence: Math.min(1, Math.max(0, parseFloat(dims.intentConfidence as string) ?? 0.5)),
+    executionCredibility: Math.min(1, Math.max(0, parseFloat(dims.executionCredibility as string) ?? 0.5)),
+    vpQuality: Math.min(1, Math.max(0, parseFloat(dims.vpQuality as string) ?? 0.5)),
+    trustScore: Math.min(1, Math.max(0, parseFloat(dims.trustScore as string) ?? 0.5)),
+    commitmentSignal: Math.min(1, Math.max(0, parseFloat(dims.commitmentSignal as string) ?? 0.5)),
+    inferredCapitalSignal: Math.min(1, Math.max(0, parseFloat(dims.inferredCapitalSignal as string) ?? 0.5)),
+  };
+}
+
 function parseSubmissionResponse(raw: string): { result: Omit<VeronicaResult, 'isFallback' | 'aiDecision' | 'autoApproved'>; semantic: SemanticAnalysis } {
   try {
     const match = raw.match(/\{[\s\S]*\}/);
@@ -145,8 +167,9 @@ function parseSubmissionResponse(raw: string): { result: Omit<VeronicaResult, 'i
       const score = Math.min(1, Math.max(0, parseFloat(parsed.score) || 0.5));
       const flags = [...(Array.isArray(parsed.flags) ? parsed.flags : []), ...buildSemanticFlags(semantic)];
       const status = resolveStatusFromSemantic(score, semantic);
+      const veronicaDimensions = parseDimensions(parsed);
       return {
-        result: { status, score, flags, notes: semantic.reasoning, semantic },
+        result: { status, score, flags, notes: semantic.reasoning, semantic, veronicaDimensions },
         semantic,
       };
     }
@@ -162,11 +185,13 @@ function parseIntakeResponse(raw: string): VeronicaResult {
     const match = raw.match(/\{[\s\S]*\}/);
     if (match) {
       const parsed = JSON.parse(match[0]);
+      const veronicaDimensions = parseDimensions(parsed);
       return {
         status: parsed.status || 'NEEDS_REVIEW',
         score: Math.min(1, Math.max(0, parseFloat(parsed.score) || 0.5)),
         flags: Array.isArray(parsed.flags) ? parsed.flags : [],
         notes: parsed.notes || '',
+        veronicaDimensions,
       };
     }
   } catch { /* fallback below */ }
@@ -215,7 +240,7 @@ Reject or flag if:
 5. Email looks invalid
 
 Respond ONLY with this JSON (no other text):
-{"status":"VALID|NEEDS_REVIEW|FLAGGED","score":0.0-1.0,"flags":["flag1"],"notes":"brief reason for decision"}`;
+{"status":"VALID|NEEDS_REVIEW|FLAGGED","score":0.0-1.0,"flags":["flag1"],"notes":"brief reason for decision","dimensions":{"intentConfidence":0.0-1.0,"executionCredibility":0.0-1.0,"vpQuality":0.0-1.0,"trustScore":0.0-1.0,"commitmentSignal":0.0-1.0,"inferredCapitalSignal":0.0-1.0}}`;
 
   try {
     const raw = await callVeronica(prompt);
@@ -283,7 +308,15 @@ Respond ONLY with this JSON (no other text):
   "isCopyPaste": true|false,
   "relevanceScore": 0.0-1.0,
   "flags": ["flag1", "flag2"],
-  "reasoning": "one sentence explaining the decision"
+  "reasoning": "one sentence explaining the decision",
+  "dimensions": {
+    "intentConfidence": 0.0-1.0,
+    "executionCredibility": 0.0-1.0,
+    "vpQuality": 0.0-1.0,
+    "trustScore": 0.0-1.0,
+    "commitmentSignal": 0.0-1.0,
+    "inferredCapitalSignal": 0.0-1.0
+  }
 }`;
 
   try {
@@ -366,7 +399,16 @@ function ruleBasedIntakeCheck(data: {
   score = Math.max(0, Math.min(score, 0.65)); // Cap max at 0.65 so it's never VALID via fallback
   // Fallback NEVER returns VALID — best case is NEEDS_REVIEW
   const status = score >= 0.4 ? 'NEEDS_REVIEW' : 'FLAGGED';
-  return { status, score, flags, notes: flags.length ? `Issues: ${flags.join(', ')}` : 'Fallback check — no issues found but needs human review' };
+  // Synthetic dimensions from rule analysis
+  const veronicaDimensions: VeronicaDimensions = {
+    intentConfidence: status === 'FLAGGED' ? 0.25 : 0.45,
+    executionCredibility: data.proofLinks?.startsWith('http') ? 0.4 : 0.25,
+    vpQuality: flags.includes('description_too_short') ? 0.2 : 0.4,
+    trustScore: flags.includes('invalid_email') ? 0.2 : 0.5,
+    commitmentSignal: 0.4,
+    inferredCapitalSignal: 0.3,
+  };
+  return { status, score, flags, notes: flags.length ? `Issues: ${flags.join(', ')}` : 'Fallback check — no issues found but needs human review', veronicaDimensions };
 }
 
 function ruleBasedSubmissionCheck(data: {
@@ -409,7 +451,16 @@ function ruleBasedSubmissionCheck(data: {
   const notes = flags.length
     ? `Rule-based issues: ${flags.join(', ')}`
     : 'Fallback check — no issues found but needs human review';
-  return { status, score, flags, notes };
+  // Synthetic dimensions from rule analysis
+  const veronicaDimensions: VeronicaDimensions = {
+    intentConfidence: status === 'FLAGGED' ? 0.2 : 0.45,
+    executionCredibility: data.proofLink?.startsWith('http') ? 0.4 : 0.25,
+    vpQuality: flags.includes('description_too_short') || flags.includes('copy_paste_detected') ? 0.15 : 0.4,
+    trustScore: flags.includes('copy_paste_detected') || flags.includes('no_action_verb') ? 0.2 : 0.5,
+    commitmentSignal: 0.4,
+    inferredCapitalSignal: 0.3,
+  };
+  return { status, score, flags, notes, veronicaDimensions };
 }
 
 // ── Exported rule-based check for backtest use ────────────────────────────────

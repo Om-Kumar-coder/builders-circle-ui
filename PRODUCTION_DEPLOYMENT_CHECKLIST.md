@@ -1,7 +1,7 @@
 # Builder's Circle — Production Deployment Checklist
 
-> **Last updated:** May 27, 2026
-> **Based on:** [report.md](./report.md) — Phase 1 Complete, all 173 tests passing
+> **Last updated:** May 28, 2026
+> **Based on:** [report.md](./report.md) — Phase 1 + Phase 2 Complete, all 261 tests passing
 
 ---
 
@@ -27,13 +27,13 @@ Check off each item before deploying to production.
 
 - [ ] **Tests pass** — Run full test suite:
   ```bash
-  # Backend (113 tests)
-  cd backend && npx jest --no-coverage
+  # Backend (201 tests)
+  cd backend && npx jest --no-coverage --runInBand
   
   # Frontend components (60 tests)
   cd .. && npx jest --config jest.component.config.js --no-coverage
   
-  # Expected: 173 total, all passing
+  # Expected: 261 total, all passing
   ```
 - [ ] **TypeScript compiles** — Both frontend and backend:
   ```bash
@@ -455,7 +455,7 @@ cd backend && npx prisma migrate deploy    # Apply pending migrations
 npx prisma studio                          # Open DB admin UI (dev only)
 
 # Tests (pre-deploy)
-cd backend && npx jest --no-coverage       # Backend tests (113)
+cd backend && npx jest --no-coverage --runInBand  # Backend tests (201)
 cd .. && npx jest --config jest.component.config.js --no-coverage  # Frontend tests (60)
 ```
 

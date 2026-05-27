@@ -115,6 +115,7 @@ router.post('/submit', triageLimiter, async (req: Request, res: Response) => {
             veronicaScore: result.score,
             veronicaFlags: JSON.stringify(result.flags),
             veronicaNotes: result.notes,
+            veronicaDimensions: result.veronicaDimensions ? JSON.stringify(result.veronicaDimensions) : null,
             updatedAt: new Date(),
           },
         })
@@ -252,7 +253,7 @@ router.post('/admin/sync-sheet', authMiddleware, roleMiddleware(['admin', 'found
             reviewUserIntake({ name, email, roleType: guessRoleType(engagement, primaryRole), description: syncedSubmission.description })
               .then(result => prisma.gatekeeperReview.update({
                 where: { id: reviewId },
-                data: { status: result.status, veronicaScore: result.score, veronicaFlags: JSON.stringify(result.flags), veronicaNotes: result.notes, updatedAt: new Date() },
+                data: { status: result.status, veronicaScore: result.score, veronicaFlags: JSON.stringify(result.flags), veronicaNotes: result.notes, veronicaDimensions: result.veronicaDimensions ? JSON.stringify(result.veronicaDimensions) : null, updatedAt: new Date() },
               }))
           )
         ).catch(() => {});
