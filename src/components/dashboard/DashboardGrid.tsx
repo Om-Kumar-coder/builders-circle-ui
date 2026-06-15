@@ -79,9 +79,9 @@ export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
         <div className="space-y-1.5">
-          <h2 className="text-2xl font-bold text-gray-100">Dashboard</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-100">Dashboard</h2>
           <div className="flex items-center gap-2 flex-wrap">
             <TierBadge tier={deriveTier(user?.role, data?.effective)} size="sm" />
             <GroupBadge />
@@ -92,8 +92,8 @@ export default function DashboardGrid({ userId, cycleId }: DashboardGridProps) {
         <button
           onClick={refetch}
           disabled={loading}
-          className="flex items-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 
-            border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50"
+          className="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 
+            border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50 text-sm"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>

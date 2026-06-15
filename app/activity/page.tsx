@@ -71,27 +71,28 @@ function ActivityPageInner() {
     <MainLayout title="Activity">
       <div className="space-y-6 animate-in fade-in duration-300">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-100">Activity History</h1>
-            <p className="text-gray-400 mt-1">Track your submitted work and verification status</p>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-100">Activity History</h1>
+            <p className="text-gray-400 mt-1 text-sm">Track your submitted work and verification status</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {activeCycles.length > 0 && (
               <button
                 onClick={() => setShowSubmitForm(!showSubmitForm)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 
-                  text-white rounded-lg transition-colors font-medium"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 
+                  text-white rounded-lg transition-colors font-medium text-sm"
               >
                 <Plus className="w-4 h-4" />
-                <span>Submit Activity</span>
+                <span className="hidden sm:inline">Submit Activity</span>
+                <span className="sm:hidden">Submit</span>
               </button>
             )}
             <button
               onClick={refetch}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 
-                border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 
+                border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50 text-sm"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
@@ -102,13 +103,13 @@ function ActivityPageInner() {
         {/* Cycle Selection */}
         {activeCycles.length > 0 && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
               <label className="text-sm font-medium text-gray-300">Active Cycle:</label>
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <select
                   value={cycleId}
                   onChange={(e) => setSelectedCycleId(e.target.value)}
-                  className="appearance-none bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 pr-8 
+                  className="appearance-none bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 pr-8 w-full
                     text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 >
                   {activeCycles.map((cycle) => (
@@ -156,49 +157,49 @@ function ActivityPageInner() {
           <WorkHoursSummary userId={user!.id} cycleId={cycleId} />
         )}
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <p className="text-sm text-gray-400 mb-1">Total</p>
-            <p className="text-2xl font-bold text-gray-100">{counts.all}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-400 mb-1">Total</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-100">{counts.all}</p>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <p className="text-sm text-gray-400 mb-1">Verified</p>
-            <p className="text-2xl font-bold text-green-400">{counts.verified}</p>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-400 mb-1">Verified</p>
+            <p className="text-xl sm:text-2xl font-bold text-green-400">{counts.verified}</p>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <p className="text-sm text-gray-400 mb-1">Pending</p>
-            <p className="text-2xl font-bold text-yellow-400">{counts.pending}</p>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-400 mb-1">Pending</p>
+            <p className="text-xl sm:text-2xl font-bold text-yellow-400">{counts.pending}</p>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <p className="text-sm text-gray-400 mb-1">Changes Req.</p>
-            <p className="text-2xl font-bold text-orange-400">{counts.changes_requested}</p>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-400 mb-1">Changes Req.</p>
+            <p className="text-xl sm:text-2xl font-bold text-orange-400">{counts.changes_requested}</p>
           </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-            <p className="text-sm text-gray-400 mb-1">Rejected</p>
-            <p className="text-2xl font-bold text-red-400">{counts.rejected}</p>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-400 mb-1">Rejected</p>
+            <p className="text-xl sm:text-2xl font-bold text-red-400">{counts.rejected}</p>
           </div>
         </div>
 
         {/* Filter Bar */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2 text-gray-400">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex items-center gap-2 text-gray-400 shrink-0">
               <Filter className="w-4 h-4" />
               <span className="text-sm font-medium">Filter:</span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(['all', 'verified', 'pending', 'changes_requested', 'rejected'] as const).map((filterType) => (
                 <button
                   key={filterType}
                   onClick={() => setFilter(filterType)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                     filter === filterType
                       ? 'bg-indigo-600 text-white'
                       : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-300'
                   }`}
                 >
                   {filterType === 'changes_requested' ? 'Changes Req.' : filterType.charAt(0).toUpperCase() + filterType.slice(1)}
-                  <span className="ml-1.5 text-xs opacity-75">
+                  <span className="ml-1 text-xs opacity-75">
                     ({counts[filterType]})
                   </span>
                 </button>

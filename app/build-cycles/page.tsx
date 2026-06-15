@@ -35,15 +35,15 @@ export default function BuildCyclesPage() {
     <MainLayout title="Build Cycles">
       <div className="animate-in fade-in duration-300">
         {/* Page Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-100">Build Cycles</h1>
-            <p className="text-gray-400 mt-1">Manage and track build cycles for the Builder&apos;s Circle</p>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-100">Build Cycles</h1>
+            <p className="text-gray-400 mt-1 text-sm">Manage and track build cycles for the Builder&apos;s Circle</p>
           </div>
           {isAdmin && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center gap-2"
+              className="px-4 sm:px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center gap-2 text-sm"
             >
               <Zap className="w-4 h-4" />
               Create Cycle

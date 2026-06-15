@@ -280,11 +280,12 @@ export default function AdminPage() {
             </div>
             <button
               onClick={() => setShowActivityReview(!showActivityReview)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 
-                text-white rounded-lg transition-colors"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 
+                text-white rounded-lg transition-colors text-sm"
             >
               {showActivityReview ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              <span>{showActivityReview ? 'Hide' : 'Show'} Review Panel</span>
+              <span className="hidden sm:inline">{showActivityReview ? 'Hide' : 'Show'} Review Panel</span>
+              <span className="sm:hidden">{showActivityReview ? 'Hide' : 'Show'}</span>
             </button>
           </div>
 

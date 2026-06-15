@@ -83,9 +83,9 @@ export default function DocsVaultPage() {
   return (
     <MainLayout title="Docs Vault">
       {hasAnyAccess && <WatermarkOverlay />}
-      <div className="flex gap-6 h-full">
+      <div className="flex flex-col lg:flex-row gap-6 h-full">
         {/* Sidebar */}
-        <aside className="w-56 shrink-0">
+        <aside className="w-full lg:w-56 shrink-0">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-3">
             <div className="flex items-center gap-2 mb-3 px-1">
               <Shield className="w-4 h-4 text-indigo-400" />
@@ -114,7 +114,7 @@ export default function DocsVaultPage() {
             </div>
           )}
           {/* Toolbar */}
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
             {/* Search */}
             <div className="relative flex-1 min-w-48">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -126,13 +126,15 @@ export default function DocsVaultPage() {
               />
             </div>
 
+            {/* Filter selects group - wrap on mobile */}
+            <div className="flex flex-wrap gap-2">
             {/* Security label filter */}
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <select
                 value={label}
                 onChange={(e) => setLabel(e.target.value as SecurityLabel | '')}
-                className="bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-8 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500 appearance-none"
+                className="bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-8 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500 appearance-none w-full sm:w-auto"
               >
                 {LABELS.map((l) => (
                   <option key={l.value} value={l.value}>{l.label}</option>
@@ -146,7 +148,7 @@ export default function DocsVaultPage() {
               <select
                 value={project}
                 onChange={(e) => setProject(e.target.value)}
-                className="bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-8 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500 appearance-none"
+                className="bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-8 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500 appearance-none w-full sm:w-auto"
               >
                 <option value="">All Projects</option>
                 {projectOptions.map((name) => (
@@ -161,7 +163,7 @@ export default function DocsVaultPage() {
               <select
                 value={docType}
                 onChange={(e) => setDocType(e.target.value)}
-                className="bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-8 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500 appearance-none"
+                className="bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-8 py-2 text-sm text-gray-100 focus:outline-none focus:border-indigo-500 appearance-none w-full sm:w-auto"
               >
                 {DOC_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -187,6 +189,7 @@ export default function DocsVaultPage() {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
+            </div>
           </div>
 
           {/* Content */}

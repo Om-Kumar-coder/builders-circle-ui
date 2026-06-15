@@ -151,16 +151,16 @@ export default function TeamPage() {
     <MainLayout title="Team">
       <div className="space-y-6 animate-in fade-in duration-300">
         {/* Page Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-100">Team Members</h1>
-            <p className="text-gray-400 mt-1">View contributors and participation health</p>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-100">Team Members</h1>
+            <p className="text-gray-400 mt-1 text-sm">View contributors and participation health</p>
           </div>
           <button
             onClick={fetchTeamMembers}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 
-              border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 
+              border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50 text-sm w-fit"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh</span>

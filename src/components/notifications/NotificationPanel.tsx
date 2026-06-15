@@ -45,7 +45,7 @@ export default function NotificationPanel({
   const filtered = typeFilter === 'all' ? notifications : notifications.filter(n => n.type === typeFilter);
 
   return (
-    <div className="absolute right-0 mt-2 w-96 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-96 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-800">
         <div className="flex items-center gap-2">

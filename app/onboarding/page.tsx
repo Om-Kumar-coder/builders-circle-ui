@@ -253,7 +253,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* Step card */}
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-xl">
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 sm:p-6 md:p-8 shadow-xl">
           <div className="flex items-center gap-2 mb-6">
             <span className="text-xs font-medium text-indigo-400 bg-indigo-500/10 px-2 py-1 rounded-full">
               Step {displayStep} of {STEPS.length}

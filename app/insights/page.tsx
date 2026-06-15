@@ -112,15 +112,15 @@ export default function InsightsPage() {
   return (
     <MainLayout title="Insights">
       <div className="space-y-6 animate-in fade-in duration-300">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-100">Analytics & Insights</h1>
-            <p className="text-gray-400 mt-1">Participation health, logs, and behavior insights</p>
+            <h1 className="text-xl sm:text-2xl font-semibold text-gray-100">Analytics & Insights</h1>
+            <p className="text-gray-400 mt-1 text-sm">Participation health, logs, and behavior insights</p>
           </div>
           <button
             onClick={() => { refetch(); refetchLogs(); }}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-300 transition-colors disabled:opacity-50 text-sm w-fit"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -132,14 +132,14 @@ export default function InsightsPage() {
         )}
 
         {/* Folder Navigation */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-1.5 sm:gap-2 flex-wrap">
           {FOLDERS.filter(f => !f.adminOnly || isAdmin).map(f => {
             const isActive = activeFolder === f.key;
             return (
               <button
                 key={f.key}
                 onClick={() => setActiveFolder(f.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors border ${
                   isActive
                     ? 'bg-indigo-600 border-indigo-500 text-white'
                     : 'bg-gray-900 border-gray-800 text-gray-400 hover:text-gray-200 hover:border-gray-700'

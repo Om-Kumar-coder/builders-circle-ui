@@ -271,26 +271,26 @@ export default function DashboardPanel() {
         {/* Leaderboard table — spans 2 cols on large screens */}
         <div className="xl:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-gray-800 flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
-              <TrendingUp className="w-5 h-5 text-indigo-400" />
-              <h2 className="text-lg font-semibold text-gray-100">Score Leaderboard</h2>
+              <TrendingUp className="w-5 h-5 text-indigo-400 shrink-0" />
+              <h2 className="text-base sm:text-lg font-semibold text-gray-100">Score Leaderboard</h2>
               {!loading && (
                 <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
                   {pagination.total} total
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
               {/* Search */}
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Search by name or email..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-52 pl-9 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full sm:w-52 pl-9 pr-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
               <button
